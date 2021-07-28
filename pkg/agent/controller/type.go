@@ -1,0 +1,39 @@
+/*
+Copyright 2021 OECP Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
+
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	"github.com/oecp/open-local-storage-service/pkg/agent/common"
+	clientset "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
+)
+
+// Agent is the primary "node agent" for open-local-storage-service that runs on each node
+type Agent struct {
+	*common.Configuration
+	// kubeclientset is a standard kubernetes clientset
+	kubeclientset kubernetes.Interface
+	// lssclientset is a clientset for our own API group
+	lssclientset  clientset.Interface
+	snapclientset snapshot.Interface
+	// recorder is an event recorder for recording Event resources to the
+	// Kubernetes API.
+	recorder record.EventRecorder
+}

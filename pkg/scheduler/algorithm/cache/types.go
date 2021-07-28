@@ -1,0 +1,169 @@
+package cache
+
+import (
+	"sync"
+
+	lsstype "github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local-storage-service/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog"
+)
+
+type NodeInfo struct {
+	NodeName string `json:"nodeName,string"`
+	// VGs is the volume group
+	VGs         map[ResourceName]SharedResource    `json:"vgs,omitempty"`
+	MountPoints map[ResourceName]ExclusiveResource `json:"mps,omitempty"`
+	// Devices only contains the whitelist raw devices
+	Devices      map[ResourceName]ExclusiveResource `json:"devices,omitempty"`
+	AllocatedNum int64                              `json:"num,number"`
+	LocalPVs     map[string]corev1.PersistentVolume `json:"pvs,omitempty"`
+}
+
+type NodeCache struct {
+	rwLock sync.RWMutex
+	NodeInfo
+}
+
+type ResourceType string
+type ResourceName string
+
+const (
+	SharedResourceType    ResourceType = "Shared"
+	ExclusiveResourceType ResourceType = "Exclusive"
+)
+
+type ExclusiveResource struct {
+	Name      string            `json:"name,string"`
+	Device    string            `json:"device,string"`
+	Capacity  int64             `json:"cap,number"`
+	MediaType lsstype.MediaType `json:"type,string"`
+	// "IsAllocated = true" means the disk is used by PV
+	IsAllocated bool `json:"isAllocated,boolean"`
+}
+
+type SharedResource struct {
+	Name      string `json:"name,string"`
+	Capacity  int64  `json:"cap,number"`
+	Requested int64  `json:"req,number"`
+}
+
+type AllocatedUnit struct {
+	NodeName   string
+	VolumeType lsstype.VolumeType
+	Requested  int64 // requested size from pvc
+	Allocated  int64 // actual allocated size for the pvc
+	VgName     string
+	Device     string
+	MountPoint string
+	PVCName    string
+}
+
+// pvc and binding info mapping
+type BindingMap map[string]*AllocatedUnit
+
+func (bm BindingMap) IsPVCExists(pvc string) bool {
+	if bm == nil {
+		return false
+	}
+	if _, ok := bm[pvc]; ok {
+		return ok
+	}
+	return false
+}
+
+// PvcStatus refers to the pvc(for a pod) and its status of selected node
+// string => pvc namespace/name
+// bool => true/false true means volume.kubernetes.io/selected-node
+type PvcStatusInfo map[string]bool
+
+type PodPvcMapping struct {
+	// PodPvcStatus count ref for a specified pod
+	// string => pod namespace/name
+	// PvcStatus => pvc status
+	// podName <=> pvcStatusInfo
+	PodPvcInfo map[string]PvcStatusInfo
+	// store the pvc to pod mapping for faster index by pvc
+	// pvcName <=> podName
+	PvcPod map[string]string
+}
+
+func NewPodPvcMapping() *PodPvcMapping {
+	return &PodPvcMapping{
+		PodPvcInfo: make(map[string]PvcStatusInfo),
+		PvcPod:     make(map[string]string),
+	}
+}
+
+func NewPvcStatusInfo() PvcStatusInfo {
+	return make(PvcStatusInfo)
+}
+
+// PutPod adds or updates the pod and pvc mapping
+// it assures they are open-local-storage-service type and contain all the requested PVCs
+func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
+	info := NewPvcStatusInfo()
+	var pvcName string
+	for _, pvc := range pvcs {
+		f := utils.PvcContainsSelectedNode(pvc)
+		pvcName = utils.PVCName(pvc)
+		info[pvcName] = f
+		p.PvcPod[pvcName] = podName
+		p.PodPvcInfo[podName] = info
+		log.V(6).Infof("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+	}
+	return
+}
+
+// DeletePod deletes pod and all its pvcs for cache
+func (p *PodPvcMapping) DeletePod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
+	var pvcName string
+	delete(p.PodPvcInfo, podName)
+	log.V(6).Infof("[DeletePod]deleted pod cache %s", podName)
+
+	for _, pvc := range pvcs {
+		pvcName = utils.PVCName(pvc)
+		delete(p.PvcPod, pvcName)
+		log.V(6).Infof("[DeletePod]deleted pvc %s from cache", pvcName)
+	}
+	return
+}
+
+// PutPvc adds or updates the pod and pvc mapping
+// it assure the pvcs contains all the requested PVCs
+func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
+	pvcName := utils.PVCName(pvc)
+	podName := p.PvcPod[pvcName]
+	info := p.PodPvcInfo[podName]
+	if len(podName) <= 0 || info == nil {
+		log.V(5).Infof("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
+		return
+	}
+	f := utils.PvcContainsSelectedNode(pvc)
+	info[pvcName] = f
+	log.V(6).Infof("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+	return
+}
+
+// DeletePvc deletes pvc key from change
+func (p *PodPvcMapping) DeletePvc(pvc *corev1.PersistentVolumeClaim) {
+	pvcName := utils.PVCName(pvc)
+	delete(p.PvcPod, pvcName)
+	log.V(6).Infof("[DeletePvc]deleted pvc %s from cache", pvcName)
+	return
+}
+
+// IsPodPvcReady defines whether a pvc and its related pvcs are ready(with selected node)
+// for pv provisioning; it returns true only when all pvcs of a pod are marked as ready for
+// provisioning.
+func (p *PodPvcMapping) IsPodPvcReady(pvc *corev1.PersistentVolumeClaim) bool {
+	pvcName := utils.PVCName(pvc)
+	podName := p.PvcPod[pvcName]
+	pvcInfo := p.PodPvcInfo[podName]
+	for _, selected := range pvcInfo {
+		if !selected {
+			return false
+		}
+	}
+	return true
+}

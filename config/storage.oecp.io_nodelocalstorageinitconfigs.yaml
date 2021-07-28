@@ -1,0 +1,288 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.5.0
+  creationTimestamp: null
+  name: nodelocalstorageinitconfigs.storage.oecp.io
+spec:
+  group: storage.oecp.io
+  names:
+    kind: NodeLocalStorageInitConfig
+    listKind: NodeLocalStorageInitConfigList
+    plural: nodelocalstorageinitconfigs
+    shortNames:
+    - nlsc
+    singular: nodelocalstorageinitconfig
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NodeLocalStorageInitConfig is configuration for agent to create NodeLocalStorage
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NodeLocalStorageInitConfigSpec is spec of NodeLocalStorageInitConfig
+            properties:
+              globalConfig:
+                description: GlobalConfig is configuration for agent to create default NodeLocalStorage
+                properties:
+                  listConfig:
+                    properties:
+                      devices:
+                        description: Devices defines the user specified Devices to be scheduled, only raw device specified here can be picked by scheduler
+                        properties:
+                          exclude:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                          include:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                        type: object
+                      mountPoints:
+                        description: BlacklistMountPoints defines the user specified mount points which are not allowed for scheduling
+                        properties:
+                          exclude:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                          include:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                        type: object
+                      vgs:
+                        description: VGs defines the user specified VGs to be scheduled only VGs specified here can be picked by scheduler
+                        properties:
+                          exclude:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                          include:
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                        type: object
+                    type: object
+                  resourceToBeInited:
+                    properties:
+                      mountpoints:
+                        description: MountPoints defines the user specified mount points, which will be initialized by Filtered Agent
+                        items:
+                          properties:
+                            device:
+                              description: Device is the device underlying the mount point
+                              maxLength: 128
+                              minLength: 1
+                              pattern: ^(/[^/ ]*)+/?$
+                              type: string
+                            fsType:
+                              description: FsType is filesystem type
+                              maxLength: 128
+                              minLength: 1
+                              type: string
+                            options:
+                              description: Options is a list of mount options
+                              items:
+                                type: string
+                              type: array
+                            path:
+                              description: Path is the path of mount point
+                              maxLength: 128
+                              minLength: 1
+                              pattern: ^(/[^/ ]*)+/?$
+                              type: string
+                          required:
+                          - device
+                          - path
+                          type: object
+                        maxItems: 50
+                        type: array
+                      vgs:
+                        description: VGs defines the user specified VGs, which will be initialized by Filtered Agent
+                        items:
+                          properties:
+                            devices:
+                              description: Device can be whole disk or disk partition which will be initialized as Physical Volume
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                            name:
+                              description: Name is the name of volume group
+                              maxLength: 128
+                              minLength: 1
+                              type: string
+                          required:
+                          - devices
+                          - name
+                          type: object
+                        maxItems: 50
+                        type: array
+                    type: object
+                type: object
+              nodesConfig:
+                items:
+                  description: NodeConfig is configuration for agent to create NodeLocalStorage of specific node
+                  properties:
+                    listConfig:
+                      properties:
+                        devices:
+                          description: Devices defines the user specified Devices to be scheduled, only raw device specified here can be picked by scheduler
+                          properties:
+                            exclude:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                            include:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                          type: object
+                        mountPoints:
+                          description: BlacklistMountPoints defines the user specified mount points which are not allowed for scheduling
+                          properties:
+                            exclude:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                            include:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                          type: object
+                        vgs:
+                          description: VGs defines the user specified VGs to be scheduled only VGs specified here can be picked by scheduler
+                          properties:
+                            exclude:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                            include:
+                              items:
+                                type: string
+                              maxItems: 50
+                              type: array
+                          type: object
+                      type: object
+                    resourceToBeInited:
+                      properties:
+                        mountpoints:
+                          description: MountPoints defines the user specified mount points, which will be initialized by Filtered Agent
+                          items:
+                            properties:
+                              device:
+                                description: Device is the device underlying the mount point
+                                maxLength: 128
+                                minLength: 1
+                                pattern: ^(/[^/ ]*)+/?$
+                                type: string
+                              fsType:
+                                description: FsType is filesystem type
+                                maxLength: 128
+                                minLength: 1
+                                type: string
+                              options:
+                                description: Options is a list of mount options
+                                items:
+                                  type: string
+                                type: array
+                              path:
+                                description: Path is the path of mount point
+                                maxLength: 128
+                                minLength: 1
+                                pattern: ^(/[^/ ]*)+/?$
+                                type: string
+                            required:
+                            - device
+                            - path
+                            type: object
+                          maxItems: 50
+                          type: array
+                        vgs:
+                          description: VGs defines the user specified VGs, which will be initialized by Filtered Agent
+                          items:
+                            properties:
+                              devices:
+                                description: Device can be whole disk or disk partition which will be initialized as Physical Volume
+                                items:
+                                  type: string
+                                maxItems: 50
+                                type: array
+                              name:
+                                description: Name is the name of volume group
+                                maxLength: 128
+                                minLength: 1
+                                type: string
+                            required:
+                            - devices
+                            - name
+                            type: object
+                          maxItems: 50
+                          type: array
+                      type: object
+                    selector:
+                      description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                          items:
+                            description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector applies to.
+                                type: string
+                              operator:
+                                description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -30,7 +30,7 @@ var (
 
 var VersionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version of open-local-storage-service",
+	Short: "Print the version of openlss",
 	Run: func(cmd *cobra.Command, args []string) {
 		if Verbose {
 			fmt.Printf("%s\n", version.NameWithVersion(true))

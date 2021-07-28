@@ -34,7 +34,7 @@ import (
 
 var (
 	MainCmd = &cobra.Command{
-		Use: "open-local-storage-service",
+		Use: "openlss",
 	}
 	VERSION  string = ""
 	COMMITID string = ""
@@ -44,7 +44,7 @@ func main() {
 	addCommands()
 	log.Infof("Version: %s, Commit: %s", VERSION, COMMITID)
 	if err := MainCmd.Execute(); err != nil {
-		fmt.Printf("open-local-storage-service start error: %+v\n", err)
+		fmt.Printf("openlss start error: %+v\n", err)
 		os.Exit(1)
 	}
 }

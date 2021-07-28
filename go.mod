@@ -31,7 +31,6 @@ require (
 	k8s.io/kubernetes v1.18.9
 	k8s.io/sample-controller v0.0.0-20191004105128-02bcf064a96b
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
-	sigs.k8s.io/controller-tools v0.5.0 // indirect
 )
 
 replace (

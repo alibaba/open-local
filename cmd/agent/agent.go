@@ -54,16 +54,16 @@ func init() {
 }
 
 func (option *agentOption) addFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&option.Config, "config", common.DefaultConfigPath, "Path to the open-local-storage-service config file to use.")
+	fs.StringVar(&option.Config, "config", common.DefaultConfigPath, "Path to the open-local config file to use.")
 	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
 	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.StringVar(&option.NodeName, "nodename", option.NodeName, "Kubernetes node name.")
 	fs.StringVar(&option.SysPath, "path.sysfs", "/sys", "Path of sysfs mountpoint")
-	fs.StringVar(&option.MountPath, "path.mount", "/mnt/open-local-storage-service", "Path that specifies mount path of local volumes")
+	fs.StringVar(&option.MountPath, "path.mount", "/mnt/open-local", "Path that specifies mount path of local volumes")
 	fs.IntVar(&option.Interval, "interval", common.DefaultInterval, "The interval that the agent checks the local storage at one time")
-	fs.StringVar(&option.LVNamePrefix, "lvname", "open-local-storage-service", "The prefix of Logical Volume Name created by open-local-storage-service")
+	fs.StringVar(&option.LVNamePrefix, "lvname", "local", "The prefix of Logical Volume Name created by open-local")
 	fs.StringVar(&option.RegExp, "regexp", "^(s|v|xv)d[a-z]+$", "regexp is used to filter device names")
-	fs.StringVar(&option.InitConfig, "initconfig", "open-local-storage-service", "initconfig is NodeLocalStorageInitConfig(CRD) for agent to create NodeLocalStorage")
+	fs.StringVar(&option.InitConfig, "initconfig", "open-local", "initconfig is NodeLocalStorageInitConfig(CRD) for agent to create NodeLocalStorage")
 }
 
 // Start will start agent

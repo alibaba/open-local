@@ -5,6 +5,9 @@
 
 - 本地需装有[minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/)，驱动选择virtualbox。
 
+### 构建&测试
+- 使用minikube docker守护进程：eval $(minikube docker-env)
+
 ### 添加磁盘
 - 默认启动的minikube只有一块磁盘（/dev/sda），添加磁盘步骤如下
   - 切换minikube目录：cd ~/.minikube/machines/minikube/minikube

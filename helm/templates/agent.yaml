@@ -1,0 +1,89 @@
+apiVersion: storage.k8s.io/v1beta1
+kind: CSIDriver
+metadata:
+  name: {{ .Values.agent.driver }}
+spec:
+  attachRequired: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.agent.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.agent.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.agent.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.agent.name }}
+    spec:
+      tolerations:
+        - operator: Exists
+      serviceAccount: {{ .Values.name }}
+      priorityClassName: system-node-critical
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: agent
+        args :
+          - agent
+          - "--nodename=$(KUBE_NODE_NAME)"
+          - "--path.sysfs=/host_sys"
+          - "--path.mount={{ .Values.agent.localvolume_base_path }}"
+          - "--regexp={{ .Values.agent.regexp }}"
+          - "--initconfig={{ .Values.name }}"
+          - "--interval=30"
+        env:
+          - name: KUBE_NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: HOST_SYS
+            value: "/host_sys"
+          - name: TZ
+            value: Asia/Shanghai
+        securityContext:
+          privileged: true
+          capabilities:
+            add: ["SYS_ADMIN"]
+          allowPrivilegeEscalation: true
+        image: {{ .Values.images.agent.image }}:{{ .Values.images.agent.tag }}
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            cpu: 400m
+            memory: 200Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi
+        volumeMounts:
+          - mountPath: /dev
+            mountPropagation: "HostToContainer"
+            name: host-dev
+          - name: sys
+            readOnly: true
+            mountPropagation: "HostToContainer"
+            mountPath: "/host_sys"
+          - mountPath: {{ .Values.agent.localvolume_base_path }}
+            name: localvolume
+            mountPropagation: "Bidirectional"
+      volumes:
+        - name: host-dev
+          hostPath:
+            path: /dev
+        - name: sys
+          hostPath:
+            path: "/sys"
+        - name: localvolume
+          hostPath:
+            path: {{ .Values.agent.localvolume_base_path }}
+            type: DirectoryOrCreate
+  updateStrategy:
+    type: RollingUpdate
+

@@ -22,7 +22,7 @@ import (
 
 const (
 	// Subsystem is prometheus subsystem name.
-	Subsystem = "open-local-storage-service"
+	Subsystem = "local"
 )
 
 var (

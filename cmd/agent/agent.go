@@ -98,7 +98,7 @@ func Start(opt *agentOption) error {
 
 	agent := controller.NewAgent(config, kubeClient, lssClient, snapClient)
 
-	log.Info("starting open-local-storage-service agent")
+	log.Info("starting open-local agent")
 	if err = agent.Run(stopCh); err != nil {
 		return fmt.Errorf("Error running agent: %s", err.Error())
 	}

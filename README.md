@@ -16,6 +16,7 @@
 - 存储卷监控
 
 ## 开发指南
+详见[文档](doc/develop.md)
 ```bash
 mkdir -p $GOPATH/src/github.com/oecp/
 cd $GOPATH/src/github.com/oecp/

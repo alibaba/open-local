@@ -17,7 +17,7 @@ limitations under the License.
 package priorities
 
 import (
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
@@ -82,7 +82,7 @@ func NewPrioritize(ctx *algorithm.SchedulingContext) *Prioritize {
 	if ctx == nil {
 		panic("scheduling context must not be nil")
 	}
-	return &Prioritize{"open-local-storage-service-prioritize", ctx, DefaultPrioritizeFuncs}
+	return &Prioritize{"open-local-prioritize", ctx, DefaultPrioritizeFuncs}
 }
 
 func InitHostPriorityList(nodeNames []string) schedulerapi.HostPriorityList {

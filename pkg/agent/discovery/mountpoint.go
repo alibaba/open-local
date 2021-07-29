@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"reflect"
 
-	lssv1alpha1 "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/oecp/open-local/pkg/utils"
 	"github.com/ricochet2200/go-disk-usage/du"
 	"k8s.io/klog"
 	"k8s.io/utils/mount"

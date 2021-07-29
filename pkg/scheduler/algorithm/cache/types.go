@@ -19,8 +19,8 @@ package cache
 import (
 	"sync"
 
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	lsstype "github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )
@@ -116,7 +116,7 @@ func NewPvcStatusInfo() PvcStatusInfo {
 }
 
 // PutPod adds or updates the pod and pvc mapping
-// it assures they are open-local-storage-service type and contain all the requested PVCs
+// it assures they are open-local type and contain all the requested PVCs
 func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
 	info := NewPvcStatusInfo()
 	var pvcName string

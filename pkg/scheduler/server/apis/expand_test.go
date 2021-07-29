@@ -21,8 +21,8 @@ package apis
 
 // 	corev1 "k8s.io/api/core/v1"
 // 	"k8s.io/apimachinery/pkg/api/resource"
-// 	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-// 	"github.com/oecp/open-local-storage-service/test/framework"
+// 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+// 	"github.com/oecp/open-local/test/framework"
 // )
 
 // func TestExpandPVC(t *testing.T) {

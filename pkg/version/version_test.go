@@ -60,7 +60,7 @@ func TestNameWithVersion(t *testing.T) {
 			args: args{
 				longFormat: true,
 			},
-			want: "open-local-storage-service: -",
+			want: "open-local: -",
 		},
 	}
 	for _, tt := range tests {

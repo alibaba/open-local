@@ -20,8 +20,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/errors"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/errors"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
@@ -182,7 +182,7 @@ func NewPredicate(ctx *algorithm.SchedulingContext) *Predicate {
 	if ctx == nil {
 		panic("scheduling context must not be nil")
 	}
-	return &Predicate{"open-local-storage-service-predicate", ctx, DefaultPredicateFuncs}
+	return &Predicate{"open-local-predicate", ctx, DefaultPredicateFuncs}
 }
 
 func normalizeError(err error) (isError bool, failedReason []string) {

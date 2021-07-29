@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/priorities"
+	"github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
 	"github.com/spf13/pflag"
 	log "k8s.io/klog"
 )
@@ -44,7 +44,7 @@ func (option *ExtenderOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
 	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.Int32Var(&option.Port, "port", option.Port, "Port for receiving scheduler callback, set to '0' to disable http server")
-	fs.StringVar(&option.EnabledNodeAntiAffinity, "enabled-node-anti-affinity", option.EnabledNodeAntiAffinity, "whether enable node anti-affinity for open-local-storage-service storage backend, example format: 'MountPoint=5,LVM=3'")
+	fs.StringVar(&option.EnabledNodeAntiAffinity, "enabled-node-anti-affinity", option.EnabledNodeAntiAffinity, "whether enable node anti-affinity for open-local storage backend, example format: 'MountPoint=5,LVM=3'")
 	fs.StringVar(&option.Strategy, "scheduler-strategy", "binpack", "Scheduler Strategy: binpack or spread")
 }
 

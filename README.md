@@ -27,7 +27,7 @@
 ```bash
 mkdir -p $GOPATH/src/github.com/oecp/
 cd $GOPATH/src/github.com/oecp/
-git clone https://github.com/oecp/open-local-storage-service.git
+git clone https://github.com/oecp/open-local.git
 # build binary
 make
 # build image

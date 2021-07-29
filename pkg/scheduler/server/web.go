@@ -23,19 +23,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 
 	"github.com/julienschmidt/httprouter"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	clientset "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
-	"github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions"
-	"github.com/oecp/open-local-storage-service/pkg/metrics"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/predicates"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/priorities"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/statussyncer"
+	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
+	"github.com/oecp/open-local/pkg/generated/clientset/versioned/scheme"
+	informers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
+	"github.com/oecp/open-local/pkg/metrics"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/predicates"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
+	"github.com/oecp/open-local/pkg/scheduler/statussyncer"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -160,10 +160,10 @@ func (e *ExtenderServer) Start(stopCh <-chan struct{}) {
 	e.WaitForCacheSync(stopCh)
 	e.currentWorkingRoutines = 0
 	log.Infof("maxConcurrentWorkingRoutines was set to %d", MaxConcurrentWorkingRoutines)
-	log.Info("started open-local-storage-service scheduler extender")
+	log.Info("started open-local scheduler extender")
 	go e.TriggerPendingPodReschedule(stopCh)
 	<-stopCh
-	log.Info("Shutting down open-local-storage-service scheduler extender")
+	log.Info("Shutting down open-local scheduler extender")
 }
 
 func (e *ExtenderServer) InitRouter() {

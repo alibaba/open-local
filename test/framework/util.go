@@ -19,7 +19,7 @@ package framework
 import (
 	"fmt"
 
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

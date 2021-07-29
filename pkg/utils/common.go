@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
-	nodelocalstorage "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
+	lsstype "github.com/oecp/open-local/pkg"
+	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -85,7 +85,7 @@ func IsLocalPV(pv *corev1.PersistentVolume) (isLocalPV bool, node string) {
 	return isLocalPV, node
 }
 
-// GetVGNameFromCsiPV extracts vgName from open-local-storage-service csi PV via
+// GetVGNameFromCsiPV extracts vgName from open-local csi PV via
 // VolumeAttributes
 func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	csi := pv.Spec.CSI
@@ -100,7 +100,7 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	return ""
 }
 
-// GetDeviceNameFromCsiPV extracts Device Name from open-local-storage-service csi PV via
+// GetDeviceNameFromCsiPV extracts Device Name from open-local csi PV via
 // VolumeAttributes
 func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	csi := pv.Spec.CSI
@@ -115,7 +115,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	return ""
 }
 
-// GetMountPointFromCsiPV extracts MountPoint from open-local-storage-service csi PV via
+// GetMountPointFromCsiPV extracts MountPoint from open-local csi PV via
 // VolumeAttributes
 func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	csi := pv.Spec.CSI
@@ -371,7 +371,7 @@ func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c core
 		if isSnapshot == true && containReadonlySnapshot == false {
 			return false, ""
 		}
-		// check open-local-storage-service type
+		// check open-local type
 		if value, exist := attributes[lsstype.VolumeTypeKey]; exist {
 			if lsstype, err := lsstype.VolumeTypeFromString(value); err == nil {
 				return true, lsstype

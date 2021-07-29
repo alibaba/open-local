@@ -17,29 +17,29 @@ limitations under the License.
 package framework
 
 import (
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
 	// node releated
-	DefaultNode = MakeNode("open-local-storage-service-node")
+	DefaultNode = MakeNode("open-local-node")
 	// lvm related
-	DefaultLVMSC = MakeDefaultLVMStorageClass("open-local-storage-service-lvm-sc", "share")
+	DefaultLVMSC = MakeDefaultLVMStorageClass("open-local-lvm-sc", "share")
 
-	DefaultLVMPVC = MakeLVMPVC("open-local-storage-service-lvm-pvc", "default", DefaultLVMSC)
+	DefaultLVMPVC = MakeLVMPVC("open-local-lvm-pvc", "default", DefaultLVMSC)
 
-	DefaultLVMPV = MakeLVMPV("open-local-storage-service-lvm-pv", DefaultNode.Name)
+	DefaultLVMPV = MakeLVMPV("open-local-lvm-pv", DefaultNode.Name)
 	// mp related
-	DefaultMPSC  = MakeDefaultMPStorageClass("open-local-storage-service-mp-sc")
-	DefaultMPPVC = MakeMPPVC("open-local-storage-service-mp-pvc", "default", DefaultMPSC)
-	DefaultMPPV  = MakeMPPV("open-local-storage-service-mp-pv", DefaultNode.Name)
+	DefaultMPSC  = MakeDefaultMPStorageClass("open-local-mp-sc")
+	DefaultMPPVC = MakeMPPVC("open-local-mp-pvc", "default", DefaultMPSC)
+	DefaultMPPV  = MakeMPPV("open-local-mp-pv", DefaultNode.Name)
 
 	// device related
-	DefaultDeviceSC  = MakeDefaultDeviceStorageClass("open-local-storage-service-device-sc")
-	DefaultDevicePVC = MakeDevicePVC("open-local-storage-service-device-pvc", "default", DefaultDeviceSC)
-	DefaultDeivcePV  = MakeDevicePV("open-local-storage-service-device-pv", DefaultNode.Name)
+	DefaultDeviceSC  = MakeDefaultDeviceStorageClass("open-local-device-sc")
+	DefaultDevicePVC = MakeDevicePVC("open-local-device-pvc", "default", DefaultDeviceSC)
+	DefaultDeivcePV  = MakeDevicePV("open-local-device-pv", DefaultNode.Name)
 
 	// vg related
 	DefaultVGName = "share"

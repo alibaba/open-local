@@ -22,9 +22,9 @@ import (
 
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	clientset "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
-	informers "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/server"
+	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
+	informers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
+	"github.com/oecp/open-local/pkg/scheduler/server"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -79,7 +79,7 @@ func Run(opt *ExtenderOptions) error {
 	}
 	lssClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("error building open-local-storage-service clientset: %s", err.Error())
+		return fmt.Errorf("error building open-local clientset: %s", err.Error())
 	}
 	snapClient, err := volumesnapshot.NewForConfig(cfg)
 	if err != nil {
@@ -92,7 +92,7 @@ func Run(opt *ExtenderOptions) error {
 
 	extenderServer := server.NewExtenderServer(kubeClient, lssClient, snapClient, kubeInformerFactory, localStorageInformerFactory, snapshotInformerFactory, opt.Port, weights)
 
-	log.Info("starting open-local-storage-service scheduler extender")
+	log.Info("starting open-local scheduler extender")
 	kubeInformerFactory.Start(stopCh)
 	localStorageInformerFactory.Start(stopCh)
 	snapshotInformerFactory.Start(stopCh)

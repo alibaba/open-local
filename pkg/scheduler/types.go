@@ -17,7 +17,7 @@ limitations under the License.
 package scheduler
 
 import (
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 )
 
 // BindingInfo represents the pvc and mp/lvm/device mapping

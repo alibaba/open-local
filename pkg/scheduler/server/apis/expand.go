@@ -19,10 +19,10 @@ package apis
 import (
 	"fmt"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )
@@ -66,7 +66,7 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 	containReadonlySnapshot := false
 	isLSS, lssType := utils.IsLSSPV(pv, ctx.StorageV1Informers, ctx.CoreV1Informers, containReadonlySnapshot)
 	if !isLSS {
-		err := fmt.Errorf("unable to expand non-open-local-storage-service PV %s", pv.Name)
+		err := fmt.Errorf("unable to expand non-open-local PV %s", pv.Name)
 		log.Errorf(err.Error())
 		return err
 	}

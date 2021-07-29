@@ -27,14 +27,14 @@ import (
 	"k8s.io/klog"
 
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	clientset "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
+	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/agent/common"
-	"github.com/oecp/open-local-storage-service/pkg/agent/discovery"
+	lsstype "github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/agent/common"
+	"github.com/oecp/open-local/pkg/agent/discovery"
 )
 
-// NewAgent returns a new open-local-storage-service agent
+// NewAgent returns a new open-local agent
 func NewAgent(
 	config *common.Configuration,
 	kubeclientset kubernetes.Interface,
@@ -60,7 +60,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 
 	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting open-local-storage-service agent")
+	klog.Info("Starting open-local agent")
 	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.lssclientset, c.snapclientset)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 	go wait.Until(discoverer.InitResource, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
@@ -77,7 +77,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	}
 	go wait.Until(discoverer.ExpandSnapshotLVIfNeeded, time.Duration(expandSnapInterval)*time.Second, stopCh)
 
-	klog.Info("Started open-local-storage-service agent")
+	klog.Info("Started open-local agent")
 	<-stopCh
 	klog.Info("Shutting down agent")
 

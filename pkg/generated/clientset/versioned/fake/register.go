@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	storagev1alpha1 "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
+	storagev1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

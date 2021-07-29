@@ -20,17 +20,17 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	nodelocalstorage "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local-storage-service/pkg/metrics"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg"
+	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/oecp/open-local/pkg/metrics"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )
 
 type ClusterInfo struct {
 	Nodes map[string]*NodeCache `json:"Nodes,omitempty"`
-	// Only records the requested open-local-storage-service unit to avoid duplicate scheduling request
+	// Only records the requested open-local unit to avoid duplicate scheduling request
 	BindingInfo BindingMap `json:"bindingInfo,omitempty"`
 	// PvcMapping records requested pod and pvc mapping
 	PvcMapping *PodPvcMapping `json:"pvcMapping"`

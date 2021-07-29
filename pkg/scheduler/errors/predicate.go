@@ -19,7 +19,7 @@ package errors
 import (
 	"fmt"
 
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 )
 
 // A generic interface for getting

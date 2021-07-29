@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/errors"
+	"github.com/oecp/open-local/pkg/scheduler/errors"
 
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	lsstype "github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )

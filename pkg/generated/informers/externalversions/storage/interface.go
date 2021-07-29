@@ -19,8 +19,8 @@ limitations under the License.
 package storage
 
 import (
-	internalinterfaces "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions/storage/v1alpha1"
+	internalinterfaces "github.com/oecp/open-local/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/oecp/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

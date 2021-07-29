@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
-	nodelocalstorage "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg"
+	lsstype "github.com/oecp/open-local/pkg"
+	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )
@@ -300,7 +300,7 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service lvm pv", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local lvm pv", pv.Name)
 	} else {
 		existing, ok := nc.LocalPVs[pv.Name]
 		if ok {
@@ -340,7 +340,7 @@ func (nc *NodeCache) RemoveLVM(pv *corev1.PersistentVolume) error {
 	// Hardcode to volume group named vg
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service pv(lvm with name)", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local pv(lvm with name)", pv.Name)
 	}
 	if vg, ok := nc.VGs[ResourceName(vgName)]; ok {
 		oldUsed := vg.Requested
@@ -366,7 +366,7 @@ func (nc *NodeCache) AddLocalMountPoint(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	diskName := utils.GetMountPointFromCsiPV(pv)
 	if len(diskName) == 0 {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service pv(disk with name)", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local pv(disk with name)", pv.Name)
 	} else {
 		if disk, ok := nc.MountPoints[ResourceName(diskName)]; ok {
 			if disk.IsAllocated == false {
@@ -393,7 +393,7 @@ func (nc *NodeCache) RemoveLocalMountPoint(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	diskName := utils.GetMountPointFromCsiPV(pv)
 	if len(diskName) == 0 {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service pv(mount point with name)", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local pv(mount point with name)", pv.Name)
 	}
 	if disk, ok := nc.MountPoints[ResourceName(diskName)]; ok {
 		disk.IsAllocated = false
@@ -416,7 +416,7 @@ func (nc *NodeCache) AddLocalDevice(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	deviceName := utils.GetDeviceNameFromCsiPV(pv)
 	if len(deviceName) == 0 {
-		err := fmt.Errorf("pv %s is not a valid open-local-storage-service pv(device with name)", pv.Name)
+		err := fmt.Errorf("pv %s is not a valid open-local pv(device with name)", pv.Name)
 		return err
 	} else {
 		if device, ok := nc.Devices[ResourceName(deviceName)]; ok {
@@ -443,7 +443,7 @@ func (nc *NodeCache) RemoveLocalDevice(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	deviceName := utils.GetDeviceNameFromCsiPV(pv)
 	if len(deviceName) == 0 {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service pv(device with name)", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local pv(device with name)", pv.Name)
 	}
 	if device, ok := nc.Devices[ResourceName(deviceName)]; ok {
 		device.IsAllocated = false

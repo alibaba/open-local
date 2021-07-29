@@ -21,15 +21,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/component-base/logs"
 	log "k8s.io/klog"
 
-	"github.com/oecp/open-local-storage-service/cmd/agent"
-	"github.com/oecp/open-local-storage-service/cmd/scheduler"
-	"github.com/oecp/open-local-storage-service/cmd/version"
+	"github.com/oecp/open-local/cmd/agent"
+	"github.com/oecp/open-local/cmd/scheduler"
+	"github.com/oecp/open-local/cmd/version"
 )
 
 var (

@@ -24,9 +24,9 @@ import (
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/utils"
 	log "k8s.io/klog"
 )
 
@@ -73,7 +73,7 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 					log.V(3).Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
 					devicePVCs = append(devicePVCs, pvc)
 				default:
-					log.V(5).Infof("not a open-local-storage-service pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
+					log.V(5).Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
 				}
 			}
 		}
@@ -135,8 +135,8 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 }
 
 /*
-	ConvertAUFromPV convert an AllocatedUnit from an bound open-local-storage-service PV
-	we assure the pv is a valid open-local-storage-service pv
+	ConvertAUFromPV convert an AllocatedUnit from an bound open-local PV
+	we assure the pv is a valid open-local pv
 */
 func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface, coreInformer corev1informers.Interface) (*cache.AllocatedUnit, error) {
 	_, nodeName := utils.IsLocalPV(pv)

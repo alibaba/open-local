@@ -21,9 +21,9 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/utils"
 	log "k8s.io/klog"
 )
 

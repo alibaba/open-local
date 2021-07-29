@@ -21,11 +21,11 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	"github.com/oecp/open-local-storage-service/pkg/agent/common"
-	clientset "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
+	"github.com/oecp/open-local/pkg/agent/common"
+	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 )
 
-// Agent is the primary "node agent" for open-local-storage-service that runs on each node
+// Agent is the primary "node agent" for open-local that runs on each node
 type Agent struct {
 	*common.Configuration
 	// kubeclientset is a standard kubernetes clientset

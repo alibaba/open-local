@@ -22,11 +22,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	nodelocalstorage "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg"
+	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgocache "k8s.io/client-go/tools/cache"
@@ -123,7 +123,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	// get node name
 	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
 	if node == "" {
-		log.V(5).Infof("pv %s is not a valid open-local-storage-service local pv, skipped", pv.Name)
+		log.V(5).Infof("pv %s is not a valid open-local local pv, skipped", pv.Name)
 		return
 	}
 	// get node cache
@@ -159,7 +159,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 			return
 		}
 	default:
-		log.V(5).Infof("not a open-local-storage-service pv %s, type %s, not add to cache", pv.Name, pvType)
+		log.V(5).Infof("not a open-local pv %s, type %s, not add to cache", pv.Name, pvType)
 		return
 	}
 	pvcKey, err := algorithm.ExtractPVCKey(pv)
@@ -236,7 +236,7 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 			return
 		}
 	default:
-		log.V(5).Infof("not a open-local-storage-service pv %s, volumeType %s, skipped", pv.Name, pvType)
+		log.V(5).Infof("not a open-local pv %s, volumeType %s, skipped", pv.Name, pvType)
 		return
 	}
 	log.V(5).Infof("pv %s (type: %s) is deleted from node cache %s", pv.Name, pvType, nc.NodeName)
@@ -302,7 +302,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 			return
 		}
 	default:
-		log.V(5).Infof("not a open-local-storage-service pv %s, volumeType %s, skipped", pv.Name, pvType)
+		log.V(5).Infof("not a open-local pv %s, volumeType %s, skipped", pv.Name, pvType)
 		return
 	}
 	log.V(5).Infof("pv %s (type: %s) is updated in node cache %s", pv.Name, pvType, nc.NodeName)
@@ -327,7 +327,7 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 	podName := utils.PodName(pod)
 
 	if len(pvcs) <= 0 {
-		log.V(6).Infof("no open-local-storage-service pvc found for %s", podName)
+		log.V(6).Infof("no open-local pvc found for %s", podName)
 		return
 	}
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)
@@ -360,7 +360,7 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 		return
 	}
 	if len(pvcs) <= 0 {
-		log.V(6).Infof("no open-local-storage-service pvc found for %s", podName)
+		log.V(6).Infof("no open-local pvc found for %s", podName)
 		return
 	}
 	e.Ctx.ClusterNodeCache.PvcMapping.DeletePod(podName, pvcs)
@@ -390,7 +390,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 	}
 	podName := utils.PodName(pod)
 	if len(pvcs) <= 0 {
-		log.V(6).Infof("no open-local-storage-service pvc found for %s", podName)
+		log.V(6).Infof("no open-local pvc found for %s", podName)
 		return
 	}
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)

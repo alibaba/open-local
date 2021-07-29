@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions/internalinterfaces"
-	storage "github.com/oecp/open-local-storage-service/pkg/generated/informers/externalversions/storage"
+	versioned "github.com/oecp/open-local/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/oecp/open-local/pkg/generated/informers/externalversions/internalinterfaces"
+	storage "github.com/oecp/open-local/pkg/generated/informers/externalversions/storage"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

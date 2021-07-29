@@ -21,12 +21,12 @@ package apis
 //	"fmt"
 //	"reflect"
 //	"testing"
-//	"github.com/oecp/open-local-storage-service/pkg"
-//	"github.com/oecp/open-local-storage-service/pkg/scheduler"
+//	"github.com/oecp/open-local/pkg"
+//	"github.com/oecp/open-local/pkg/scheduler"
 //
 //	corev1 "k8s.io/api/core/v1"
-//	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-//	"github.com/oecp/open-local-storage-service/test/framework"
+//	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+//	"github.com/oecp/open-local/test/framework"
 //)
 //
 //func TestSchedulingPVC(t *testing.T) {

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"reflect"
 
-	lssv1alpha1 "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local-storage-service/pkg/utils/lvm"
+	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/oecp/open-local/pkg/utils/lvm"
 	"k8s.io/klog"
 )
 
@@ -126,7 +126,7 @@ func (d *Discoverer) createVG(vgname string, devices []string) error {
 	return nil
 }
 
-// isLSSLV check if lv is created by open-local-storage-service according to the lv name
+// isLSSLV check if lv is created by open-local according to the lv name
 func (d *Discoverer) isLSSLV(lvname string) bool {
 	prefixlen := len(d.Configuration.LogicalVolumeNamePrefix)
 

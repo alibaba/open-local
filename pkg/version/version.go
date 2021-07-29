@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Name = "open-local-storage-service"
+	Name = "open-local"
 )
 
 func GetFullVersion(longFormat bool) string {

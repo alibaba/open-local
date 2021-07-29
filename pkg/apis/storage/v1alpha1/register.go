@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	storage "github.com/oecp/open-local-storage-service/pkg/apis/storage"
+	storage "github.com/oecp/open-local/pkg/apis/storage"
 )
 
 // SchemeGroupVersion is group version used to register these objects

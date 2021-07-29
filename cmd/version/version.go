@@ -19,7 +19,7 @@ package version
 import (
 	"fmt"
 
-	"github.com/oecp/open-local-storage-service/pkg/version"
+	"github.com/oecp/open-local/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

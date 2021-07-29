@@ -1,4 +1,4 @@
-module github.com/oecp/open-local-storage-service
+module github.com/oecp/open-local
 
 go 1.15
 

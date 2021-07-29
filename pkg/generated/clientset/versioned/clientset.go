@@ -21,7 +21,7 @@ package versioned
 import (
 	"fmt"
 
-	storagev1alpha1 "github.com/oecp/open-local-storage-service/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
+	storagev1alpha1 "github.com/oecp/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

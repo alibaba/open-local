@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	units "github.com/docker/go-units"
-	"github.com/oecp/open-local-storage-service/pkg/utils/lvm"
+	"github.com/oecp/open-local/pkg/utils/lvm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
@@ -56,7 +56,7 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	// Step 1: get all snapshot lv
 	lvs, err := getAllLSSSnapshotLV()
 	if err != nil {
-		klog.Errorf("[ExpandSnapshotLVIfNeeded]get open-local-storage-service snapshot lv failed: %s", err.Error())
+		klog.Errorf("[ExpandSnapshotLVIfNeeded]get open-local snapshot lv failed: %s", err.Error())
 		return
 	}
 	// Step 2: handle every snapshot lv(for)

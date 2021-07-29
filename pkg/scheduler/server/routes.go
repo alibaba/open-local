@@ -23,16 +23,16 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/bind"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/preemptions"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/bind"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/preemptions"
 	log "k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/predicates"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/priorities"
-	"github.com/oecp/open-local-storage-service/pkg/version"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/predicates"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
+	"github.com/oecp/open-local/pkg/version"
 	"github.com/peter-wangxu/simple-golang-tools/pkg/httputil"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oecp/open-local-storage-service/pkg"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"
@@ -55,7 +55,7 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 		case pkg.VolumeTypeMountPoint:
 			log.V(6).Infof("node=%s,isLSS: %t, nc.MountPoints: %d, freeMPCount: %d", node.Name, isLSS, len(nc.MountPoints), freeMPCount)
 			if len(mpPVCs) <= 0 && (!isLSS || (freeMPCount <= 0)) {
-				// non-open-local-storage-service Pod and Node is not enough open-local-storage-service volume of this type
+				// non-open-local Pod and Node is not enough open-local volume of this type
 				scoreMP = weight * 1
 				log.V(5).Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
 				volumeTypeAntiFound[volumeType] = true

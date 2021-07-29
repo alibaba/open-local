@@ -3,7 +3,7 @@
 GO_CMD=go
 GO_BUILD=$(GO_CMD) build
 GO_TEST=$(GO_CMD) test -v
-GO_PACKAGE=github.com/oecp/open-local-storage-service
+GO_PACKAGE=github.com/oecp/open-local
 
 # build info
 NAME=open-local

@@ -21,10 +21,10 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/server/apis"
-	"github.com/oecp/open-local-storage-service/pkg/utils"
+	"github.com/oecp/open-local/pkg/scheduler/server/apis"
+	"github.com/oecp/open-local/pkg/utils"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 )
@@ -37,7 +37,7 @@ func AddSchedulingApis(router *httprouter.Router, ctx *algorithm.SchedulingConte
 	router.POST(schedulingExpandPVCPrefix, DebugLogging(SchedulingExpandWrap(ctx), schedulingExpandPVCPrefix))
 }
 
-// SchedulingExpandWrap handles the request from volume expansion for the open-local-storage-service controller
+// SchedulingExpandWrap handles the request from volume expansion for the open-local controller
 func SchedulingExpandWrap(ctx *algorithm.SchedulingContext) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		var pvc *corev1.PersistentVolumeClaim

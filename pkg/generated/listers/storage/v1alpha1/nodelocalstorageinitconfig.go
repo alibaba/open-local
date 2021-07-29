@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
+	v1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"

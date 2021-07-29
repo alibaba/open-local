@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	lsstype "github.com/oecp/open-local-storage-service/pkg"
+	lsstype "github.com/oecp/open-local/pkg"
 )
 
 func GetBlockInfo(sysPath, blockName string) (Device, error) {

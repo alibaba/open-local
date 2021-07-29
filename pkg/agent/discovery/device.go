@@ -21,8 +21,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	lssv1alpha1 "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
-	deviceutil "github.com/oecp/open-local-storage-service/pkg/utils/device"
+	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	deviceutil "github.com/oecp/open-local/pkg/utils/device"
 )
 
 func (d *Discoverer) discoverDevices(newStatus *lssv1alpha1.NodeLocalStorageStatus) error {

@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/oecp/open-local-storage-service/pkg"
+	"github.com/oecp/open-local/pkg"
 )
 
 func TestExtenderOptions_GetWeight(t *testing.T) {

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	nodelocalstorage "github.com/oecp/open-local-storage-service/pkg/apis/storage/v1alpha1"
+	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 )
 
 type VolumeType string

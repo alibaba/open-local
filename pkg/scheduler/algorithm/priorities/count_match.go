@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local-storage-service/pkg/scheduler/algorithm/cache"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"

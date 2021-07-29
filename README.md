@@ -1,6 +1,11 @@
-# OpenLSS - 云原生本地磁盘管理系统
+# Open-Local - 云原生本地磁盘管理系统
 
-OpenLSS(Open Local Storage Service)是由多个组件构成的**本地磁盘管理系统**，目标是解决当前Kubernetes本地存储能力缺失问题。通过OpenLSS，**使用本地存储会像集中式存储一样简单**。
+`Open-Local`是由多个组件构成的**本地磁盘管理系统**，目标是解决当前Kubernetes本地存储能力缺失问题。通过`Open-Local`，**使用本地存储会像集中式存储一样简单**。
+
+`Open-Local`已广泛用于生产环境，目前使用的产品包括：
+- 阿里云OECP(企业级容器平台)
+- 阿里云ADP(云原生应用交付平台)
+- 蚂蚁AntStack Plus产品
 
 ## 支持特性
 - 本地存储池管理

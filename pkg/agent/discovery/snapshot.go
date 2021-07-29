@@ -39,8 +39,8 @@ const (
 	AnnoSnapshotInitialSize  = "storage.oecp.io/snapshot-initial-size"
 	AnnoSnapshotThreshold    = "storage.oecp.io/threshold"
 	AnnoSnapshotIncreaseSize = "storage.oecp.io/increase"
-	EnvSnapshotPrefix        = "OPENLSS_SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix    = "open-local-storage-service"
+	EnvSnapshotPrefix        = "SNAPSHOT_PREFIX"
+	DefaultSnapshotPrefix    = "open-local"
 	DefaultSnapshotSize      = 4 * 1024 * 1024 * 1024
 	DefaultSnapshotThreshold = 0.5
 	DefaultIncreaseSize      = 1 * 1024 * 1024 * 1024

@@ -35,10 +35,10 @@ const (
 	StrategyBinpack StrategyType = "binpack"
 	StrategySpread  StrategyType = "spread"
 
-	AgentName              string = "openlss-agent"
-	ProvisionerNameYoda    string = "yodaplugin.csi.alibabacloud.com"
-	ProvisionerNameOpenLSS string = "openlss.csi.oecp.io"
-	SchedulerName          string = "openlss-scheduler"
+	AgentName           string = "open-local-agent"
+	ProvisionerNameYoda string = "yodaplugin.csi.alibabacloud.com"
+	ProvisionerName     string = "openlocal.csi.oecp.io"
+	SchedulerName       string = "open-local-scheduler"
 
 	KubernetesNodeIdentityKey = "kubernetes.io/hostname"
 	//TODO(yuzhi.wx) need to confirm with jubao
@@ -79,7 +79,7 @@ const (
 var (
 	ValidProvisionerNames []string = []string{
 		ProvisionerNameYoda,
-		ProvisionerNameOpenLSS,
+		ProvisionerName,
 	}
 	ValidVolumeType []VolumeType = []VolumeType{
 		VolumeTypeMountPoint,

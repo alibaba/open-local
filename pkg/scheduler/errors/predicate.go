@@ -84,7 +84,8 @@ type InsufficientLVMError struct {
 }
 
 func (e *InsufficientLVMError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage", e.resource)
+	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
+		e.resource, e.requested, e.used, e.capacity)
 }
 
 func (e *InsufficientLVMError) Error() string {
@@ -108,7 +109,8 @@ type InsufficientDeviceError struct {
 }
 
 func (e InsufficientDeviceError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage", e.resource)
+	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
+		e.resource, e.requested, e.used, e.capacity)
 }
 
 func (e *InsufficientDeviceError) Error() string {
@@ -133,7 +135,8 @@ type InsufficientMountPointError struct {
 }
 
 func (e InsufficientMountPointError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage", e.resource, e.mediaType)
+	return fmt.Sprintf("Insufficient %s(%s) storage, requested %d, available %d, capacity %d(all media type)",
+		e.resource, e.mediaType, e.requested, e.available, e.capacity)
 }
 
 func (e *InsufficientMountPointError) Error() string {
@@ -158,7 +161,8 @@ type InsufficientExclusiveResourceError struct {
 }
 
 func (e InsufficientExclusiveResourceError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage", e.resource)
+	return fmt.Sprintf("Insufficient %s storage, requested %d, available %d, capacity %d",
+		e.resource, e.requested, e.available, e.capacity)
 }
 
 func (e *InsufficientExclusiveResourceError) Error() string {

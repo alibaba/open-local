@@ -27,6 +27,11 @@ test:
 build:
 	GO111MODULE=off CGO_ENABLED=0 $(GO_BUILD) $(LD_FLAGS) -v -o $(OUTPUT_DIR)/$(NAME) $(MAIN_FILE)
 
+.PHONY: develop
+develop:
+	GOARCH=amd64 GOOS=linux GO111MODULE=off CGO_ENABLED=0 $(GO_BUILD) $(LD_FLAGS) -v -o $(OUTPUT_DIR)/$(NAME) $(MAIN_FILE)
+	docker build . -t ${NAME}:${VERSION} -f ./Dockerfile.dev
+
 # build image
 .PHONY: image
 image:

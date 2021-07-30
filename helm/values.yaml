@@ -1,16 +1,17 @@
 name: open-local
 namespace: kube-system   # Yoda命名空间, 1.17版本之前的K8s必须指定为kube-system
+driver: local.csi.oecp.io
 images:                       # 镜像
   agent:
     image: open-local
     tag: v0.1.0
+  extender:
+    image: open-local
+    tag: v0.1.0
 agent:
   name: open-local-agent
-  driver: local.csi.oecp.io
   # 挂载盘目录
   localvolume_base_path: /mnt/yoda/
-  # 调度算法: binpack 或 spread
-  scheduler_strategy: binpack
   # 正则表达式，用来发现块设备
   # 下方表达式将Yoda会发现诸如sda、vdb等命名方式的块设备
   regexp: ^(s|v|xv)d[a-z]+$
@@ -18,3 +19,11 @@ agent:
   vgname: yoda-pool
   # 要初始化的块设备
   device: /dev/vdb
+extender:
+  name: open-local-scheduler-extender
+  # 调度算法: binpack 或 spread
+  strategy: binpack
+  # 端口号
+  port: 23000
+storageclass:
+  name: open-local-default

@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1beta1
 kind: CSIDriver
 metadata:
-  name: {{ .Values.agent.driver }}
+  name: {{ .Values.driver }}
 spec:
   attachRequired: false
 ---

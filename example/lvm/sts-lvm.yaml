@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: nginx
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nginx-lvm
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  podManagementPolicy: Parallel
+  serviceName: "nginx"
+  replicas: 1
+  volumeClaimTemplates:
+  - metadata:
+      name: html
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: open-local-default
+      resources:
+        requests:
+          storage: 4Gi
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+        - mountPath: "/data"
+          name: html
+        command:
+        - sh
+        - "-c"
+        - |
+            while true; do
+              echo "huizhi testing";
+              echo "yes ">>/data/yes.txt;
+              sleep 120s
+            done;

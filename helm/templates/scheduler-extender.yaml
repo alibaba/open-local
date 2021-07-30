@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.extender.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.extender.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.extender.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.extender.name }}
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Values.extender.name }}
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - scheduler
+        - --port={{ .Values.extender.port }}
+        - --scheduler-strategy={{ .Values.extender.strategy }}
+        - -v=6
+        image: {{ .Values.images.extender.image }}:{{ .Values.images.extender.tag }}
+        imagePullPolicy: IfNotPresent
+        name: {{ .Values.extender.name }}
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+      serviceAccount: {{ .Values.name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.extender.name }}
+  name: {{ .Values.extender.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: {{ .Values.extender.name }}
+  ports:
+  - protocol: TCP
+    port: {{ .Values.extender.port }}
+    targetPort: {{ .Values.extender.port }}
+    name: http-port

@@ -36,14 +36,14 @@ type SnapshotLV struct {
 }
 
 const (
-	AnnoSnapshotInitialSize  = "storage.oecp.io/snapshot-initial-size"
-	AnnoSnapshotThreshold    = "storage.oecp.io/threshold"
-	AnnoSnapshotIncreaseSize = "storage.oecp.io/increase"
-	EnvSnapshotPrefix        = "SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix    = "open-local"
-	DefaultSnapshotSize      = 4 * 1024 * 1024 * 1024
-	DefaultSnapshotThreshold = 0.5
-	DefaultIncreaseSize      = 1 * 1024 * 1024 * 1024
+	ParamSnapshotInitialSize     = "storage.oecp.io/snapshot-initial-size"
+	ParamSnapshotThreshold       = "storage.oecp.io/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "storage.oecp.io/snapshot-expansion-size"
+	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
+	DefaultSnapshotPrefix        = "local"
+	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
+	DefaultSnapshotThreshold     = 0.5
+	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
 )
 
 func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
@@ -61,22 +61,22 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	}
 	// Step 2: handle every snapshot lv(for)
 	for _, lv := range lvs {
-		// step 1: get threshold and increase size from snapshot
+		// step 1: get threshold and increase size from snapshotClass
 		snapContent, err := d.snapclient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(lv.Name(), prefix, "snapcontent", 1), metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("[ExpandSnapshotLVIfNeeded]get snapContent %s error: %s", lv.Name(), err.Error())
 			return
 		}
-		snap, err := d.snapclient.SnapshotV1beta1().VolumeSnapshots(snapContent.Spec.VolumeSnapshotRef.Namespace).Get(context.TODO(), snapContent.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
+		snapClass, err := d.snapclient.SnapshotV1beta1().VolumeSnapshotClasses().Get(context.TODO(), *snapContent.Spec.VolumeSnapshotClassName, metav1.GetOptions{})
 		if err != nil {
-			klog.Errorf("[ExpandSnapshotLVIfNeeded]get snapshot %s/%s error: %s", snapContent.Spec.VolumeSnapshotRef.Namespace, snapContent.Spec.VolumeSnapshotRef.Name, err.Error())
+			klog.Errorf("[ExpandSnapshotLVIfNeeded]get snapClass %s error: %s", *snapContent.Spec.VolumeSnapshotClassName, err.Error())
 			return
 		}
-		_, threshold, increaseSize := getSnapshotInitialInfo(snap.Annotations)
+		_, threshold, expansionSize := getSnapshotInitialInfo(snapClass.Parameters)
 		// step 2: expand snapshot lv if necessary
 		if lv.Usage() > threshold {
 			klog.Infof("[ExpandSnapshotLVIfNeeded]expand snapshot lv %s", lv.Name())
-			if err := lv.Expand(increaseSize); err != nil {
+			if err := lv.Expand(expansionSize); err != nil {
 				klog.Errorf("[ExpandSnapshotLVIfNeeded]expand lv %s failed: %s", lv.Name(), err.Error())
 				return
 			}
@@ -90,13 +90,13 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	return
 }
 
-func getSnapshotInitialInfo(anno map[string]string) (initialSize uint64, threshold float64, increaseSize uint64) {
-	initialSize = DefaultSnapshotSize
+func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64) {
+	initialSize = DefaultSnapshotInitialSize
 	threshold = DefaultSnapshotThreshold
-	increaseSize = DefaultIncreaseSize
+	increaseSize = DefaultSnapshotExpansionSize
 
 	// Step 1: get snapshot initial size
-	if str, exist := anno[AnnoSnapshotInitialSize]; exist {
+	if str, exist := param[ParamSnapshotInitialSize]; exist {
 		size, err := units.RAMInBytes(str)
 		if err != nil {
 			klog.Error("[getSnapshotInitialInfo]get initialSize from snapshot annotation failed")
@@ -104,7 +104,7 @@ func getSnapshotInitialInfo(anno map[string]string) (initialSize uint64, thresho
 		initialSize = uint64(size)
 	}
 	// Step 2: get snapshot expand threshold
-	if str, exist := anno[AnnoSnapshotThreshold]; exist {
+	if str, exist := param[ParamSnapshotThreshold]; exist {
 		str = strings.ReplaceAll(str, "%", "")
 		thr, err := strconv.ParseFloat(str, 64)
 		if err != nil {
@@ -113,7 +113,7 @@ func getSnapshotInitialInfo(anno map[string]string) (initialSize uint64, thresho
 		threshold = thr / 100
 	}
 	// Step 3: get snapshot increase size
-	if str, exist := anno[AnnoSnapshotIncreaseSize]; exist {
+	if str, exist := param[ParamSnapshotExpansionSize]; exist {
 		size, err := units.RAMInBytes(str)
 		if err != nil {
 			klog.Error("[getSnapshotInitialInfo]get increase size from snapshot annotation failed")

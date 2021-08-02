@@ -28,6 +28,7 @@ import (
 	log "k8s.io/klog"
 
 	"github.com/oecp/open-local/cmd/agent"
+	"github.com/oecp/open-local/cmd/csi"
 	"github.com/oecp/open-local/cmd/scheduler"
 	"github.com/oecp/open-local/cmd/version"
 )
@@ -56,6 +57,7 @@ func addCommands() {
 		// backend commands
 		agent.Cmd,
 		scheduler.Cmd,
+		csi.Cmd,
 	)
 }
 

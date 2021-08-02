@@ -19,7 +19,7 @@ package cache
 import (
 	"sync"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	log "k8s.io/klog"
@@ -50,10 +50,10 @@ const (
 )
 
 type ExclusiveResource struct {
-	Name      string            `json:"name,string"`
-	Device    string            `json:"device,string"`
-	Capacity  int64             `json:"cap,number"`
-	MediaType lsstype.MediaType `json:"type,string"`
+	Name      string              `json:"name,string"`
+	Device    string              `json:"device,string"`
+	Capacity  int64               `json:"cap,number"`
+	MediaType localtype.MediaType `json:"type,string"`
 	// "IsAllocated = true" means the disk is used by PV
 	IsAllocated bool `json:"isAllocated,boolean"`
 }
@@ -66,7 +66,7 @@ type SharedResource struct {
 
 type AllocatedUnit struct {
 	NodeName   string
-	VolumeType lsstype.VolumeType
+	VolumeType localtype.VolumeType
 	Requested  int64 // requested size from pvc
 	Allocated  int64 // actual allocated size for the pvc
 	VgName     string

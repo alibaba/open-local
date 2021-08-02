@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +74,7 @@ func IsLocalPV(pv *corev1.PersistentVolume) (isLocalPV bool, node string) {
 		if len(ex.Values) <= 0 {
 			continue
 		}
-		if ex.Key == lsstype.KubernetesNodeIdentityKey &&
+		if ex.Key == localtype.KubernetesNodeIdentityKey &&
 			ex.Values[0] != "" &&
 			ex.Operator == corev1.NodeSelectorOpIn {
 			isLocalPV = true
@@ -107,7 +107,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes[string(lsstype.VolumeTypeDevice)]; ok {
+	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
 		return v
 	}
 	log.V(5).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
@@ -122,7 +122,7 @@ func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes[string(lsstype.VolumeTypeMountPoint)]; ok {
+	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeMountPoint)]; ok {
 		return v
 	}
 	log.V(5).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
@@ -152,8 +152,8 @@ func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 		return false
 	}
 
-	if StringsContains(lsstype.SupportedFS, mp.FsType) == -1 {
-		log.V(3).Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, lsstype.SupportedFS)
+	if StringsContains(localtype.SupportedFS, mp.FsType) == -1 {
+		log.V(3).Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
 		return false
 	}
 
@@ -223,7 +223,7 @@ func GetAddedAndRemovedItems(newList, oldList []string) (addedItems, unchangedIt
 }
 
 func ContainsProvisioner(name string) bool {
-	for _, x := range lsstype.ValidProvisionerNames {
+	for _, x := range localtype.ValidProvisionerNames {
 		if x == name {
 			return true
 		}
@@ -325,7 +325,7 @@ func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.In
 	return vgName
 }
 
-func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.Interface) lsstype.MediaType {
+func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.Interface) localtype.MediaType {
 	sc := GetStorageClassFromPVC(pvc, p)
 	if sc == nil {
 		return ""
@@ -335,10 +335,10 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers
 		log.V(5).Infof("storage class %s has no parameter %q set", sc.Name, "mediaType")
 		return ""
 	}
-	return lsstype.MediaType(mediaType)
+	return localtype.MediaType(mediaType)
 }
 
-func IsLSSPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interface, containReadonlySnapshot bool) (bool, lsstype.VolumeType) {
+func IsLSSPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
 	sc := GetStorageClassFromPVC(claim, p)
 	if sc == nil {
 		return false, ""
@@ -352,16 +352,16 @@ func IsLSSPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interfac
 	return true, LSSPVType(sc)
 }
 
-func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c corev1informers.Interface, containReadonlySnapshot bool) (bool, lsstype.VolumeType) {
+func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c corev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
 	var isSnapshot, isSnapshotReadOnly bool = false, false
 
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
 		attributes := pv.Spec.CSI.VolumeAttributes
 		// check if is snapshot pv according to pvc
-		if value, exist := attributes[lsstype.TagSnapshot]; exist && value != "" {
+		if value, exist := attributes[localtype.TagSnapshot]; exist && value != "" {
 			isSnapshot = true
 		}
-		if value, exist := attributes[lsstype.TagSnapshotReadonly]; exist && value == "true" {
+		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
 			isSnapshotReadOnly = true
 		}
 		if isSnapshot == true && isSnapshotReadOnly == false {
@@ -372,13 +372,13 @@ func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c core
 			return false, ""
 		}
 		// check open-local type
-		if value, exist := attributes[lsstype.VolumeTypeKey]; exist {
-			if lsstype, err := lsstype.VolumeTypeFromString(value); err == nil {
+		if value, exist := attributes[localtype.VolumeTypeKey]; exist {
+			if lsstype, err := localtype.VolumeTypeFromString(value); err == nil {
 				return true, lsstype
 			}
 		}
 	}
-	return false, lsstype.VolumeTypeUnknown
+	return false, localtype.VolumeTypeUnknown
 }
 
 func IsLSSSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
@@ -417,16 +417,16 @@ func ContainsSnapshotPVC(claims []*corev1.PersistentVolumeClaim) (contain bool) 
 	return
 }
 
-func LSSPVType(sc *storagev1.StorageClass) lsstype.VolumeType {
-	if t, ok := sc.Parameters[lsstype.VolumeTypeKey]; ok {
-		switch lsstype.VolumeType(t) {
-		case lsstype.VolumeTypeMountPoint, lsstype.VolumeTypeDevice, lsstype.VolumeTypeLVM, lsstype.VolumeTypeQuota:
-			return lsstype.VolumeType(t)
+func LSSPVType(sc *storagev1.StorageClass) localtype.VolumeType {
+	if t, ok := sc.Parameters[localtype.VolumeTypeKey]; ok {
+		switch localtype.VolumeType(t) {
+		case localtype.VolumeTypeMountPoint, localtype.VolumeTypeDevice, localtype.VolumeTypeLVM, localtype.VolumeTypeQuota:
+			return localtype.VolumeType(t)
 		default:
-			return lsstype.VolumeTypeUnknown
+			return localtype.VolumeTypeUnknown
 		}
 	}
-	return lsstype.VolumeTypeUnknown
+	return localtype.VolumeTypeUnknown
 }
 
 func GetPVCRequested(pvc *corev1.PersistentVolumeClaim) int64 {
@@ -480,7 +480,7 @@ func PvcContainsSelectedNode(pvc *corev1.PersistentVolumeClaim) bool {
 	if len(pvc.Annotations) <= 0 {
 		return false
 	}
-	if v, ok := pvc.Annotations[lsstype.AnnSelectedNode]; ok {
+	if v, ok := pvc.Annotations[localtype.AnnSelectedNode]; ok {
 		// according to
 		return len(v) > 0
 	}
@@ -576,4 +576,16 @@ func Format(source, fsType string) error {
 	}
 
 	return nil
+}
+
+// CommandRunFunc define the run function in utils for ut
+type CommandRunFunc func(cmd string) (string, error)
+
+// Run run shell command
+func Run(cmd string) (string, error) {
+	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("Failed to run cmd: " + cmd + ", with out: " + string(out) + ", with error: " + err.Error())
+	}
+	return string(out), nil
 }

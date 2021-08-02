@@ -29,7 +29,7 @@ import (
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/agent/common"
 	"github.com/oecp/open-local/pkg/agent/discovery"
 )
@@ -68,7 +68,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	// get auto expand snapshot interval
 	var err error
 	expandSnapInterval := discoverer.DiscoverInterval
-	tmp := os.Getenv(lsstype.EnvExpandSnapInterval)
+	tmp := os.Getenv(localtype.EnvExpandSnapInterval)
 	if tmp != "" {
 		expandSnapInterval, err = strconv.Atoi(tmp)
 		if err != nil {

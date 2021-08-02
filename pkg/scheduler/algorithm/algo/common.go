@@ -22,7 +22,7 @@ import (
 
 	"github.com/oecp/open-local/pkg/scheduler/errors"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/oecp/open-local/pkg/utils"
@@ -84,7 +84,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 		cacheVGsMap[cache.ResourceName(vgName)] = tmp
 		u := cache.AllocatedUnit{
 			NodeName:   node.Name,
-			VolumeType: lsstype.VolumeTypeLVM,
+			VolumeType: localtype.VolumeTypeLVM,
 			Requested:  requestedSize,
 			Allocated:  requestedSize, // for LVM requested is always equal to allocated
 			VgName:     string(vgName),
@@ -126,7 +126,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 			cacheVGsSlice[i].Requested += requestedSize
 			u := cache.AllocatedUnit{
 				NodeName:   node.Name,
-				VolumeType: lsstype.VolumeTypeLVM,
+				VolumeType: localtype.VolumeTypeLVM,
 				Requested:  requestedSize,
 				Allocated:  requestedSize, // for LVM requested is always equal to allocated
 				VgName:     string(vg.Name),
@@ -210,9 +210,9 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 			requestedSSDCount,
 			freeMPSSDCount,
 			totalCount,
-			lsstype.MediaTypeSSD)
+			localtype.MediaTypeSSD)
 	}
-	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(lsstype.VolumeTypeMountPoint, freeMPSSD, pvcsWithTypeSSD, node, ctx)
+	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeMountPoint, freeMPSSD, pvcsWithTypeSSD, node, ctx)
 	if err != nil {
 		return false, rstUnits, err
 	}
@@ -228,9 +228,9 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 			requestedHDDCount,
 			freeMPHDDCount,
 			totalCount,
-			lsstype.MediaTypeHHD)
+			localtype.MediaTypeHHD)
 	}
-	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(lsstype.VolumeTypeMountPoint, freeMPHDD, pvcsWithTypeHDD, node, ctx)
+	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeMountPoint, freeMPHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {
 		return false, rstUnits, err
 	}
@@ -246,9 +246,9 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 // DividePVCAccordingToMediaType divide pvcs into pvcsWithSSD and pvcsWithHDD
 func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithTypeSSD, pvcsWithTypeHDD []*corev1.PersistentVolumeClaim) {
 	for _, pvc := range pvcs {
-		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers); mediaType == lsstype.MediaTypeSSD {
+		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers); mediaType == localtype.MediaTypeSSD {
 			pvcsWithTypeSSD = append(pvcsWithTypeSSD, pvc)
-		} else if mediaType == lsstype.MediaTypeHHD {
+		} else if mediaType == localtype.MediaTypeHHD {
 			pvcsWithTypeHDD = append(pvcsWithTypeHDD, pvc)
 		} else if mediaType == "" {
 			log.V(3).Infof("empty mediaType in storageClass! pvc: %s/%s", pvc.Namespace, pvc.Name)
@@ -267,9 +267,9 @@ func GetFreeMP(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeMPSSD, 
 	}
 
 	for _, mp := range nodeCache.MountPoints {
-		if mp.MediaType == lsstype.MediaTypeSSD && mp.IsAllocated == false {
+		if mp.MediaType == localtype.MediaTypeSSD && mp.IsAllocated == false {
 			freeMPSSD = append(freeMPSSD, mp)
-		} else if mp.MediaType == lsstype.MediaTypeHHD && mp.IsAllocated == false {
+		} else if mp.MediaType == localtype.MediaTypeHHD && mp.IsAllocated == false {
 			freeMPHDD = append(freeMPHDD, mp)
 		}
 	}
@@ -287,7 +287,7 @@ func GetCacheMPCount(node *corev1.Node, ctx *algorithm.SchedulingContext) (count
 	return int64(len(nodeCache.MountPoints)), nil
 }
 
-func CheckExclusiveResourceMeetsPVCSize(resource lsstype.VolumeType, ers []cache.ExclusiveResource, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (fits bool, units []cache.AllocatedUnit, err error) {
+func CheckExclusiveResourceMeetsPVCSize(resource localtype.VolumeType, ers []cache.ExclusiveResource, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (fits bool, units []cache.AllocatedUnit, err error) {
 	// sort from small to large
 	sort.Slice(pvcs, func(i, j int) bool {
 		return utils.GetPVCRequested(pvcs[i]) < utils.GetPVCRequested(pvcs[j])
@@ -297,9 +297,9 @@ func CheckExclusiveResourceMeetsPVCSize(resource lsstype.VolumeType, ers []cache
 	})
 
 	var totalCount int64
-	if resource == lsstype.VolumeTypeDevice {
+	if resource == localtype.VolumeTypeDevice {
 		totalCount, err = GetCacheDeviceCount(node, ctx)
-	} else if resource == lsstype.VolumeTypeMountPoint {
+	} else if resource == localtype.VolumeTypeMountPoint {
 		totalCount, err = GetCacheMPCount(node, ctx)
 	}
 	if err != nil {
@@ -371,9 +371,9 @@ func GetFreeDevice(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeDev
 	}
 
 	for _, device := range nodeCache.Devices {
-		if device.MediaType == lsstype.MediaTypeSSD && device.IsAllocated == false {
+		if device.MediaType == localtype.MediaTypeSSD && device.IsAllocated == false {
 			freeDeviceSSD = append(freeDeviceSSD, device)
-		} else if device.MediaType == lsstype.MediaTypeHHD && device.IsAllocated == false {
+		} else if device.MediaType == localtype.MediaTypeHHD && device.IsAllocated == false {
 			freeDeviceHDD = append(freeDeviceHDD, device)
 		}
 	}
@@ -412,12 +412,12 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	// process pvcsWithTypeSSD first.
 	if freeDeviceSSDCount < requestedSSDCount {
 		return false, units, errors.NewInsufficientExclusiveResourceError(
-			lsstype.VolumeTypeDevice,
+			localtype.VolumeTypeDevice,
 			requestedSSDCount,
 			freeDeviceSSDCount,
 			totalCount)
 	}
-	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(lsstype.VolumeTypeDevice, freeDeviceSSD, pvcsWithTypeSSD, node, ctx)
+	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceSSD, pvcsWithTypeSSD, node, ctx)
 	if err != nil {
 		return false, rstUnits, err
 	}
@@ -429,12 +429,12 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	// process pvcsWithTypeHDD second.
 	if freeDeviceHDDCount < requestedHDDCount {
 		return false, units, errors.NewInsufficientExclusiveResourceError(
-			lsstype.VolumeTypeDevice,
+			localtype.VolumeTypeDevice,
 			requestedSSDCount,
 			freeDeviceSSDCount,
 			totalCount)
 	}
-	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(lsstype.VolumeTypeDevice, freeDeviceHDD, pvcsWithTypeHDD, node, ctx)
+	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {
 		return false, rstUnits, err
 	}
@@ -473,7 +473,7 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node,
 		}
 		log.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
 		// step 3: get src node name
-		srcNodeName := srcPVC.Annotations[lsstype.AnnSelectedNode]
+		srcNodeName := srcPVC.Annotations[localtype.AnnSelectedNode]
 		log.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
 		// step 4: check
 		if srcNodeName != nodeName {
@@ -537,7 +537,7 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 		cacheVGsMap[cache.ResourceName(vgName)] = tmp
 		u := cache.AllocatedUnit{
 			NodeName:   node.Name,
-			VolumeType: lsstype.VolumeTypeLVM,
+			VolumeType: localtype.VolumeTypeLVM,
 			Requested:  requestedSize,
 			Allocated:  requestedSize, // for LVM requested is always equal to allocated
 			VgName:     string(vgName),
@@ -550,15 +550,15 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 
 	// process pvcsWithoutVG(default strategy: Binpack)
 	for _, pvc := range pvcsWithoutVG {
-		switch lsstype.SchedulerStrategy {
-		case lsstype.StrategyBinpack:
+		switch localtype.SchedulerStrategy {
+		case localtype.StrategyBinpack:
 			fits, tmpunits, err := Binpack(pod, pvc, node, cacheVGsMap)
 			if fits == false {
 				return false, units, err
 			}
 			units = append(units, tmpunits...)
 			break
-		case lsstype.StrategySpread:
+		case localtype.StrategySpread:
 			fits, tmpunits, err := Spread(pod, pvc, node, cacheVGsMap)
 			if fits == false {
 				return false, units, err
@@ -591,11 +591,11 @@ func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.No
 			if i == len(cacheVGsSlice)-1 {
 				if pod == nil {
 					return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s, requested size %d, max free size[VG: %s] %d, strategiy %s",
-						node.Name, requestedSize, vg.Name, freeSize, lsstype.SchedulerStrategy)
+						node.Name, requestedSize, vg.Name, freeSize, localtype.SchedulerStrategy)
 
 				}
 				return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s for pod %s/%s, requested size %d, max free size[VG: %s] %d, strategiy %s",
-					node.Name, pod.Namespace, pod.Name, requestedSize, vg.Name, freeSize, lsstype.SchedulerStrategy)
+					node.Name, pod.Namespace, pod.Name, requestedSize, vg.Name, freeSize, localtype.SchedulerStrategy)
 			}
 			continue
 		}
@@ -604,7 +604,7 @@ func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.No
 		cacheVGsMap[cache.ResourceName(vg.Name)] = tmp
 		u := cache.AllocatedUnit{
 			NodeName:   node.Name,
-			VolumeType: lsstype.VolumeTypeLVM,
+			VolumeType: localtype.VolumeTypeLVM,
 			Requested:  requestedSize,
 			Allocated:  requestedSize, // for LVM requested is always equal to allocated
 			VgName:     string(vg.Name),
@@ -637,15 +637,15 @@ func Spread(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Nod
 	if freeSize < requestedSize {
 		if pod == nil {
 			return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s, requested size %d,  free size %d, strategiy %s",
-				node.Name, cacheVGsSlice[0].Name, requestedSize, freeSize, lsstype.SchedulerStrategy)
+				node.Name, cacheVGsSlice[0].Name, requestedSize, freeSize, localtype.SchedulerStrategy)
 		}
 		return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s for pod %s/%s, requested size %d,  free size %d, strategiy %s",
-			node.Name, cacheVGsSlice[0].Name, pod.Namespace, pod.Name, requestedSize, freeSize, lsstype.SchedulerStrategy)
+			node.Name, cacheVGsSlice[0].Name, pod.Namespace, pod.Name, requestedSize, freeSize, localtype.SchedulerStrategy)
 	}
 	cacheVGsSlice[0].Requested += requestedSize
 	u := cache.AllocatedUnit{
 		NodeName:   node.Name,
-		VolumeType: lsstype.VolumeTypeLVM,
+		VolumeType: localtype.VolumeTypeLVM,
 		Requested:  requestedSize,
 		Allocated:  requestedSize, // for LVM requested is always equal to allocated
 		VgName:     string(cacheVGsSlice[0].Name),
@@ -676,14 +676,14 @@ func ScoreLVM(units []cache.AllocatedUnit, cacheVGsMap map[cache.ResourceName]ca
 	// score
 	var scoref float64 = 0
 	count := 0
-	switch lsstype.SchedulerStrategy {
-	case lsstype.StrategyBinpack:
+	switch localtype.SchedulerStrategy {
+	case localtype.StrategyBinpack:
 		for vg, used := range scoreMap {
 			scoref += float64(used) / float64(cacheVGsMap[cache.ResourceName(vg)].Capacity)
 			count++
 		}
 		score = int(scoref / float64(count) * float64(MaxScore))
-	case lsstype.StrategySpread:
+	case localtype.StrategySpread:
 		for vg, used := range scoreMap {
 			scoref += (1.0 - float64(used)/float64(cacheVGsMap[cache.ResourceName(vg)].Capacity))
 			count++

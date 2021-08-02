@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/oecp/open-local/pkg"
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/oecp/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
@@ -75,7 +75,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 			tmpDevice.Name,
 			tmpDevice.Name,
 			int64(tmpDevice.Total),
-			lsstype.MediaType(tmpDevice.MediaType),
+			localtype.MediaType(tmpDevice.MediaType),
 			false}
 		newNodeCache.Devices[ResourceName(deviceName)] = diskResource
 		log.V(6).Infof("diskResource: %#v", diskResource)
@@ -99,7 +99,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 			mp,
 			tmpMP.Device,
 			int64(tmpMP.Total),
-			lsstype.MediaType(deviceInfoMap[tmpMP.Device].MediaType),
+			localtype.MediaType(deviceInfoMap[tmpMP.Device].MediaType),
 			false}
 		newNodeCache.MountPoints[ResourceName(mp)] = diskResource
 		log.V(6).Infof("diskResource: %#v", diskResource)
@@ -173,7 +173,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 			device,
 			device,
 			int64(deviceMapInfo[device].Total),
-			lsstype.MediaType(deviceMapInfo[device].MediaType),
+			localtype.MediaType(deviceMapInfo[device].MediaType),
 			allocated}
 		cacheNode.Devices[ResourceName(device)] = diskResource
 	}
@@ -181,7 +181,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 		// update the size if the device got extended
 		exDevice, _ := cacheNode.Devices[ResourceName(device)]
 		exDevice.Capacity = int64(deviceMapInfo[device].Total)
-		exDevice.MediaType = lsstype.MediaType(deviceMapInfo[device].MediaType)
+		exDevice.MediaType = localtype.MediaType(deviceMapInfo[device].MediaType)
 		cacheNode.Devices[ResourceName(device)] = exDevice
 	}
 	for _, device := range removedDevices {
@@ -222,7 +222,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 			mp,
 			mpMapInfo[mp].Device,
 			int64(mpMapInfo[mp].Total),
-			lsstype.MediaType(deviceMapInfo[mpMapInfo[mp].Device].MediaType),
+			localtype.MediaType(deviceMapInfo[mpMapInfo[mp].Device].MediaType),
 			allocated}
 		cacheNode.MountPoints[ResourceName(mp)] = diskResource
 		log.V(6).Infof("diskResource: %#v", diskResource)
@@ -231,7 +231,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 		exMP, _ := cacheNode.MountPoints[ResourceName(mp)]
 		// update capacity of existing mount point
 		exMP.Capacity = int64(mpMapInfo[mp].Total)
-		exMP.MediaType = lsstype.MediaType(deviceMapInfo[exMP.Device].MediaType)
+		exMP.MediaType = localtype.MediaType(deviceMapInfo[exMP.Device].MediaType)
 		cacheNode.MountPoints[ResourceName(mp)] = exMP
 		log.V(6).Infof("updating existing mount point %q(total:%d) on node cache %s",
 			exMP.Name, exMP.Capacity, cacheNode.NodeName)

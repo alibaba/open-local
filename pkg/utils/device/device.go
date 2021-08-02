@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 )
 
 func GetBlockInfo(sysPath, blockName string) (Device, error) {
@@ -41,9 +41,9 @@ func GetBlockInfo(sysPath, blockName string) (Device, error) {
 		return device, err
 	}
 	if data == "1" {
-		media = string(lsstype.MediaTypeHHD)
+		media = string(localtype.MediaTypeHHD)
 	} else {
-		media = string(lsstype.MediaTypeSSD)
+		media = string(localtype.MediaTypeSSD)
 	}
 
 	// ReadOnly
@@ -102,9 +102,9 @@ func GetPartitionsInfo(sysPath, blockName string) ([]Device, error) {
 				return nil, err
 			}
 			if data == "1" {
-				media = string(lsstype.MediaTypeHHD)
+				media = string(localtype.MediaTypeHHD)
 			} else {
-				media = string(lsstype.MediaTypeSSD)
+				media = string(localtype.MediaTypeSSD)
 			}
 			// ReadOnly
 			roPath := filepath.Join(blockPath, partName, "ro")

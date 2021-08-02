@@ -39,7 +39,7 @@ var (
 
 var Cmd = &cobra.Command{
 	Use:   "agent",
-	Short: "Main command for collecting local storage information.",
+	Short: "command for collecting local storage information",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Start(&opt)
 		if err != nil {

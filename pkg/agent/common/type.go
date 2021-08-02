@@ -48,5 +48,6 @@ const (
 	// DefaultConfigPath is the default configfile path of open-local agent
 	DefaultConfigPath string = "/etc/controller/config/"
 	// DefaultInterval is the duration(second) that the agent checks at one time
-	DefaultInterval int = 60
+	DefaultInterval int    = 60
+	DefaultEndpoint string = "unix://tmp/csi.sock"
 )

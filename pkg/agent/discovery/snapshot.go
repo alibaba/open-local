@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	units "github.com/docker/go-units"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/utils/lvm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
@@ -35,22 +36,11 @@ type SnapshotLV struct {
 	usage        float64
 }
 
-const (
-	ParamSnapshotInitialSize     = "storage.oecp.io/snapshot-initial-size"
-	ParamSnapshotThreshold       = "storage.oecp.io/snapshot-expansion-threshold"
-	ParamSnapshotExpansionSize   = "storage.oecp.io/snapshot-expansion-size"
-	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix        = "local"
-	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
-	DefaultSnapshotThreshold     = 0.5
-	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
-)
-
 func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	// Step 0: get prefix of snapshot lv
-	prefix := os.Getenv(EnvSnapshotPrefix)
+	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
 	if prefix == "" {
-		prefix = DefaultSnapshotPrefix
+		prefix = localtype.DefaultSnapshotPrefix
 	}
 
 	// Step 1: get all snapshot lv
@@ -91,12 +81,12 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 }
 
 func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64) {
-	initialSize = DefaultSnapshotInitialSize
-	threshold = DefaultSnapshotThreshold
-	increaseSize = DefaultSnapshotExpansionSize
+	initialSize = localtype.DefaultSnapshotInitialSize
+	threshold = localtype.DefaultSnapshotThreshold
+	increaseSize = localtype.DefaultSnapshotExpansionSize
 
 	// Step 1: get snapshot initial size
-	if str, exist := param[ParamSnapshotInitialSize]; exist {
+	if str, exist := param[localtype.ParamSnapshotInitialSize]; exist {
 		size, err := units.RAMInBytes(str)
 		if err != nil {
 			klog.Error("[getSnapshotInitialInfo]get initialSize from snapshot annotation failed")
@@ -104,7 +94,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 		initialSize = uint64(size)
 	}
 	// Step 2: get snapshot expand threshold
-	if str, exist := param[ParamSnapshotThreshold]; exist {
+	if str, exist := param[localtype.ParamSnapshotThreshold]; exist {
 		str = strings.ReplaceAll(str, "%", "")
 		thr, err := strconv.ParseFloat(str, 64)
 		if err != nil {
@@ -113,7 +103,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 		threshold = thr / 100
 	}
 	// Step 3: get snapshot increase size
-	if str, exist := param[ParamSnapshotExpansionSize]; exist {
+	if str, exist := param[localtype.ParamSnapshotExpansionSize]; exist {
 		size, err := units.RAMInBytes(str)
 		if err != nil {
 			klog.Error("[getSnapshotInitialInfo]get increase size from snapshot annotation failed")

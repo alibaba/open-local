@@ -26,11 +26,10 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
-	log "k8s.io/klog"
 )
 
 const (
@@ -54,7 +53,7 @@ func NewStatusSyncer(recorder record.EventRecorder, c clientset.Interface, ctx *
 
 func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalStorage) {
 	if need, err := syncer.isUpdateNeeded(nls); !need {
-		log.V(6).Infof("update status skipped")
+		log.Infof("update status skipped")
 		if err == nil && nls.Status.FilteredStorageInfo.UpdateStatus.Status == nodelocalstorage.UpdateStatusFailed {
 			e := syncer.CleanStatus(nls)
 			if e != nil {
@@ -76,7 +75,7 @@ func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalS
 	// only update status
 	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		klog.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 	}
 	return
 }
@@ -97,7 +96,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			VGFromCache = append(VGFromCache, vg.Name)
 		}
 		addedVGs, unchangedVGs, removedVGs := utils.GetAddedAndRemovedItems(VGFiltered, VGFromCache)
-		log.V(4).Infof("added vgs: %#v", addedVGs)
+		log.Infof("added vgs: %#v", addedVGs)
 		sum := len(addedVGs) + len(removedVGs)
 		if sum != 0 {
 			updateVG = true
@@ -114,8 +113,8 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			MPFromCache = append(MPFromCache, mp.Name)
 		}
 		addedMountPoints, unchangedMountPoints, removedMountPoints := utils.GetAddedAndRemovedItems(MPFiltered, MPFromCache)
-		log.V(4).Infof("removed mountpoints: %#v", removedMountPoints)
-		log.V(4).Infof("added mountpoints: %#v", removedMountPoints)
+		log.Infof("removed mountpoints: %#v", removedMountPoints)
+		log.Infof("added mountpoints: %#v", removedMountPoints)
 		for _, mp := range removedMountPoints {
 			if mpCache, exist := tmpCache.MountPoints[cache.ResourceName(mp)]; exist {
 				if mpCache.IsAllocated {
@@ -128,7 +127,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 					}
 					return false, fmt.Errorf(reason)
 				} else {
-					log.V(3).Infof("mountpoint %s in node %s will be deleted", mp, nls.Name)
+					log.Infof("mountpoint %s in node %s will be deleted", mp, nls.Name)
 				}
 			}
 		}
@@ -148,8 +147,8 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			DevFromCache = append(DevFromCache, dev.Name)
 		}
 		addedDeivces, unchangedDeivces, removedDevices := utils.GetAddedAndRemovedItems(DeviceFiltered, DevFromCache)
-		log.V(4).Infof("removed devices: %#v", removedDevices)
-		log.V(4).Infof("added devices: %#v", addedDeivces)
+		log.Infof("removed devices: %#v", removedDevices)
+		log.Infof("added devices: %#v", addedDeivces)
 		for _, dev := range removedDevices {
 			if devCache, exist := tmpCache.Devices[cache.ResourceName(dev)]; exist {
 				if devCache.IsAllocated {
@@ -162,7 +161,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 					}
 					return false, fmt.Errorf(reason)
 				} else {
-					log.V(3).Infof("device %s in node %s will be deleted", dev, nls.Name)
+					log.Infof("device %s in node %s will be deleted", dev, nls.Name)
 				}
 			}
 		}
@@ -185,7 +184,7 @@ func (syncer *StatusSyncer) UpdateFailedStatus(nls *nodelocalstorage.NodeLocalSt
 	// only update status
 	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		klog.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -199,7 +198,7 @@ func (syncer *StatusSyncer) CleanStatus(nls *nodelocalstorage.NodeLocalStorage) 
 	// only update status
 	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		klog.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err
 	}
 	return nil

@@ -22,8 +22,8 @@ import (
 
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/algo"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -39,7 +39,7 @@ func SnapshotPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		return false, err
 	}
 	if len(lvmPVCs) <= 0 {
-		log.V(4).Infof("[SnapshotPredicate]no open-local volume request on pod %s, skipped", pod.Name)
+		log.Infof("[SnapshotPredicate]no open-local volume request on pod %s, skipped", pod.Name)
 		return true, nil
 	}
 

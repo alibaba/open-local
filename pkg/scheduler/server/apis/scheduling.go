@@ -28,8 +28,8 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/algo"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 )
 
 // Scheduling is the interface for provisioner to request storage info
@@ -116,7 +116,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		return nil, err
 	}
 	var targetAllocateUnits []cache.AllocatedUnit
-	log.V(5).Infof("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
+	log.Infof("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
 	for _, unit := range allocatedUnits {
 		var newUnit cache.AllocatedUnit
 		newUnit = unit
@@ -126,7 +126,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		}
 	}
 	bindingInfo := unitsToBinding([]*corev1.PersistentVolumeClaim{pvc}, targetAllocateUnits)
-	log.V(3).Infof("successfully schedule pvc %s/%s", pvc.Namespace, pvc.Name)
+	log.Infof("successfully schedule pvc %s/%s", pvc.Namespace, pvc.Name)
 	return bindingInfo, nil
 }
 

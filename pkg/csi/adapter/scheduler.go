@@ -22,7 +22,7 @@ import (
 	"os"
 
 	"github.com/oecp/open-local/pkg/csi/client"
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 // BindingInfo represents the pvc and disk/lvm mapping

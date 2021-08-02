@@ -19,8 +19,8 @@ package csi
 import (
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	log "k8s.io/klog"
 )
 
 type identityServer struct {

@@ -18,10 +18,10 @@ package server
 
 import (
 	"github.com/oecp/open-local/pkg/csi/lib"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	log "k8s.io/klog"
 )
 
 // Server lvm grpc server

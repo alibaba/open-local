@@ -32,11 +32,11 @@ import (
 	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 	"github.com/oecp/open-local/pkg/utils"
 	"github.com/oecp/open-local/pkg/utils/lvm"
+	log "github.com/sirupsen/logrus"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
 	"k8s.io/utils/mount"
 )
 
@@ -125,47 +125,47 @@ func (d *Discoverer) Discover() {
 	defer d.mutex.Unlock()
 	// update configuration from NLSC
 	if err := d.updateConfigurationFromNLSC(); err != nil {
-		klog.Errorf("update configuration from NLSC error: %s", err.Error())
+		log.Errorf("update configuration from NLSC error: %s", err.Error())
 		return
 	}
 
 	if nls, err := d.lssclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
 		if k8serr.IsNotFound(err) {
-			klog.Infof("creating node local storage %s", d.Nodename)
+			log.Infof("creating node local storage %s", d.Nodename)
 			nls = d.newLocalStorageCRD()
 			// create new nls
 			_, err = d.lssclientset.StorageV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
 			if err != nil {
-				klog.Errorf("create local storage CRD status failed: %s", err.Error())
+				log.Errorf("create local storage CRD status failed: %s", err.Error())
 				return
 			}
 		} else {
-			klog.Errorf("get NodeLocalStorages failed: %s", err.Error())
+			log.Errorf("get NodeLocalStorages failed: %s", err.Error())
 			return
 		}
 	} else {
-		klog.Infof("update node local storage %s status", d.Nodename)
+		log.Infof("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
 		reservedVGInfos := make(map[string]ReservedVGInfo, 0)
 		if anno, exist := nlsCopy.Annotations[AnnoStorageReserve]; exist {
 			if reservedVGInfos, err = getReservedVGInfo(anno); err != nil {
-				klog.Errorf("get reserved vg info failed: %s, but we ignore...", err.Error())
+				log.Errorf("get reserved vg info failed: %s, but we ignore...", err.Error())
 				return
 			}
 		}
 		// get status first, for we need support regexp
 		newStatus := new(lssv1alpha1.NodeLocalStorageStatus)
 		if err := d.discoverVGs(newStatus, reservedVGInfos); err != nil {
-			klog.Errorf("discover VG error: %s", err.Error())
+			log.Errorf("discover VG error: %s", err.Error())
 			return
 		}
 		if err := d.discoverDevices(newStatus); err != nil {
-			klog.Errorf("discover Device error: %s", err.Error())
+			log.Errorf("discover Device error: %s", err.Error())
 			return
 		}
 		if err := d.discoverMountPoints(newStatus); err != nil {
-			klog.Errorf("discover MountPoint error: %s", err.Error())
+			log.Errorf("discover MountPoint error: %s", err.Error())
 			return
 		}
 		newStatus.NodeStorageInfo.Phase = lssv1alpha1.NodeStorageRunning
@@ -185,7 +185,7 @@ func (d *Discoverer) Discover() {
 		// only update status
 		_, err = d.lssclientset.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 		if err != nil {
-			klog.Errorf("local storage CRD updateStatus error: %s", err.Error())
+			log.Errorf("local storage CRD updateStatus error: %s", err.Error())
 			return
 		}
 	}
@@ -195,7 +195,7 @@ func (d *Discoverer) Discover() {
 func (d *Discoverer) InitResource() {
 	nls, err := d.lssclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
 	if err != nil {
-		klog.Warningf("get node local storage %s failed: %s", d.Nodename, err.Error())
+		log.Warningf("get node local storage %s failed: %s", d.Nodename, err.Error())
 		return
 	}
 	vgs := nls.Spec.ResourceToBeInited.VGs
@@ -205,7 +205,7 @@ func (d *Discoverer) InitResource() {
 		if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
 			err := d.createVG(vg.Name, vg.Devices)
 			if err != nil {
-				klog.Errorf("create vg %s failed: %s", vg.Name, err.Error())
+				log.Errorf("create vg %s failed: %s", vg.Name, err.Error())
 			}
 		}
 	}
@@ -213,7 +213,7 @@ func (d *Discoverer) InitResource() {
 		notMounted, err := d.K8sMounter.IsLikelyNotMountPoint(mp.Path)
 		if err != nil && strings.Contains(err.Error(), "no such file or directory") {
 			if err := os.MkdirAll(mp.Path, 0777); err != nil {
-				klog.Warningf("mkdir error: %s", err.Error())
+				log.Warningf("mkdir error: %s", err.Error())
 				continue
 			}
 		}
@@ -223,11 +223,11 @@ func (d *Discoverer) InitResource() {
 				fsType = DefaultFS
 			}
 			if err := utils.Format(mp.Device, fsType); err != nil {
-				klog.Warningf("format error: %s", err.Error())
+				log.Warningf("format error: %s", err.Error())
 				continue
 			}
 			if err := d.K8sMounter.Mount(mp.Device, mp.Path, fsType, mp.Options); err != nil {
-				klog.Warningf("mount error: %s", err.Error())
+				log.Warningf("mount error: %s", err.Error())
 				continue
 			}
 		}

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/oecp/open-local/pkg/utils"
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
 )
@@ -59,10 +59,11 @@ func formatAndMount(diskMounter *k8smount.SafeFormatAndMount, source string, tar
 	if mountErr != nil {
 		// Mount failed. This indicates either that the disk is unformatted or
 		// it contains an unexpected filesystem.
-		existingFormat, err := diskMounter.GetDiskFormat(source)
-		if err != nil {
-			return err
-		}
+		// existingFormat, err := diskMounter.GetDiskFormat(source)
+		existingFormat := ""
+		// if err != nil {
+		// 	return err
+		// }
 		if existingFormat == "" {
 			if readOnly {
 				// Don't attempt to format if mounting as readonly, return an error to reflect this.

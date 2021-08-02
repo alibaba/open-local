@@ -28,7 +28,7 @@ var (
 	Verbose bool
 )
 
-var VersionCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of open-local",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -41,7 +41,7 @@ var VersionCmd = &cobra.Command{
 }
 
 func init() {
-	addFlags(VersionCmd.Flags())
+	addFlags(Cmd.Flags())
 }
 
 func addFlags(fs *pflag.FlagSet) {

@@ -24,7 +24,7 @@ import (
 	"os/exec"
 	"strings"
 
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 type findmntResponse struct {

@@ -21,7 +21,7 @@ import (
 
 	serverhelpers "github.com/google/go-microservice-helpers/server"
 	"github.com/oecp/open-local/pkg/csi/lib"
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

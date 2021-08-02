@@ -111,8 +111,7 @@ spec:
         args:
         - csi
         - "--endpoint=$(CSI_ENDPOINT)"
-        - "--v=5"
-        - "--nodeid=$(KUBE_NODE_NAME)"
+        - "--nodeID=$(KUBE_NODE_NAME)"
         - "--driver={{ .Values.driver }}"
         env:
         - name: KUBE_NODE_NAME

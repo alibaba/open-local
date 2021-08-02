@@ -37,6 +37,7 @@ import (
 	"github.com/oecp/open-local/pkg/csi/adapter"
 	"github.com/oecp/open-local/pkg/csi/client"
 	"github.com/oecp/open-local/pkg/csi/server"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,7 +45,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	log "k8s.io/klog"
 )
 
 const (

@@ -21,9 +21,9 @@ import (
 
 	"github.com/oecp/open-local/pkg/csi"
 	"github.com/oecp/open-local/pkg/om"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	log "k8s.io/klog"
 )
 
 var (
@@ -59,10 +59,10 @@ func Start(opt *csiOption) error {
 	// Storage devops
 	go om.StorageOM()
 
-	go func(endPoint string) {
-		driver := csi.NewDriver(opt.Driver, opt.NodeID, endPoint)
-		driver.Run()
-	}(opt.Endpoint)
+	// go func(endPoint string) {
+	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint)
+	driver.Run()
+	// }(opt.Endpoint)
 
 	return nil
 }

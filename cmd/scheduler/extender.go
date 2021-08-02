@@ -25,11 +25,11 @@ import (
 	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
 	"github.com/oecp/open-local/pkg/scheduler/server"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	log "k8s.io/klog"
 	"k8s.io/sample-controller/pkg/signals"
 )
 

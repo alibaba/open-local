@@ -34,6 +34,7 @@ import (
 	lssfake "github.com/oecp/open-local/pkg/generated/clientset/versioned/fake"
 	lssinformers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
 	"github.com/oecp/open-local/pkg/scheduler/server"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -42,7 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 

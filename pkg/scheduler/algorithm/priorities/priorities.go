@@ -18,8 +18,8 @@ package priorities
 
 import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -56,7 +56,7 @@ func (p Prioritize) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.HostP
 
 	for _, pri := range p.PrioritizeFuncs {
 		for i, nodeName := range nodeNames {
-			log.V(5).Infof("prioritizing pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
+			log.Infof("prioritizing pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
 			node, err := p.Ctx.CoreV1Informers.Nodes().Lister().Get(nodeName)
 			if err != nil {
 				log.Errorf("unable to fetch node cache %s from informer: %s", nodeName, err.Error())
@@ -68,7 +68,7 @@ func (p Prioritize) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.HostP
 					err.Error())
 				continue
 			}
-			log.V(3).Infof("pod %s/%s on node %q , score=%d", pod.Name, pod.Namespace, node.Name, score)
+			log.Infof("pod %s/%s on node %q , score=%d", pod.Name, pod.Namespace, node.Name, score)
 			hostPriorityList[i] = schedulerapi.HostPriority{
 				Host:  node.Name,
 				Score: int64(score) + hostPriorityList[i].Score,

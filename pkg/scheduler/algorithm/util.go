@@ -27,7 +27,7 @@ import (
 	"github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/oecp/open-local/pkg/utils"
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 //GetPodPvcs returns the pending pvcs which are needed for scheduling
@@ -47,7 +47,7 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 				return err, lvmPVCs, mpPVCs, devicePVCs
 			}
 			if pvc.Status.Phase == corev1.ClaimBound && skipBound {
-				log.V(4).Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
+				log.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
 				continue
 			}
 			scName := pvc.Spec.StorageClassName
@@ -64,16 +64,16 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 			if isLSSPV, pvType = utils.IsLSSPVC(pvc, ctx.StorageV1Informers, containReadonlySnapshot); isLSSPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
-					log.V(3).Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
+					log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
 					lvmPVCs = append(lvmPVCs, pvc)
 				case pkg.VolumeTypeMountPoint:
-					log.V(3).Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
+					log.Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
 					mpPVCs = append(mpPVCs, pvc)
 				case pkg.VolumeTypeDevice:
-					log.V(3).Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
+					log.Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
 					devicePVCs = append(devicePVCs, pvc)
 				default:
-					log.V(5).Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
+					log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
 				}
 			}
 		}

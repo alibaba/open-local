@@ -24,7 +24,6 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/oecp/open-local/pkg/utils"
-	log "k8s.io/klog"
 )
 
 func CacheRoute(ctx *algorithm.SchedulingContext) httprouter.Handle {
@@ -40,15 +39,12 @@ func CacheRoute(ctx *algorithm.SchedulingContext) httprouter.Handle {
 			if nc != nil {
 				c := cache.NewClusterNodeCache()
 				c.SetNodeCache(nc)
-				log.V(8).Infof("n: %#v", c)
 				n := c.Nodes[nodeName]
 				utils.HttpJSON(w, http.StatusOK, &n)
 			} else {
 				utils.HttpResponse(w, http.StatusBadRequest, []byte(fmt.Sprintf("%s is not found", nodeName)))
 			}
 		} else {
-			log.V(8).Infof("c: %#v", ctx.ClusterNodeCache)
-
 			utils.HttpJSON(w, http.StatusOK, ctx.ClusterNodeCache)
 		}
 		return

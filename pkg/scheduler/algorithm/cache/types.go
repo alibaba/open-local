@@ -21,8 +21,8 @@ import (
 
 	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 )
 
 type NodeInfo struct {
@@ -126,7 +126,7 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 		info[pvcName] = f
 		p.PvcPod[pvcName] = podName
 		p.PodPvcInfo[podName] = info
-		log.V(6).Infof("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+		log.Infof("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	}
 	return
 }
@@ -135,12 +135,12 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 func (p *PodPvcMapping) DeletePod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
 	var pvcName string
 	delete(p.PodPvcInfo, podName)
-	log.V(6).Infof("[DeletePod]deleted pod cache %s", podName)
+	log.Infof("[DeletePod]deleted pod cache %s", podName)
 
 	for _, pvc := range pvcs {
 		pvcName = utils.PVCName(pvc)
 		delete(p.PvcPod, pvcName)
-		log.V(6).Infof("[DeletePod]deleted pvc %s from cache", pvcName)
+		log.Infof("[DeletePod]deleted pvc %s from cache", pvcName)
 	}
 	return
 }
@@ -152,12 +152,12 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 	podName := p.PvcPod[pvcName]
 	info := p.PodPvcInfo[podName]
 	if len(podName) <= 0 || info == nil {
-		log.V(5).Infof("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
+		log.Infof("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
 		return
 	}
 	f := utils.PvcContainsSelectedNode(pvc)
 	info[pvcName] = f
-	log.V(6).Infof("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+	log.Infof("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	return
 }
 
@@ -165,7 +165,7 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 func (p *PodPvcMapping) DeletePvc(pvc *corev1.PersistentVolumeClaim) {
 	pvcName := utils.PVCName(pvc)
 	delete(p.PvcPod, pvcName)
-	log.V(6).Infof("[DeletePvc]deleted pvc %s from cache", pvcName)
+	log.Infof("[DeletePvc]deleted pvc %s from cache", pvcName)
 	return
 }
 

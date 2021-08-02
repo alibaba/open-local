@@ -29,12 +29,12 @@ import (
 
 	localtype "github.com/oecp/open-local/pkg"
 	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
-	log "k8s.io/klog"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 )
 
@@ -95,7 +95,7 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes["vgName"]; ok {
 		return v
 	}
-	log.V(5).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
+	log.Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
 
 	return ""
 }
@@ -110,7 +110,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
 		return v
 	}
-	log.V(5).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
+	log.Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
 
 	return ""
 }
@@ -125,7 +125,7 @@ func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeMountPoint)]; ok {
 		return v
 	}
-	log.V(5).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
+	log.Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
 
 	return ""
 }
@@ -137,12 +137,12 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 		if vgNameFromPV == vgName {
 			v, _ := pv.Spec.Capacity[corev1.ResourceStorage]
 			requested += v.Value()
-			log.V(5).Infof("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
+			log.Infof("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
 		} else {
-			log.V(5).Infof("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
+			log.Infof("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
 		}
 	}
-	log.V(5).Infof("requested size of VG %s is %d", vgName, requested)
+	log.Infof("requested size of VG %s is %d", vgName, requested)
 	return requested
 }
 
@@ -153,7 +153,7 @@ func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 	}
 
 	if StringsContains(localtype.SupportedFS, mp.FsType) == -1 {
-		log.V(3).Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
+		log.Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
 		return false
 	}
 
@@ -185,7 +185,7 @@ func HttpResponse(w http.ResponseWriter, code int, msg []byte) {
 
 func HttpJSON(w http.ResponseWriter, code int, result interface{}) {
 	response, err := json.Marshal(result)
-	log.V(5).Infof("json output: %s", response)
+	log.Infof("json output: %s", response)
 	if err != nil {
 		HttpResponse(w, 500, []byte(err.Error()))
 		return
@@ -319,7 +319,7 @@ func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.In
 	}
 	vgName, ok := sc.Parameters["vgName"]
 	if !ok {
-		log.V(5).Infof("storage class %s has no parameter %q set", sc.Name, "vgName")
+		log.Infof("storage class %s has no parameter %q set", sc.Name, "vgName")
 		return ""
 	}
 	return vgName
@@ -332,7 +332,7 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers
 	}
 	mediaType, ok := sc.Parameters["mediaType"]
 	if !ok {
-		log.V(5).Infof("storage class %s has no parameter %q set", sc.Name, "mediaType")
+		log.Infof("storage class %s has no parameter %q set", sc.Name, "mediaType")
 		return ""
 	}
 	return localtype.MediaType(mediaType)
@@ -505,7 +505,7 @@ func PodPvcAllowReschedule(pvcs []*corev1.PersistentVolumeClaim, fakeNow *time.T
 	for _, pvc := range pvcs {
 		deadLine := pvc.CreationTimestamp.Add(5 * time.Minute)
 		if fakeNow.After(deadLine) {
-			log.V(5).Infof("pvc %s has pending for %s", PVCName(pvc), fakeNow.Sub(pvc.CreationTimestamp.Time))
+			log.Infof("pvc %s has pending for %s", PVCName(pvc), fakeNow.Sub(pvc.CreationTimestamp.Time))
 			return true
 		}
 	}

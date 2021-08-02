@@ -24,8 +24,8 @@ import (
 	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/oecp/open-local/pkg/metrics"
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 )
 
 type ClusterInfo struct {
@@ -92,7 +92,7 @@ func (c *ClusterNodeCache) GetNodeCache(nodeName string) *NodeCache {
 
 func (c *ClusterNodeCache) SetNodeCache(nodeCache *NodeCache) *NodeCache {
 	if nodeCache == nil || nodeCache.NodeName == "" {
-		log.V(6).Infof("not set node cache, it's nil or nodeName is nil")
+		log.Infof("not set node cache, it's nil or nodeName is nil")
 		return nil
 	}
 	c.mu.Lock()
@@ -180,7 +180,7 @@ func (c *ClusterNodeCache) assumeLVMAllocatedUnit(unit AllocatedUnit, nodeCache 
 		Capacity:  vg.Capacity,
 		Requested: vg.Requested + unit.Requested,
 	}
-	log.V(4).Infof("assume node cache successfully: node = %s, vg = %s", nodeCache.NodeName, vg.Name)
+	log.Infof("assume node cache successfully: node = %s, vg = %s", nodeCache.NodeName, vg.Name)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
 }
@@ -200,7 +200,7 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 		MediaType:   nodeCache.Devices[ResourceName(unit.Device)].MediaType,
 		IsAllocated: true,
 	}
-	log.V(4).Infof("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
+	log.Infof("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
 }

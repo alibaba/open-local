@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 	k8smount "k8s.io/utils/mount"
 )
 

@@ -25,7 +25,7 @@ import (
 	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/oecp/open-local/pkg/utils"
 	"github.com/ricochet2200/go-disk-usage/du"
-	"k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/mount"
 )
 
@@ -41,7 +41,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 	}
 
 	if len(files) == 0 {
-		klog.Infof("No dir in mount path: %s", d.MountPath)
+		log.Infof("No dir in mount path: %s", d.MountPath)
 	}
 
 	// Put mount moints into set for faster checks below
@@ -55,7 +55,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 
 		// Validate that this path is an actual mountpoint
 		if _, isMntPnt := mountPointMap[filePath]; isMntPnt == false {
-			klog.V(6).Infof("Path %q is not an actual mountpoint", filePath)
+			log.Infof("Path %q is not an actual mountpoint", filePath)
 			continue
 		}
 

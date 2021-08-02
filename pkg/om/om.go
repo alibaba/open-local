@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	log "k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

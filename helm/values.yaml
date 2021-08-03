@@ -29,12 +29,12 @@ images:                       # 镜像
 agent:
   name: open-local-agent
   # 挂载盘目录
-  localvolume_base_path: /mnt/yoda/
+  localvolume_base_path: /mnt/open-local/
   # 正则表达式，用来发现块设备
   # 下方表达式将Yoda会发现诸如sda、vdb等命名方式的块设备
   regexp: ^(s|v|xv)d[a-z]+$
   # 要初始化的VG名称
-  vgname: yoda-pool
+  vgname: local-pool
   # 要初始化的块设备
   device: /dev/vdb
 extender:

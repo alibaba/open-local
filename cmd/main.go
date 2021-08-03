@@ -57,14 +57,6 @@ func addCommands() {
 }
 
 func init() {
-	// pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
-	// pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-	// // TODO(yuzhi.wx): don't know what it is
-	// // Workaround the annoying "ERROR: logging before flag.Parse:"
-	// // https://github.com/jetstack/navigator/pull/74/files
-	// _ = goflag.CommandLine.Parse([]string{})
-	// logs.InitLogs()
-
 	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
 	// log.InitFlags(goflag.CommandLine)
 	// MainCmd.Flags().AddGoFlagSet(goflag.CommandLine)

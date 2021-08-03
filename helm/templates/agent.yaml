@@ -129,9 +129,7 @@ spec:
           value: "true"
         - name: ISSUE_MESSAGE_FILE
           value: "true"
-        - name: DRIVER_VENDOR
-          value: "{{ .Values.driver }}"
-        - name: YODA_SNAPSHOT_PREFIX
+        - name: SNAPSHOT_PREFIX
           value: "snap"
         resources:
           limits:

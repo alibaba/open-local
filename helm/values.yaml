@@ -20,6 +20,12 @@ images:                       # 镜像
   resizer:
     image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-resizer
     tag: v1.2.0
+  snapshotter:
+    image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-snapshotter
+    tag: v3.0.3
+  snapshot_controller:
+    image: registry.cn-hangzhou.aliyuncs.com/oecp/snapshot-controller
+    tag: v3.0.3
 agent:
   name: open-local-agent
   # 挂载盘目录

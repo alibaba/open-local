@@ -1,0 +1,11 @@
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshotClass
+metadata:
+  name: {{ .Values.storageclass.name }}
+driver: {{ .Values.driver }}
+deletionPolicy: Delete
+parameters:
+  yoda.io/readonly: "true"
+  storage.oecp.io/snapshot-initial-size: 4Gi
+  storage.oecp.io/snapshot-expansion-size: 1Gi
+  storage.oecp.io/snapshot-expansion-threshold: 50%

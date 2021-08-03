@@ -37,6 +37,7 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
 	"github.com/oecp/open-local/pkg/scheduler/statussyncer"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -46,7 +47,6 @@ import (
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	clientgocache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	log "k8s.io/klog"
 )
 
 func NewExtenderServer(kubeClient kubernetes.Interface,

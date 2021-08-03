@@ -41,7 +41,6 @@ spec:
         - scheduler
         - --port={{ .Values.extender.port }}
         - --scheduler-strategy={{ .Values.extender.strategy }}
-        - -v=6
         image: {{ .Values.images.extender.image }}:{{ .Values.images.extender.tag }}
         imagePullPolicy: IfNotPresent
         name: {{ .Values.extender.name }}

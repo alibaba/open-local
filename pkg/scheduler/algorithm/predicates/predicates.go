@@ -22,8 +22,8 @@ import (
 
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/errors"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -52,7 +52,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 	pod := args.Pod
 
 	if p.needSkip(args) {
-		log.V(3).Infof("skip pod %s/%s scheduling", pod.Namespace, pod.Name)
+		log.Infof("skip pod %s/%s scheduling", pod.Namespace, pod.Name)
 		return &schedulerapi.ExtenderFilterResult{
 			Nodes:       args.Nodes,
 			NodeNames:   args.NodeNames,
@@ -69,14 +69,14 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			nodeNames = append(nodeNames, n.Name)
 		}
 	}
-	log.V(4).Infof("predicating pod %s with nodes [%s]", pod.Name, nodeNames)
+	log.Infof("predicating pod %s with nodes [%s]", pod.Name, nodeNames)
 	canSchedule := make([]string, 0, len(*args.NodeNames))
 	canNotSchedule := make(map[string]string)
 
 	errStr := ""
 
 	for _, nodeName := range nodeNames {
-		log.V(5).Infof("predicating pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
+		log.Infof("predicating pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
 
 		node, err := p.Ctx.CoreV1Informers.Nodes().Lister().Get(nodeName)
 		if err != nil {
@@ -84,7 +84,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			continue
 		}
 		fits, failReasons, err := Predicates(p.Ctx, p.PredicateFuncs, pod, node)
-		log.V(5).Infof("pod=%s/%s, node=%s,fits: %t,failReasons: %s, err: %v",
+		log.Infof("pod=%s/%s, node=%s,fits: %t,failReasons: %s, err: %v",
 			pod.Namespace, pod.Name, node.Name, fits, failReasons, err)
 
 		if err != nil {
@@ -96,7 +96,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			if fits {
 				canSchedule = append(canSchedule, nodeName)
 			} else {
-				log.V(4).Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
+				log.Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
 				canNotSchedule[nodeName] = strings.Join(failReasons, ",")
 			}
 		}
@@ -126,7 +126,7 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 	for _, pre := range PredicateFuncs {
 		fits, err = pre(Ctx, pod, node)
 		isError, failReasons := normalizeError(err)
-		log.V(5).Infof("fits: %t,failReasons: %s, err: %v", fits, failReasons, err)
+		log.Infof("fits: %t,failReasons: %s, err: %v", fits, failReasons, err)
 
 		if isError && err != nil {
 			log.Errorf("scheduling terminated for %s/%s: %s", pod.Namespace, pod.Name, err.Error())
@@ -136,7 +136,7 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 			//return fits, []string{}, nil
 			continue
 		} else {
-			//log.V(4).Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
+			//log.Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
 			failedReasons = append(failedReasons, failReasons...)
 			//return fits, failReasons, nil
 		}
@@ -148,7 +148,7 @@ func (p Predicate) needSkip(args schedulerapi.ExtenderArgs) bool {
 	pod := args.Pod
 	// no volume, skipped
 	if len(pod.Spec.Volumes) <= 0 {
-		log.V(5).Infof("skip pod %s/%s scheduling, reason: no volume", pod.Namespace, pod.Name)
+		log.Infof("skip pod %s/%s scheduling, reason: no volume", pod.Namespace, pod.Name)
 		return true
 	}
 	// no volume contains PVC
@@ -157,7 +157,7 @@ func (p Predicate) needSkip(args schedulerapi.ExtenderArgs) bool {
 			return false
 		}
 	}
-	log.V(5).Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
+	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
 
 	return true
 

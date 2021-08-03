@@ -22,8 +22,8 @@ import (
 
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -47,7 +47,7 @@ func CountMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.
 			return 0, err
 		}
 		scoreMP = int(float64(len(mpPVCs)) * float64(MaxScore) / float64(freeMPCount))
-		log.V(5).Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
+		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
 	}
 	freeDeviceCount, err := freeDevices(nc)
 	if len(devicePVCs) > 0 && freeDeviceCount > 0 {
@@ -55,7 +55,7 @@ func CountMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.
 			return 0, err
 		}
 		scoreDevice = int(float64(len(devicePVCs)) * float64(MaxScore) / float64(freeDeviceCount))
-		log.V(5).Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
+		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
 	}
 	return (scoreMP + scoreDevice) / 2.0, nil
 }

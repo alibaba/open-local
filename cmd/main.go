@@ -17,17 +17,15 @@ limitations under the License.
 package main
 
 import (
-	goflag "flag"
 	"fmt"
 	"os"
 
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"k8s.io/component-base/logs"
-	log "k8s.io/klog"
 
 	"github.com/oecp/open-local/cmd/agent"
+	"github.com/oecp/open-local/cmd/csi"
 	"github.com/oecp/open-local/cmd/scheduler"
 	"github.com/oecp/open-local/cmd/version"
 )
@@ -51,20 +49,23 @@ func main() {
 
 func addCommands() {
 	MainCmd.AddCommand(
-		version.VersionCmd,
-
-		// backend commands
 		agent.Cmd,
 		scheduler.Cmd,
+		csi.Cmd,
+		version.Cmd,
 	)
 }
 
 func init() {
-	pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
-	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-	// TODO(yuzhi.wx): don't know what it is
-	// Workaround the annoying "ERROR: logging before flag.Parse:"
-	// https://github.com/jetstack/navigator/pull/74/files
-	_ = goflag.CommandLine.Parse([]string{})
-	logs.InitLogs()
+	// pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
+	// pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+	// // TODO(yuzhi.wx): don't know what it is
+	// // Workaround the annoying "ERROR: logging before flag.Parse:"
+	// // https://github.com/jetstack/navigator/pull/74/files
+	// _ = goflag.CommandLine.Parse([]string{})
+	// logs.InitLogs()
+
+	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
+	// log.InitFlags(goflag.CommandLine)
+	// MainCmd.Flags().AddGoFlagSet(goflag.CommandLine)
 }

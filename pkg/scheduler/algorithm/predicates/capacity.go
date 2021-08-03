@@ -23,8 +23,8 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/algo"
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -100,7 +100,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 	}
 
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 {
-		log.V(4).Infof("no open-local volume request on pod %s, skipped", pod.Name)
+		log.Infof("no open-local volume request on pod %s, skipped", pod.Name)
 		return true, nil
 	}
 

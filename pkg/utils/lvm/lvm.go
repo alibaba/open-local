@@ -25,7 +25,8 @@ import (
 	"regexp"
 	"strings"
 
-	"k8s.io/klog"
+	localtype "github.com/oecp/open-local/pkg"
+	log "github.com/sirupsen/logrus"
 )
 
 // Control verbose output of all LVM CLI commands
@@ -61,9 +62,6 @@ var tagRegexp = regexp.MustCompile("^[A-Za-z0-9_+.][A-Za-z0-9_+.-]*$")
 const ErrTagInvalidLength = simpleError("lvm: Tag length must be between 1 and 1024 characters")
 const ErrTagHasInvalidChars = simpleError("lvm: Tag must consist of only [A-Za-z0-9_+.-] and cannot start with a '-'")
 
-// NsenterCmd is the nsenter command
-const NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
-
 type PhysicalVolume struct {
 	dev string
 }
@@ -71,7 +69,7 @@ type PhysicalVolume struct {
 // Remove removes the physical volume.
 func (pv *PhysicalVolume) Remove() error {
 	if err := run("pvremove", nil, pv.dev); err != nil {
-		klog.Errorf("pv remove error: %s", err.Error())
+		log.Errorf("pv remove error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -80,7 +78,7 @@ func (pv *PhysicalVolume) Remove() error {
 // Check runs the pvck command on the physical volume.
 func (pv *PhysicalVolume) Check() error {
 	if err := run("pvck", nil, pv.dev); err != nil {
-		klog.Errorf("pv check error: %s", err.Error())
+		log.Errorf("pv check error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -97,7 +95,7 @@ func (vg *VolumeGroup) Name() string {
 // Check runs the vgck command on the volume group.
 func (vg *VolumeGroup) Check() error {
 	if err := run("vgck", nil, vg.name); err != nil {
-		klog.Errorf("vg check error: %s", err.Error())
+		log.Errorf("vg check error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -110,7 +108,7 @@ func (vg *VolumeGroup) BytesTotal() (uint64, error) {
 		if IsVolumeGroupNotFound(err) {
 			return 0, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("BytesTotal error: %s", err.Error())
+		log.Errorf("BytesTotal error: %s", err.Error())
 		return 0, err
 	}
 	for _, report := range result.Report {
@@ -128,7 +126,7 @@ func (vg *VolumeGroup) BytesFree() (uint64, error) {
 		if IsVolumeGroupNotFound(err) {
 			return 0, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("BytesFree error: %s", err.Error())
+		log.Errorf("BytesFree error: %s", err.Error())
 		return 0, err
 	}
 	for _, report := range result.Report {
@@ -146,7 +144,7 @@ func (vg *VolumeGroup) ExtentSize() (uint64, error) {
 		if IsVolumeGroupNotFound(err) {
 			return 0, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("ExtentSize error: %s", err.Error())
+		log.Errorf("ExtentSize error: %s", err.Error())
 		return 0, err
 	}
 	for _, report := range result.Report {
@@ -164,7 +162,7 @@ func (vg *VolumeGroup) ExtentCount() (uint64, error) {
 		if IsVolumeGroupNotFound(err) {
 			return 0, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("ExtentCount error: %s", err.Error())
+		log.Errorf("ExtentCount error: %s", err.Error())
 		return 0, err
 	}
 	for _, report := range result.Report {
@@ -182,7 +180,7 @@ func (vg *VolumeGroup) ExtentFreeCount() (uint64, error) {
 		if IsVolumeGroupNotFound(err) {
 			return 0, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("ExtentFreeCount error: %s", err.Error())
+		log.Errorf("ExtentFreeCount error: %s", err.Error())
 		return 0, err
 	}
 	for _, report := range result.Report {
@@ -221,7 +219,7 @@ func (vg *VolumeGroup) CreateLogicalVolume(name string, sizeInBytes uint64, tags
 		if isInsufficientSpace(err) {
 			return nil, ErrNoSpace
 		}
-		klog.Errorf("CreateLogicalVolume error: %s", err.Error())
+		log.Errorf("CreateLogicalVolume error: %s", err.Error())
 		return nil, err
 	}
 	return &LogicalVolume{name, sizeInBytes, vg, "", 0}, nil
@@ -276,7 +274,7 @@ func (vg *VolumeGroup) LookupLogicalVolume(name string) (*LogicalVolume, error) 
 		if IsLogicalVolumeNotFound(err) {
 			return nil, ErrLogicalVolumeNotFound
 		}
-		klog.Errorf("LookupLogicalVolume error: %s", err.Error())
+		log.Errorf("LookupLogicalVolume error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -304,7 +302,7 @@ func (vg *VolumeGroup) ListLogicalVolumeNames() ([]string, error) {
 	var names []string
 	result := new(lvsOutput)
 	if err := run("lvs", result, "--options=lv_name,vg_name", vg.name); err != nil {
-		klog.Errorf("ListLogicalVolumeNames error: %s", err.Error())
+		log.Errorf("ListLogicalVolumeNames error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -370,7 +368,7 @@ func (vg *VolumeGroup) ListPhysicalVolumeNames() ([]string, error) {
 	var names []string
 	result := new(pvsOutput)
 	if err := run("pvs", result, "--options=pv_name,vg_name"); err != nil {
-		klog.Errorf("ListPhysicalVolumeNames error: %s", err.Error())
+		log.Errorf("ListPhysicalVolumeNames error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -390,7 +388,7 @@ func (vg *VolumeGroup) Tags() ([]string, error) {
 		if IsVolumeGroupNotFound(err) {
 			return nil, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("volume group tags error: %s", err.Error())
+		log.Errorf("volume group tags error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -411,7 +409,7 @@ func (vg *VolumeGroup) Tags() ([]string, error) {
 // Remove removes the volume group from disk.
 func (vg *VolumeGroup) Remove() error {
 	if err := run("vgremove", nil, "-f", vg.name); err != nil {
-		klog.Errorf("volume group Remove error: %s", err.Error())
+		log.Errorf("volume group Remove error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -448,7 +446,7 @@ func (lv *LogicalVolume) Path() (string, error) {
 		if IsLogicalVolumeNotFound(err) {
 			return "", ErrLogicalVolumeNotFound
 		}
-		klog.Errorf("device path for the logical volume error: %s", err.Error())
+		log.Errorf("device path for the logical volume error: %s", err.Error())
 		return "", err
 	}
 	for _, report := range result.Report {
@@ -466,7 +464,7 @@ func (lv *LogicalVolume) Tags() ([]string, error) {
 		if IsLogicalVolumeNotFound(err) {
 			return nil, ErrLogicalVolumeNotFound
 		}
-		klog.Errorf("LogicalVolume tags error: %s", err.Error())
+		log.Errorf("LogicalVolume tags error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -493,21 +491,21 @@ func (lv *LogicalVolume) IsSnapshot() bool {
 
 func (lv *LogicalVolume) Remove() error {
 	if err := run("lvremove", nil, "-f", lv.vg.name+"/"+lv.name); err != nil {
-		klog.Errorf("lvremove error: %s", err.Error())
+		log.Errorf("lvremove error: %s", err.Error())
 		return err
 	}
 	return nil
 }
 
 func (lv *LogicalVolume) Expand(size uint64) error {
-	args := []string{NsenterCmd, "lvextend", fmt.Sprintf("--size=+%db", size), lv.vg.name + "/" + lv.name}
+	args := []string{localtype.NsenterCmd, "lvextend", fmt.Sprintf("--size=+%db", size), lv.vg.name + "/" + lv.name}
 	cmd := strings.Join(args, " ")
-	klog.Infof("[Expand]cmd: %s", cmd)
+	log.Infof("[Expand]cmd: %s", cmd)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		return err
 	}
-	klog.Infof("[Expand]out: %s", string(out))
+	log.Infof("[Expand]out: %s", string(out))
 
 	return nil
 }
@@ -523,7 +521,7 @@ func PVScan(dev string) error {
 
 	err := run("pvscan", nil, args...)
 	if err != nil {
-		klog.Errorf("PVScan error: %s", err.Error())
+		log.Errorf("PVScan error: %s", err.Error())
 	}
 
 	return err
@@ -540,7 +538,7 @@ func VGScan(name string) error {
 
 	err := run("vgscan", nil, args...)
 	if err != nil {
-		klog.Errorf("VGScan error: %s", err.Error())
+		log.Errorf("VGScan error: %s", err.Error())
 	}
 
 	return err
@@ -568,7 +566,7 @@ func CreateVolumeGroup(
 		args = append(args, pv.dev)
 	}
 	if err := run("vgcreate", nil, args...); err != nil {
-		klog.Errorf("CreateVolumeGroup error: %s", err.Error())
+		log.Errorf("CreateVolumeGroup error: %s", err.Error())
 		return nil, err
 	}
 	// Perform a best-effort scan to trigger a lvmetad cache refresh.
@@ -576,10 +574,10 @@ func CreateVolumeGroup(
 	// Without this lvmetad can fail to pickup newly created volume groups.
 	// See https://bugzilla.redhat.com/show_bug.cgi?id=837599
 	if err := PVScan(""); err != nil {
-		klog.Errorf("error during pvscan: %s", err.Error())
+		log.Errorf("error during pvscan: %s", err.Error())
 	}
 	if err := VGScan(""); err != nil {
-		klog.Errorf("error during vgscan: %s", err.Error())
+		log.Errorf("error during vgscan: %s", err.Error())
 	}
 	return &VolumeGroup{name}, nil
 }
@@ -633,7 +631,7 @@ func LookupVolumeGroup(name string) (*VolumeGroup, error) {
 		if IsVolumeGroupNotFound(err) {
 			return nil, ErrVolumeGroupNotFound
 		}
-		klog.Errorf("LookupVolumeGroup error: %s", err.Error())
+		log.Errorf("LookupVolumeGroup error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -650,7 +648,7 @@ func LookupVolumeGroup(name string) (*VolumeGroup, error) {
 func ListVolumeGroupNames() ([]string, error) {
 	result := new(vgsOutput)
 	if err := run("vgs", result); err != nil {
-		klog.Errorf("ListVolumeGroupNames error: %s", err.Error())
+		log.Errorf("ListVolumeGroupNames error: %s", err.Error())
 		return nil, err
 	}
 	var names []string
@@ -668,7 +666,7 @@ func ListVolumeGroupNames() ([]string, error) {
 func ListVolumeGroupUUIDs() ([]string, error) {
 	result := new(vgsOutput)
 	if err := run("vgs", result, "--options=vg_uuid"); err != nil {
-		klog.Errorf("ListVolumeGroupUUIDs error: %s", err.Error())
+		log.Errorf("ListVolumeGroupUUIDs error: %s", err.Error())
 		return nil, err
 	}
 	var uuids []string
@@ -683,7 +681,7 @@ func ListVolumeGroupUUIDs() ([]string, error) {
 // CreatePhysicalVolume creates a physical volume of the given device.
 func CreatePhysicalVolume(dev string) (*PhysicalVolume, error) {
 	if err := run("pvcreate", nil, dev); err != nil {
-		klog.Errorf("CreatePhysicalVolume error: %s", err.Error())
+		log.Errorf("CreatePhysicalVolume error: %s", err.Error())
 		return nil, fmt.Errorf("lvm: CreatePhysicalVolume: %s", err.Error())
 	}
 	return &PhysicalVolume{dev}, nil
@@ -702,7 +700,7 @@ type pvsOutput struct {
 func ListPhysicalVolumes() ([]*PhysicalVolume, error) {
 	result := new(pvsOutput)
 	if err := run("pvs", result); err != nil {
-		klog.Errorf("ListPhysicalVolumes error: %s", err.Error())
+		log.Errorf("ListPhysicalVolumes error: %s", err.Error())
 		return nil, err
 	}
 	var pvs []*PhysicalVolume
@@ -721,7 +719,7 @@ func LookupPhysicalVolume(name string) (*PhysicalVolume, error) {
 		if IsPhysicalVolumeNotFound(err) {
 			return nil, ErrPhysicalVolumeNotFound
 		}
-		klog.Errorf("LookupPhysicalVolume error: %s", err.Error())
+		log.Errorf("LookupPhysicalVolume error: %s", err.Error())
 		return nil, err
 	}
 	for _, report := range result.Report {
@@ -737,7 +735,7 @@ func LookupPhysicalVolume(name string) (*PhysicalVolume, error) {
 
 func run(cmd string, v interface{}, extraArgs ...string) error {
 	var args []string
-	cmdUseNsenter := fmt.Sprintf("%s %s", NsenterCmd, cmd)
+	cmdUseNsenter := fmt.Sprintf("%s %s", localtype.NsenterCmd, cmd)
 	args = append(args, cmdUseNsenter)
 	if v != nil {
 		args = append(args, "--reportformat=json")
@@ -746,23 +744,23 @@ func run(cmd string, v interface{}, extraArgs ...string) error {
 	}
 	args = append(args, extraArgs...)
 	c := exec.Command("sh", "-c", strings.Join(args[:], " "))
-	klog.V(7).Infof("Executing: %s", c.String())
+	// log.Infof("Executing: %s", c.String())
 	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
 	c.Stdout = stdout
 	c.Stderr = stderr
 	if err := c.Run(); err != nil {
 		errstr := ignoreWarnings(stderr.String())
-		klog.V(7).Infof("stdout: " + stdout.String())
-		klog.V(7).Infof("stderr: " + errstr)
-		klog.Infof("[debug run]: command %s", c.String())
-		klog.Infof("[debug run]: error %s", err.Error())
+		// log.Infof("stdout: " + stdout.String())
+		// log.Infof("stderr: " + errstr)
+		log.Infof("[debug run]: command %s", c.String())
+		log.Infof("[debug run]: error %s", err.Error())
 		return errors.New(errstr)
 	}
 	stdoutbuf := stdout.Bytes()
-	stderrbuf := stderr.Bytes()
-	errstr := ignoreWarnings(string(stderrbuf))
-	klog.V(7).Infof("stdout: " + string(stdoutbuf))
-	klog.V(7).Infof("stderr: " + errstr)
+	// stderrbuf := stderr.Bytes()
+	// errstr := ignoreWarnings(string(stderrbuf))
+	// log.Infof("stdout: " + string(stdoutbuf))
+	// log.Infof("stderr: " + errstr)
 	if v != nil {
 		if err := json.Unmarshal(stdoutbuf, v); err != nil {
 			return fmt.Errorf("unmarshal error: %s", err.Error())
@@ -777,7 +775,7 @@ func ignoreWarnings(str string) string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "WARNING") {
-			klog.Warning(line)
+			log.Warning(line)
 			continue
 		}
 		// Ignore warnings of the kind:
@@ -786,7 +784,7 @@ func ignoreWarnings(str string) string {
 		// that it didn't create when it exits. This doesn't play nice with the fact
 		// that csilvm gets launched by e.g., mesos-agent.
 		if strings.HasPrefix(line, "File descriptor") {
-			klog.Info(line)
+			log.Info(line)
 			continue
 		}
 		result = append(result, line)

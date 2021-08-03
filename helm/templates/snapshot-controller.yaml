@@ -1,0 +1,40 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ .Values.name }}-snapshot-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}-snapshot-controller
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}-snapshot-controller
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}-snapshot-controller
+    spec:
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      priorityClassName: system-node-critical
+      serviceAccount: {{ .Values.name }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: csi-snapshotter
+          image: {{ .Values.images.snapshot_controller.image }}:{{ .Values.images.snapshot_controller.tag }}
+          args:
+            - --v=5
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi

@@ -23,8 +23,8 @@ import (
 
 	"github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	log "k8s.io/klog"
 )
 
 type ExtenderOptions struct {
@@ -84,7 +84,7 @@ func (option *ExtenderOptions) ParseWeight() (weights *pkg.NodeAntiAffinityWeigh
 				log.Errorf(err.Error())
 				return nil, err
 			}
-			log.V(3).Infof("node anti-affinity for %v added, weight is %d", vt, weight)
+			log.Infof("node anti-affinity for %v added, weight is %d", vt, weight)
 			weights.Put(vt, weight)
 		}
 	}

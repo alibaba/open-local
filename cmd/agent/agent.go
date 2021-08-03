@@ -26,11 +26,11 @@ import (
 	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 	"github.com/oecp/open-local/pkg/signals"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	log "k8s.io/klog"
 )
 
 var (
@@ -39,7 +39,7 @@ var (
 
 var Cmd = &cobra.Command{
 	Use:   "agent",
-	Short: "Main command for collecting local storage information.",
+	Short: "command for collecting local storage information",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Start(&opt)
 		if err != nil {

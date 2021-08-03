@@ -22,8 +22,8 @@ import (
 
 	"github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -53,19 +53,19 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 		}
 		switch volumeType {
 		case pkg.VolumeTypeMountPoint:
-			log.V(6).Infof("node=%s,isLSS: %t, nc.MountPoints: %d, freeMPCount: %d", node.Name, isLSS, len(nc.MountPoints), freeMPCount)
+			log.Infof("node=%s,isLSS: %t, nc.MountPoints: %d, freeMPCount: %d", node.Name, isLSS, len(nc.MountPoints), freeMPCount)
 			if len(mpPVCs) <= 0 && (!isLSS || (freeMPCount <= 0)) {
 				// non-open-local Pod and Node is not enough open-local volume of this type
 				scoreMP = weight * 1
-				log.V(5).Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
+				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
 				volumeTypeAntiFound[volumeType] = true
 			}
 		case pkg.VolumeTypeDevice:
-			log.V(6).Infof("node=%s,isLSS: %t, nc.Devices: %d, freeDeviceCount: %d", node.Name, isLSS, len(nc.Devices), freeDeviceCount)
+			log.Infof("node=%s,isLSS: %t, nc.Devices: %d, freeDeviceCount: %d", node.Name, isLSS, len(nc.Devices), freeDeviceCount)
 			if len(devicePVCs) <= 0 && (!isLSS || (freeDeviceCount <= 0)) {
 				scoreDevice = weight * 1
 
-				log.V(5).Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
+				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
 				volumeTypeAntiFound[volumeType] = true
 			}
 		case pkg.VolumeTypeLVM:

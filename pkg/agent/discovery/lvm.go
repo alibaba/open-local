@@ -22,7 +22,7 @@ import (
 
 	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/oecp/open-local/pkg/utils/lvm"
-	"k8s.io/klog"
+	log "github.com/sirupsen/logrus"
 )
 
 func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
@@ -38,7 +38,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		// Name
 		vg, err := lvm.LookupVolumeGroup(vgname)
 		if err != nil {
-			klog.Errorf("Look up volume group %s error: %s", vgname, err.Error())
+			log.Errorf("Look up volume group %s error: %s", vgname, err.Error())
 			continue
 		}
 		vgCrd.Name = vg.Name()
@@ -46,7 +46,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		// PV
 		vgCrd.PhysicalVolumes, err = vg.ListPhysicalVolumeNames()
 		if err != nil {
-			klog.Errorf("List physical volume %s error: %s", vgname, err.Error())
+			log.Errorf("List physical volume %s error: %s", vgname, err.Error())
 			continue
 		}
 		// total & available
@@ -59,7 +59,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		// LogicalVolumes
 		logicalVolumeNames, err := vg.ListLogicalVolumeNames()
 		if err != nil {
-			klog.Errorf("List volume group %s error: %s", vgname, err.Error())
+			log.Errorf("List volume group %s error: %s", vgname, err.Error())
 			continue
 		}
 		vgCrd.Allocatable = vgCrd.Total
@@ -69,7 +69,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 			lv.VGName = vgname
 			tmplv, err := vg.LookupLogicalVolume(lvname)
 			if err != nil {
-				klog.Errorf("List logical volume %s error: %s", lvname, err.Error())
+				log.Errorf("List logical volume %s error: %s", lvname, err.Error())
 				continue
 			}
 			lv.Total = tmplv.SizeInBytes()
@@ -97,7 +97,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 
 		// Todo(huizhi.szh): vg.Check(): Failed to connect to lvmetad. Falling back to device scanning.
 		// if err = vg.Check(); err != nil {
-		// 	klog.Errorf("volume %s check error: %s", vgname, err.Error())
+		// 	log.Errorf("volume %s check error: %s", vgname, err.Error())
 		// 	vgCrd.Condition = lssv1alpha1.StorageFault
 		// }
 		vgCrd.Condition = lssv1alpha1.StorageReady
@@ -113,14 +113,14 @@ func (d *Discoverer) createVG(vgname string, devices []string) error {
 	for _, dev := range devices {
 		pv, err := lvm.CreatePhysicalVolume(dev)
 		if err != nil {
-			klog.Errorf("create physical volume %s error: %s", dev, err.Error())
+			log.Errorf("create physical volume %s error: %s", dev, err.Error())
 			return err
 		}
 		pvs = append(pvs, pv)
 	}
 	_, err := lvm.CreateVolumeGroup(vgname, pvs, nil)
 	if err != nil {
-		klog.Errorf("create volume volume %s error: %s", vgname, err.Error())
+		log.Errorf("create volume volume %s error: %s", vgname, err.Error())
 		return err
 	}
 	return nil

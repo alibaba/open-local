@@ -37,7 +37,7 @@ const (
 
 	AgentName           string = "open-local-agent"
 	ProvisionerNameYoda string = "yodaplugin.csi.alibabacloud.com"
-	ProvisionerName     string = "openlocal.csi.oecp.io"
+	ProvisionerName     string = "csi.storage.oecp.io"
 	SchedulerName       string = "open-local-scheduler"
 
 	KubernetesNodeIdentityKey = "kubernetes.io/hostname"
@@ -70,9 +70,21 @@ const (
 	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
 	EnvExpandSnapInterval                = "Expand_Snapshot_Interval"
 	TagSnapshot                          = "SnapshotName"
-	TagSnapshotReadonly                  = "storage.oecp.io/readonly"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
+
+	ParamSnapshotName            = "yoda.io/snapshot-name"
+	ParamSnapshotReadonly        = "storage.oecp.io/readonly"
+	ParamSnapshotInitialSize     = "storage.oecp.io/snapshot-initial-size"
+	ParamSnapshotThreshold       = "storage.oecp.io/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "storage.oecp.io/snapshot-expansion-size"
+	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
+	DefaultSnapshotPrefix        = "local"
+	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
+	DefaultSnapshotThreshold     = 0.5
+	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+
+	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 )
 
 var (

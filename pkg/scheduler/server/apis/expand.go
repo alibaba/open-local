@@ -23,8 +23,8 @@ import (
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
 	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/oecp/open-local/pkg/utils"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 )
 
 // ExpandPVC tries to reserve new size for PV regarding to the PVC
@@ -51,7 +51,7 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 	newSize := utils.GetPVCRequested(pvc)
 	oldSize := utils.GetPVSize(pv)
 	if newSize <= oldSize {
-		log.V(3).Infof("pvc %s/%s size and PV size %s is equal, both are %d", pvc.Namespace, pvc.Name, pv.Name, oldSize)
+		log.Infof("pvc %s/%s size and PV size %s is equal, both are %d", pvc.Namespace, pvc.Name, pv.Name, oldSize)
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 		}
 		if vgCache, ok := nc.VGs[cache.ResourceName(vg)]; ok {
 			newRequested := vgCache.Requested + int64(newSize-oldSize)
-			log.V(5).Infof("matching pvc %s/%s on vg %s(left=%d bytes), ", pvc.Namespace, pvc.Name, vg, vgCache.Capacity-vgCache.Requested)
+			log.Infof("matching pvc %s/%s on vg %s(left=%d bytes), ", pvc.Namespace, pvc.Name, vg, vgCache.Capacity-vgCache.Requested)
 			if newRequested > vgCache.Capacity {
 				err := fmt.Errorf("failed to extend pvc, vg %s is not enough, requested total %d, capacity %d", vg, newRequested, vgCache.Capacity)
 				return err

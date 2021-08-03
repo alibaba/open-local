@@ -82,6 +82,7 @@ rules:
       - storage.k8s.io
     resources:
       - storageclasses
+      - csinodes
     verbs:
       - get
       - list
@@ -90,8 +91,10 @@ rules:
       - snapshot.storage.k8s.io
     resources:
       - volumesnapshotclasses
-      - volumesnapshotcontents
       - volumesnapshots
+      - volumesnapshots/status
+      - volumesnapshotcontents
+      - volumesnapshotcontents/status
     verbs:
       - create
       - get

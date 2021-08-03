@@ -16,3 +16,12 @@
   - 磁盘attach，此处device为上述信息中的device序号，port则在原基础上加1：VBoxManage storageattach minikube --storagectl "SATA" --port 2 --device 0 --type hdd --medium mydisk00.vdi
   - 登陆进minikube虚拟机：minikube ssh
   - 查看磁盘是否挂载成功：lsblk
+
+### 更新lvm.proto文件
+```bash
+go get google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+export PATH="$PATH:$(go env GOPATH)/bin"
+protoc --go_out=. --go_opt=paths=source_relative \
+    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+    lvm.proto
+```

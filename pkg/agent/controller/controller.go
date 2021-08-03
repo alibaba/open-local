@@ -21,15 +21,15 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
 
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/agent/common"
 	"github.com/oecp/open-local/pkg/agent/discovery"
 )
@@ -60,7 +60,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 
 	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting open-local agent")
+	log.Info("Starting open-local agent")
 	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.lssclientset, c.snapclientset)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 	go wait.Until(discoverer.InitResource, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
@@ -68,7 +68,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	// get auto expand snapshot interval
 	var err error
 	expandSnapInterval := discoverer.DiscoverInterval
-	tmp := os.Getenv(lsstype.EnvExpandSnapInterval)
+	tmp := os.Getenv(localtype.EnvExpandSnapInterval)
 	if tmp != "" {
 		expandSnapInterval, err = strconv.Atoi(tmp)
 		if err != nil {
@@ -77,9 +77,9 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	}
 	go wait.Until(discoverer.ExpandSnapshotLVIfNeeded, time.Duration(expandSnapInterval)*time.Second, stopCh)
 
-	klog.Info("Started open-local agent")
+	log.Info("Started open-local agent")
 	<-stopCh
-	klog.Info("Shutting down agent")
+	log.Info("Shutting down agent")
 
 	return nil
 }

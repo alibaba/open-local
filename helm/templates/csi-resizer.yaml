@@ -1,0 +1,45 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ .Values.name }}-csi-resizer
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}-csi-resizer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}-csi-resizer
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}-csi-resizer
+    spec:
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      priorityClassName: system-node-critical
+      serviceAccount: {{ .Values.name }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: csi-resizer
+          image: {{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+            - name: TZ
+              value: Asia/Shanghai
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/{{ .Values.driver }}
+            type: DirectoryOrCreate

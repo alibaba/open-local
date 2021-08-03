@@ -25,8 +25,8 @@ import (
 	"github.com/oecp/open-local/pkg/utils"
 
 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
 )
 
 const schedulingPVCPrefix = "/apis/scheduling/:namespace/persistentvolumeclaims/:name"
@@ -54,7 +54,7 @@ func SchedulingExpandWrap(ctx *algorithm.SchedulingContext) httprouter.Handle {
 			return
 		}
 		pvcSize := utils.GetPVCRequested(pvc)
-		log.V(3).Infof("successfully reserve %d(%d MiB) storage for pvc %s/%s", pvcSize, pvcSize/1024/1024, pvc.Namespace, pvc.Name)
+		log.Infof("successfully reserve %d(%d MiB) storage for pvc %s/%s", pvcSize, pvcSize/1024/1024, pvc.Namespace, pvc.Name)
 		return
 	}
 }

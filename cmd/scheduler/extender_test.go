@@ -29,11 +29,12 @@ import (
 
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	lsstype "github.com/oecp/open-local/pkg"
+	localtype "github.com/oecp/open-local/pkg"
 	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	lssfake "github.com/oecp/open-local/pkg/generated/clientset/versioned/fake"
 	lssinformers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
 	"github.com/oecp/open-local/pkg/scheduler/server"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -42,7 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	log "k8s.io/klog"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -303,13 +303,13 @@ func TestUpdateCR(t *testing.T) {
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(lsstype.MediaTypeSSD),
+						MediaType: string(localtype.MediaTypeSSD),
 						Total:     200 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     150 * LSSGi,
 						ReadOnly:  false,
 					},
@@ -424,7 +424,7 @@ type MPInfo struct {
 }
 type DeviceInfo struct {
 	Name      string
-	MediaType lsstype.MediaType
+	MediaType localtype.MediaType
 	Total     uint64
 	ReadOnly  bool
 }
@@ -489,19 +489,19 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     100 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(lsstype.MediaTypeSSD),
+						MediaType: string(localtype.MediaTypeSSD),
 						Total:     500 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     150 * LSSGi,
 						ReadOnly:  false,
 					},
@@ -564,25 +564,25 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     100 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     200 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     150 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdd",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     100 * LSSGi,
 						ReadOnly:  false,
 					},
@@ -638,19 +638,19 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     100 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     200 * LSSGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(lsstype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHHD),
 						Total:     150 * LSSGi,
 						ReadOnly:  false,
 					},
@@ -747,50 +747,50 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 	param1 = make(map[string]string, 0)
 	param1["fs"] = "ext4"
 	param1["vgName"] = VGSSD
-	param1["volumeType"] = string(lsstype.VolumeTypeLVM)
+	param1["volumeType"] = string(localtype.VolumeTypeLVM)
 	scLVMWithVG := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: SCLVMWithVG,
 		},
-		Provisioner: lsstype.ProvisionerNameYoda,
+		Provisioner: localtype.ProvisionerNameYoda,
 		Parameters:  param1,
 	}
 	// storage class: no vg
 	var param2 map[string]string
 	param2 = make(map[string]string, 0)
 	param2["fs"] = "ext4"
-	param2["volumeType"] = string(lsstype.VolumeTypeLVM)
+	param2["volumeType"] = string(localtype.VolumeTypeLVM)
 	scLVMWithoutVG := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: SCLVMWithoutVG,
 		},
-		Provisioner: lsstype.ProvisionerNameYoda,
+		Provisioner: localtype.ProvisionerNameYoda,
 		Parameters:  param2,
 	}
 
 	// storage class: mount point
 	var param3 map[string]string
 	param3 = make(map[string]string, 0)
-	param3["volumeType"] = string(lsstype.VolumeTypeMountPoint)
+	param3["volumeType"] = string(localtype.VolumeTypeMountPoint)
 	param3["mediaType"] = "hdd"
 	scWithMP := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: SCWithMP,
 		},
-		Provisioner: lsstype.ProvisionerNameYoda,
+		Provisioner: localtype.ProvisionerNameYoda,
 		Parameters:  param3,
 	}
 
 	// storage class: device
 	var param4 map[string]string
 	param4 = make(map[string]string, 0)
-	param4["volumeType"] = string(lsstype.VolumeTypeDevice)
+	param4["volumeType"] = string(localtype.VolumeTypeDevice)
 	param4["mediaType"] = "hdd"
 	scWithDevice := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: SCWithDevice,
 		},
-		Provisioner: lsstype.ProvisionerNameYoda,
+		Provisioner: localtype.ProvisionerNameYoda,
 		Parameters:  param4,
 	}
 
@@ -816,7 +816,7 @@ func (f *fixture) newExtender() (*server.ExtenderServer, kubeinformers.SharedInf
 	lssInformer := lssinformers.NewSharedInformerFactory(f.lssclient, noResyncPeriodFunc())
 	snapInforer := volumesnapshotinformers.NewSharedInformerFactory(f.snapclient, noResyncPeriodFunc())
 
-	extenderServer := server.NewExtenderServer(f.kubeclient, f.lssclient, f.snapclient, k8sInformer, lssInformer, snapInforer, TestPort, lsstype.NewNodeAntiAffinityWeight())
+	extenderServer := server.NewExtenderServer(f.kubeclient, f.lssclient, f.snapclient, k8sInformer, lssInformer, snapInforer, TestPort, localtype.NewNodeAntiAffinityWeight())
 
 	return extenderServer, k8sInformer, lssInformer, snapInforer
 }

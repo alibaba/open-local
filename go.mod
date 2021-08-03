@@ -41,7 +41,6 @@ require (
 	k8s.io/apimachinery v0.20.2
 	k8s.io/client-go v0.19.0
 	k8s.io/code-generator v0.19.0
-	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-scheduler v0.0.0
 	k8s.io/kubernetes v1.18.9
 	k8s.io/sample-controller v0.0.0-20191004105128-02bcf064a96b

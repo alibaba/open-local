@@ -40,7 +40,7 @@ func NewDriver(driverName, nodeID, endpoint string) *CSIPlugin {
 	plugin.nodeServer = newNodeServer(csiDriver, driverName, nodeID)
 	plugin.controllerServer = newControllerServer(csiDriver)
 
-	return nil
+	return plugin
 }
 
 func (plugin *CSIPlugin) Run() {

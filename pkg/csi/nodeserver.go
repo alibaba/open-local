@@ -236,6 +236,30 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 	}, nil
 }
 
+func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+	return &csi.NodeGetInfoResponse{
+		NodeId: ns.nodeID,
+		// make sure that the driver works on this particular node only
+		AccessibleTopology: &csi.Topology{
+			Segments: map[string]string{
+				TopologyNodeKey: ns.nodeID,
+			},
+		},
+	}, nil
+}
+
+// NodeGetVolumeStats used for csi metrics
+func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	var err error
+	targetPath := req.GetVolumePath()
+	if targetPath == "" {
+		err = fmt.Errorf("NodeGetVolumeStats target local path %v is empty", targetPath)
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	return utils.GetMetrics(targetPath)
+}
+
 func (ns *nodeServer) resizeVolume(ctx context.Context, expectSize int64, volumeID, targetPath string) error {
 	vgName := ""
 	var curSize int64

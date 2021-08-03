@@ -54,7 +54,7 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 
 // Start will start agent
 func Start(opt *csiOption) error {
-	log.Infof("CSI Driver Name: %s, nodeID: %s, endPoints: %s", *&opt.Driver, *&opt.NodeID, *&opt.Endpoint)
+	log.Infof("CSI Driver Name: %s, nodeID: %s, endPoints %s", *&opt.Driver, *&opt.NodeID, *&opt.Endpoint)
 
 	// Storage devops
 	go om.StorageOM()

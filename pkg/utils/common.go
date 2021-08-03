@@ -27,15 +27,22 @@ import (
 	"strings"
 	"time"
 
+	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	localtype "github.com/oecp/open-local/pkg"
 	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
+	k8svol "k8s.io/kubernetes/pkg/volume"
+	"k8s.io/kubernetes/pkg/volume/util/fs"
 )
 
 // WordSepNormalizeFunc changes all flags that contain "_" separators
@@ -588,4 +595,71 @@ func Run(cmd string) (string, error) {
 		return "", fmt.Errorf("Failed to run cmd: " + cmd + ", with out: " + string(out) + ", with error: " + err.Error())
 	}
 	return string(out), nil
+}
+
+// GetMetrics get path metric
+func GetMetrics(path string) (*csilib.NodeGetVolumeStatsResponse, error) {
+	if path == "" {
+		return nil, fmt.Errorf("getMetrics No path given")
+	}
+	available, capacity, usage, inodes, inodesFree, inodesUsed, err := fs.FsInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := &k8svol.Metrics{Time: metav1.Now()}
+	metrics.Available = resource.NewQuantity(available, resource.BinarySI)
+	metrics.Capacity = resource.NewQuantity(capacity, resource.BinarySI)
+	metrics.Used = resource.NewQuantity(usage, resource.BinarySI)
+	metrics.Inodes = resource.NewQuantity(inodes, resource.BinarySI)
+	metrics.InodesFree = resource.NewQuantity(inodesFree, resource.BinarySI)
+	metrics.InodesUsed = resource.NewQuantity(inodesUsed, resource.BinarySI)
+
+	metricAvailable, ok := (*(metrics.Available)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch available bytes for target: %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch available bytes")
+	}
+	metricCapacity, ok := (*(metrics.Capacity)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch capacity bytes for target: %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch capacity bytes")
+	}
+	metricUsed, ok := (*(metrics.Used)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch used bytes for target %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch used bytes")
+	}
+	metricInodes, ok := (*(metrics.Inodes)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch available inodes for target %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch available inodes")
+	}
+	metricInodesFree, ok := (*(metrics.InodesFree)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch free inodes for target: %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch free inodes")
+	}
+	metricInodesUsed, ok := (*(metrics.InodesUsed)).AsInt64()
+	if !ok {
+		log.Errorf("failed to fetch used inodes for target: %s", path)
+		return nil, status.Error(codes.Unknown, "failed to fetch used inodes")
+	}
+
+	return &csilib.NodeGetVolumeStatsResponse{
+		Usage: []*csilib.VolumeUsage{
+			{
+				Available: metricAvailable,
+				Total:     metricCapacity,
+				Used:      metricUsed,
+				Unit:      csilib.VolumeUsage_BYTES,
+			},
+			{
+				Available: metricInodesFree,
+				Total:     metricInodes,
+				Used:      metricInodesUsed,
+				Unit:      csilib.VolumeUsage_INODES,
+			},
+		},
+	}, nil
 }

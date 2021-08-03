@@ -126,7 +126,7 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 		info[pvcName] = f
 		p.PvcPod[pvcName] = podName
 		p.PodPvcInfo[podName] = info
-		log.Infof("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+		log.Debugf("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	}
 	return
 }
@@ -135,12 +135,12 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 func (p *PodPvcMapping) DeletePod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
 	var pvcName string
 	delete(p.PodPvcInfo, podName)
-	log.Infof("[DeletePod]deleted pod cache %s", podName)
+	log.Debugf("[DeletePod]deleted pod cache %s", podName)
 
 	for _, pvc := range pvcs {
 		pvcName = utils.PVCName(pvc)
 		delete(p.PvcPod, pvcName)
-		log.Infof("[DeletePod]deleted pvc %s from cache", pvcName)
+		log.Debugf("[DeletePod]deleted pvc %s from cache", pvcName)
 	}
 	return
 }
@@ -152,12 +152,12 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 	podName := p.PvcPod[pvcName]
 	info := p.PodPvcInfo[podName]
 	if len(podName) <= 0 || info == nil {
-		log.Infof("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
+		log.Debugf("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
 		return
 	}
 	f := utils.PvcContainsSelectedNode(pvc)
 	info[pvcName] = f
-	log.Infof("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+	log.Debugf("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	return
 }
 
@@ -165,7 +165,7 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 func (p *PodPvcMapping) DeletePvc(pvc *corev1.PersistentVolumeClaim) {
 	pvcName := utils.PVCName(pvc)
 	delete(p.PvcPod, pvcName)
-	log.Infof("[DeletePvc]deleted pvc %s from cache", pvcName)
+	log.Debugf("[DeletePvc]deleted pvc %s from cache", pvcName)
 	return
 }
 

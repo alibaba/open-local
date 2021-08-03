@@ -25,14 +25,14 @@ import (
 )
 
 var (
-	Verbose bool
+	verbose bool
 )
 
 var Cmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of open-local",
 	Run: func(cmd *cobra.Command, args []string) {
-		if Verbose {
+		if verbose {
 			fmt.Printf("%s\n", version.NameWithVersion(true))
 		} else {
 			fmt.Printf("%s\n", version.NameWithVersion(false))
@@ -45,5 +45,5 @@ func init() {
 }
 
 func addFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&Verbose, "verbose", false, "show detailed version info")
+	fs.BoolVar(&verbose, "verbose", false, "show detailed version info")
 }

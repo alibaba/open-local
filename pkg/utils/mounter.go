@@ -108,11 +108,11 @@ func (m *mounter) EnsureBlock(target string) error {
 	}
 	targetPathFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, 0750)
 	if err != nil {
-		log.Infof("Failed to create block:%s with error: %v", target, err)
+		log.Errorf("Failed to create block:%s with error: %v", target, err)
 		return fmt.Errorf("create block error: %v", err)
 	}
 	if err := targetPathFile.Close(); err != nil {
-		log.Infof("Failed to close targetPath:%s with error: %v", target, err)
+		log.Errorf("Failed to close targetPath:%s with error: %v", target, err)
 		return fmt.Errorf("close block error: %v", err)
 	}
 	return nil
@@ -141,7 +141,7 @@ func (m *mounter) Format(source, fsType string) error {
 		mkfsArgs = []string{"-F", source}
 	}
 
-	log.Infof("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
+	log.Debugf("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
 	out, err := exec.Command(mkfsCmd, mkfsArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("formatting disk failed: %v cmd: '%s %s' output: %q",
@@ -173,7 +173,7 @@ func (m *mounter) MountBlock(source, target string, opts ...string) error {
 		return err
 	}
 
-	log.Infof("Mount %s to %s, the command is %s %v", source, target, mountCmd, mountArgs)
+	log.Debugf("Mount %s to %s, the command is %s %v", source, target, mountCmd, mountArgs)
 	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("mounting failed: %v cmd: '%s %s' output: %q",
@@ -213,7 +213,7 @@ func (m *mounter) Mount(source, target, fsType string, opts ...string) error {
 		return err
 	}
 
-	log.Infof("Mount %s to %s with fsType %s, the command is %s %v", source, target, fsType, mountCmd, mountArgs)
+	log.Debugf("Mount %s to %s with fsType %s, the command is %s %v", source, target, fsType, mountCmd, mountArgs)
 
 	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
 	if err != nil {
@@ -232,7 +232,7 @@ func (m *mounter) Unmount(target string) error {
 
 	umountArgs := []string{target}
 
-	log.Infof("Unmount %s, the command is %s %v", target, umountCmd, umountArgs)
+	log.Debugf("Unmount %s, the command is %s %v", target, umountCmd, umountArgs)
 
 	out, err := exec.Command(umountCmd, umountArgs...).CombinedOutput()
 	if err != nil {

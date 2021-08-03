@@ -41,7 +41,8 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 	}
 
 	if len(files) == 0 {
-		log.Infof("No dir in mount path: %s", d.MountPath)
+		log.Debugf("No dir in mount path: %s", d.MountPath)
+		return nil
 	}
 
 	// Put mount moints into set for faster checks below
@@ -55,7 +56,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 
 		// Validate that this path is an actual mountpoint
 		if _, isMntPnt := mountPointMap[filePath]; isMntPnt == false {
-			log.Infof("Path %q is not an actual mountpoint", filePath)
+			log.Warningf("Path %q is not an actual mountpoint", filePath)
 			continue
 		}
 

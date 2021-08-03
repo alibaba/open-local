@@ -129,8 +129,6 @@ spec:
           value: "true"
         - name: ISSUE_MESSAGE_FILE
           value: "true"
-        - name: SNAPSHOT_PREFIX
-          value: "snap"
         resources:
           limits:
             cpu: 800m

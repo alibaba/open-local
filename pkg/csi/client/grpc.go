@@ -75,7 +75,7 @@ func (c *workerConnection) Close() error {
 }
 
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
-	log.Infof("New Connecting to %s", address)
+	log.Debugf("New Connecting to %s", address)
 	dialOptions := []grpc.DialOption{
 		grpc.WithInsecure(),
 		grpc.WithBackoffMaxDelay(time.Second),
@@ -95,14 +95,14 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	defer cancel()
 	for {
 		if !conn.WaitForStateChange(ctx, conn.GetState()) {
-			log.Warnf("Connection to %s timed out", address)
+			log.Warningf("Connection to %s timed out", address)
 			return conn, nil // return nil, subsequent GetPluginInfo will show the real connection error
 		}
 		if conn.GetState() == connectivity.Ready {
-			log.Warnf("Connected to %s", address)
+			log.Debugf("Connected to %s", address)
 			return conn, nil
 		}
-		log.Infof("Still trying to connect %s, connection is %s", address, conn.GetState())
+		log.Debugf("Still trying to connect %s, connection is %s", address, conn.GetState())
 	}
 }
 
@@ -121,7 +121,7 @@ func (c *workerConnection) CreateLvm(ctx context.Context, opt *LVMOptions) (stri
 		log.Errorf("Create Lvm with error: %s", err.Error())
 		return "", err
 	}
-	log.Infof("Create Lvm with result: %+v", rsp.CommandOutput)
+	log.Debugf("Create Lvm with result: %+v", rsp.CommandOutput)
 	return rsp.GetCommandOutput(), nil
 }
 
@@ -139,7 +139,7 @@ func (c *workerConnection) CreateSnapshot(ctx context.Context, volGroup string, 
 		log.Errorf("Create Lvm Snapshot with error: %s", err.Error())
 		return "", err
 	}
-	log.Infof("Create Lvm Snapshot with result: %+v", rsp.CommandOutput)
+	log.Debugf("Create Lvm Snapshot with result: %+v", rsp.CommandOutput)
 	return rsp.GetCommandOutput(), nil
 }
 
@@ -155,10 +155,10 @@ func (c *workerConnection) GetLvm(ctx context.Context, volGroup string, volumeID
 		return "", err
 	}
 	if len(rsp.GetVolumes()) <= 0 {
-		log.Warnf("Volume %s/%s is not exist", volGroup, volumeID)
+		log.Warningf("Volume %s/%s is not exist", volGroup, volumeID)
 		return "", nil
 	}
-	log.Infof("Get Lvm with result: %+v", rsp.Volumes)
+	log.Debugf("Get Lvm with result: %+v", rsp.Volumes)
 	return rsp.GetVolumes()[0].String(), nil
 }
 
@@ -173,7 +173,7 @@ func (c *workerConnection) DeleteLvm(ctx context.Context, volGroup, volumeID str
 		log.Errorf("Remove Lvm with error: %v", err.Error())
 		return err
 	}
-	log.Infof("Remove Lvm with result: %v", response.GetCommandOutput())
+	log.Debugf("Remove Lvm with result: %v", response.GetCommandOutput())
 	return err
 }
 
@@ -188,7 +188,7 @@ func (c *workerConnection) DeleteSnapshot(ctx context.Context, volGroup string, 
 		log.Errorf("Remove Lvm Snapshot with error: %v", err.Error())
 		return err
 	}
-	log.Infof("Remove Lvm Snapshot with result: %v", response.GetCommandOutput())
+	log.Debugf("Remove Lvm Snapshot with result: %v", response.GetCommandOutput())
 	return err
 }
 
@@ -202,7 +202,7 @@ func (c *workerConnection) CleanPath(ctx context.Context, path string) error {
 		log.Errorf("CleanPath with error: %v", err.Error())
 		return err
 	}
-	log.Infof("CleanPath with result: %v", response.GetCommandOutput())
+	log.Debugf("CleanPath with result: %v", response.GetCommandOutput())
 	return err
 }
 

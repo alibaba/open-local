@@ -18,7 +18,6 @@ package agent
 
 import (
 	"fmt"
-	"os"
 
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	"github.com/oecp/open-local/pkg/agent/common"
@@ -43,8 +42,7 @@ var Cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Start(&opt)
 		if err != nil {
-			log.Errorf("error :%s, quitting now\n", err.Error())
-			os.Exit(1)
+			log.Fatalf("error :%s, quitting now\n", err.Error())
 		}
 	},
 }

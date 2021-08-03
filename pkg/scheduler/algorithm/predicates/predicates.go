@@ -126,7 +126,7 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 	for _, pre := range PredicateFuncs {
 		fits, err = pre(Ctx, pod, node)
 		isError, failReasons := normalizeError(err)
-		log.Infof("fits: %t,failReasons: %s, err: %v", fits, failReasons, err)
+		log.Infof("fits: %t,failReasons: %s, err: %+v", fits, failReasons, err)
 
 		if isError && err != nil {
 			log.Errorf("scheduling terminated for %s/%s: %s", pod.Namespace, pod.Name, err.Error())

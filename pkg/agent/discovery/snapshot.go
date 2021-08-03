@@ -44,7 +44,7 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	}
 
 	// Step 1: get all snapshot lv
-	lvs, err := getAllLSSSnapshotLV()
+	lvs, err := getAllLocalSnapshotLV()
 	if err != nil {
 		log.Errorf("[ExpandSnapshotLVIfNeeded]get open-local snapshot lv failed: %s", err.Error())
 		return
@@ -62,10 +62,11 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 			log.Errorf("[ExpandSnapshotLVIfNeeded]get snapClass %s error: %s", *snapContent.Spec.VolumeSnapshotClassName, err.Error())
 			return
 		}
-		_, threshold, expansionSize := getSnapshotInitialInfo(snapClass.Parameters)
+		initialSize, threshold, expansionSize := getSnapshotInitialInfo(snapClass.Parameters)
 		// step 2: expand snapshot lv if necessary
 		if lv.Usage() > threshold {
 			log.Infof("[ExpandSnapshotLVIfNeeded]expand snapshot lv %s", lv.Name())
+			log.Infof("[getSnapshotInitialInfo]initialSize(%d), threshold(%f), expansionSize(%d)", initialSize, threshold, expansionSize)
 			if err := lv.Expand(expansionSize); err != nil {
 				log.Errorf("[ExpandSnapshotLVIfNeeded]expand lv %s failed: %s", lv.Name(), err.Error())
 				return
@@ -110,37 +111,36 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 		}
 		increaseSize = uint64(size)
 	}
-	log.Infof("[getSnapshotInitialInfo]initialSize(%d), threshold(%f), increaseSize(%d)", initialSize, threshold, increaseSize)
 	return
 }
 
 //
-func getAllLSSSnapshotLV() (lvs []*lvm.LogicalVolume, err error) {
+func getAllLocalSnapshotLV() (lvs []*lvm.LogicalVolume, err error) {
 	// get all vg names
 	lvs = make([]*lvm.LogicalVolume, 0)
 	vgNames, err := lvm.ListVolumeGroupNames()
 	if err != nil {
-		log.Errorf("[getAllLSSSnapshotLV]List volume group names error: %s", err.Error())
+		log.Errorf("[getAllLocalSnapshotLV]List volume group names error: %s", err.Error())
 		return nil, err
 	}
 	for _, vgName := range vgNames {
 		// step 1: get vg info
 		vg, err := lvm.LookupVolumeGroup(vgName)
 		if err != nil {
-			log.Errorf("[getAllLSSSnapshotLV]Look up volume group %s error: %s", vgName, err.Error())
+			log.Errorf("[getAllLocalSnapshotLV]Look up volume group %s error: %s", vgName, err.Error())
 			return nil, err
 		}
 		// step 2: get all lv of the selected vg
 		logicalVolumeNames, err := vg.ListLogicalVolumeNames()
 		if err != nil {
-			log.Errorf("[getAllLSSSnapshotLV]List volume group %s error: %s", vgName, err.Error())
+			log.Errorf("[getAllLocalSnapshotLV]List volume group %s error: %s", vgName, err.Error())
 			return nil, err
 		}
 		// step 3: update lvs variable
 		for _, lvName := range logicalVolumeNames {
 			tmplv, err := vg.LookupLogicalVolume(lvName)
 			if err != nil {
-				log.Errorf("[getAllLSSSnapshotLV]List logical volume %s error: %s", lvName, err.Error())
+				log.Errorf("[getAllLocalSnapshotLV]List logical volume %s error: %s", lvName, err.Error())
 				continue
 			}
 			if tmplv.IsSnapshot() {

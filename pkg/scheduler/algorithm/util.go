@@ -59,9 +59,9 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 				log.Errorf("failed to get storage class by name %s: %s", *scName, err.Error())
 				return err, lvmPVCs, mpPVCs, devicePVCs
 			}
-			var isLSSPV bool
+			var isLocalPV bool
 			var pvType pkg.VolumeType
-			if isLSSPV, pvType = utils.IsLSSPVC(pvc, ctx.StorageV1Informers, containReadonlySnapshot); isLSSPV {
+			if isLocalPV, pvType = utils.IsLocalPVC(pvc, ctx.StorageV1Informers, containReadonlySnapshot); isLocalPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
 					log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)

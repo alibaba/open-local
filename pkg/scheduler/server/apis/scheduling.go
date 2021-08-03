@@ -116,7 +116,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		return nil, err
 	}
 	var targetAllocateUnits []cache.AllocatedUnit
-	log.Infof("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
+	log.Debugf("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
 	for _, unit := range allocatedUnits {
 		var newUnit cache.AllocatedUnit
 		newUnit = unit

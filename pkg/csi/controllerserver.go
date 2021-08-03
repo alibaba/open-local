@@ -75,8 +75,6 @@ const (
 	// connection timeout
 	connectTimeout = 3 * time.Second
 
-	DefaultSnapshotPrefix = "yoda"
-
 	// TopologyNodeKey define host name of node
 	TopologyNodeKey = "kubernetes.io/hostname"
 	// TopologyYodaNodeKey define host name of node
@@ -132,7 +130,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 		return nil, status.Error(codes.InvalidArgument, "Volume Capabilities cannot be empty")
 	}
 	if value, ok := createdVolumeMap[req.Name]; ok {
-		log.Infof("CreateVolume: local volume already be created, pvName: %s, VolumeId: %s, volumeContext: %v", req.Name, value.VolumeId, value.VolumeContext)
+		log.Infof("CreateVolume: local volume already be created, pvName: %s, VolumeId: %s", req.Name, value.VolumeId)
 		return &csi.CreateVolumeResponse{Volume: value}, nil
 	}
 	// Step 2: get necessary info
@@ -397,12 +395,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 	}
 
 	createdVolumeMap[req.Name] = response.Volume
-	log.Infof("Success create Volume: %s, Size: %d, Parameters: %v", volumeID, req.GetCapacityRange().GetRequiredBytes(), response.Volume)
+	log.Infof("Success create Volume: %s, Size: %d", volumeID, req.GetCapacityRange().GetRequiredBytes())
 	return response, nil
 }
 
 func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	log.Infof("DeleteVolume: deleting local volume: %s", req.GetVolumeId())
+	log.Infof("DeleteVolume: deleting local volume %s", req.GetVolumeId())
 	volumeID := req.GetVolumeId()
 	nodeName, vgName, pvObj, err := getPvSpec(server.client, volumeID, server.driverName)
 	if err != nil {
@@ -524,7 +522,7 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 
 // CreateSnapshot create lvm snapshot
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	log.Infof("Starting Create Snapshot %s with response: %v", req.Name, req)
+	log.Debugf("Starting Create Snapshot %s with response: %v", req.Name, req)
 	// Step 1: check request
 	snapshotName := req.GetName()
 	if len(snapshotName) == 0 {
@@ -731,7 +729,7 @@ func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName
 	// Step 1: get yoda snapshot prefix
 	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
 	if prefix == "" {
-		prefix = DefaultSnapshotPrefix
+		prefix = localtype.DefaultSnapshotPrefix
 	}
 	// Step 2: get snapshot content api
 	return snapclient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentName, prefix, "snapcontent", 1), metav1.GetOptions{})
@@ -837,7 +835,7 @@ func getPvSpec(client kubernetes.Interface, volumeID, driverName string) (string
 		vgName = value
 	}
 
-	log.Infof("Get Lvm Spec for volume %s, with VgName %s, Node %s", volumeID, pv.Spec.CSI.VolumeAttributes["vgName"], nodes[0])
+	log.Debugf("Get Lvm Spec for volume %s, with VgName %s, Node %s", volumeID, pv.Spec.CSI.VolumeAttributes["vgName"], nodes[0])
 	return nodes[0], vgName, pv, nil
 }
 

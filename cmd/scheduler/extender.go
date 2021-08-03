@@ -18,7 +18,6 @@ package scheduler
 
 import (
 	"fmt"
-	"os"
 
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
@@ -34,7 +33,7 @@ import (
 )
 
 var (
-	opt = ExtenderOptions{}
+	opt = extenderOptions{}
 )
 
 func init() {
@@ -48,13 +47,12 @@ var Cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Run(&opt)
 		if err != nil {
-			log.Errorf("error :%s, quitting now\n", err.Error())
-			os.Exit(1)
+			log.Fatalf("error :%s, quitting now\n", err.Error())
 		}
 	},
 }
 
-func Run(opt *ExtenderOptions) error {
+func Run(opt *extenderOptions) error {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 

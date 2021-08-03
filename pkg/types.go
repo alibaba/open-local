@@ -40,6 +40,15 @@ const (
 	ProvisionerName     string = "csi.storage.oecp.io"
 	SchedulerName       string = "open-local-scheduler"
 
+	EnvLogLevel = "LogLevel"
+	LogPanic    = "Panic"
+	LogFatal    = "Fatal"
+	LogError    = "Error"
+	LogWarn     = "Warn"
+	LogInfo     = "Info"
+	LogDebug    = "Debug"
+	LogTrace    = "Trace"
+
 	KubernetesNodeIdentityKey = "kubernetes.io/hostname"
 	//TODO(yuzhi.wx) need to confirm with jubao
 	VolumeTypeKey    = "volumeType"
@@ -79,7 +88,7 @@ const (
 	ParamSnapshotThreshold       = "storage.oecp.io/snapshot-expansion-threshold"
 	ParamSnapshotExpansionSize   = "storage.oecp.io/snapshot-expansion-size"
 	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix        = "local"
+	DefaultSnapshotPrefix        = "snap"
 	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
 	DefaultSnapshotThreshold     = 0.5
 	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024

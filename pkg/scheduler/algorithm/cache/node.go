@@ -51,13 +51,13 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 	}
 	// add vgs
 	for _, vgName := range nodeLocal.Status.FilteredStorageInfo.VolumeGroups {
-		log.Infof("adding new volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
+		log.Debugf("adding new volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
 			vgName, vgInfoMap[vgName].Total, vgInfoMap[vgName].Allocatable, vgInfoMap[vgName].Total-vgInfoMap[vgName].Available, newNodeCache.NodeName)
-		log.Infof("vg raw info:%#v", vgInfoMap[vgName])
-		log.Infof("cachedNode.VGs: %#v, is nil %t", newNodeCache.VGs, newNodeCache.VGs == nil)
+		log.Debugf("vg raw info:%#v", vgInfoMap[vgName])
+		log.Debugf("cachedNode.VGs: %#v, is nil %t", newNodeCache.VGs, newNodeCache.VGs == nil)
 		vgResource := SharedResource{vgName, int64(vgInfoMap[vgName].Allocatable), 0}
 		newNodeCache.VGs[ResourceName(vgName)] = vgResource
-		log.Infof("vgResource: %#v", vgResource)
+		log.Debugf("vgResource: %#v", vgResource)
 	}
 
 	// Devices
@@ -68,12 +68,12 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 	// add devices
 	for _, deviceName := range nodeLocal.Status.FilteredStorageInfo.Devices {
 		tmpDevice := deviceInfoMap[deviceName]
-		// log.Infof("adding new device %q(total:%d) on node cache %s",
+		// log.Debugf("adding new device %q(total:%d) on node cache %s",
 		// 	deviceName, deviceInfoMap[deviceName].Total, newNodeCache.NodeName)
-		// log.Infof("disk raw info:%#v", tmpDevice)
-		log.Infof("adding new device %q(total:%d) on node cache %s",
+		// log.Debugf("disk raw info:%#v", tmpDevice)
+		log.Debugf("adding new device %q(total:%d) on node cache %s",
 			deviceName, deviceInfoMap[deviceName].Total, newNodeCache.NodeName)
-		log.Infof("disk raw info:%#v", tmpDevice)
+		log.Debugf("disk raw info:%#v", tmpDevice)
 		diskResource := ExclusiveResource{
 			tmpDevice.Name,
 			tmpDevice.Name,
@@ -81,7 +81,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 			localtype.MediaType(tmpDevice.MediaType),
 			false}
 		newNodeCache.Devices[ResourceName(deviceName)] = diskResource
-		log.Infof("diskResource: %#v", diskResource)
+		log.Debugf("diskResource: %#v", diskResource)
 	}
 
 	// MountPoint
@@ -95,9 +95,9 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 		if utils.CheckMountPointOptions(&tmpMP) == false {
 			continue
 		}
-		log.Infof("adding new mount point %q(total:%d) on node cache %s",
+		log.Debugf("adding new mount point %q(total:%d) on node cache %s",
 			mp, tmpMP.Total, newNodeCache.NodeName)
-		log.Infof("disk raw info:%#v", tmpMP)
+		log.Debugf("disk raw info:%#v", tmpMP)
 		diskResource := ExclusiveResource{
 			mp,
 			tmpMP.Device,
@@ -105,7 +105,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 			localtype.MediaType(deviceInfoMap[tmpMP.Device].MediaType),
 			false}
 		newNodeCache.MountPoints[ResourceName(mp)] = diskResource
-		log.Infof("diskResource: %#v", diskResource)
+		log.Debugf("diskResource: %#v", diskResource)
 	}
 	return newNodeCache
 }
@@ -130,26 +130,26 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	// update VGs
 	addedVGs, unchangedVGs, removedVGs := utils.GetAddedAndRemovedItems(nodeLocal.Status.FilteredStorageInfo.VolumeGroups, vgCache)
 	for _, vg := range addedVGs {
-		log.Infof("adding new volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
+		log.Debugf("adding new volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
 			vg, vgMapInfo[vg].Total, vgMapInfo[vg].Allocatable, vgMapInfo[vg].Total-vgMapInfo[vg].Available, cacheNode.NodeName)
-		log.Infof("updatedName raw info:%#v", vgMapInfo[vg])
-		log.Infof("cachedNode.VGs: %#v, is nil %t", cacheNode.VGs, cacheNode.VGs == nil)
+		log.Debugf("updatedName raw info:%#v", vgMapInfo[vg])
+		log.Debugf("cachedNode.VGs: %#v, is nil %t", cacheNode.VGs, cacheNode.VGs == nil)
 		vgRequested := utils.GetVGRequested(nc.LocalPVs, vg)
 		vgResource := SharedResource{vg, int64(vgMapInfo[vg].Allocatable), vgRequested}
 		cacheNode.VGs[ResourceName(vg)] = vgResource
-		log.Infof("vgResource: %#v", vgResource)
+		log.Debugf("vgResource: %#v", vgResource)
 	}
 	for _, vg := range unchangedVGs {
 		// update the size if the updatedName got extended
 		v, _ := cacheNode.VGs[ResourceName(vg)]
 		v.Capacity = int64(vgMapInfo[vg].Allocatable)
 		cacheNode.VGs[ResourceName(vg)] = v
-		log.Infof("updating existing volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
+		log.Debugf("updating existing volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
 			vg, vgMapInfo[vg].Total, vgMapInfo[vg].Allocatable, vgMapInfo[vg].Total-vgMapInfo[vg].Available, cacheNode.NodeName)
 	}
 	for _, vg := range removedVGs {
 		delete(cacheNode.VGs, ResourceName(vg))
-		log.Infof("deleted vg %s from node cache %s", vg, nodeLocal.Name)
+		log.Debugf("deleted vg %s from node cache %s", vg, nodeLocal.Name)
 	}
 
 	// Device
@@ -167,7 +167,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	// update devices
 	addedDevices, unchangedDevices, removedDevices := utils.GetAddedAndRemovedItems(nodeLocal.Status.FilteredStorageInfo.Devices, deviceCache)
 	for _, device := range addedDevices {
-		log.Infof("adding new device %q(total:%d) on node cache %s", device, deviceMapInfo[device].Total, cacheNode.NodeName)
+		log.Debugf("adding new device %q(total:%d) on node cache %s", device, deviceMapInfo[device].Total, cacheNode.NodeName)
 		allocated := false
 		if nc.IsLSSPVExist(pkg.VolumeTypeDevice, device) {
 			allocated = true
@@ -189,10 +189,10 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	}
 	for _, device := range removedDevices {
 		if cacheNode.Devices[ResourceName(device)].IsAllocated {
-			log.Errorf("device %q is used by PV.", device)
+			log.Debugf("device %q is used by PV.", device)
 		} else {
 			delete(cacheNode.Devices, ResourceName(device))
-			log.Infof("device %q has been deleted from cache", device)
+			log.Debugf("device %q has been deleted from cache", device)
 		}
 	}
 
@@ -213,10 +213,10 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	for _, mp := range addedMPs {
 		tmpMP := mpMapInfo[mp]
 		if utils.CheckMountPointOptions(&tmpMP) == false {
-			log.Warningf("mount point %s on %s was excluded, readonly: %t, fsType: %s", mp, nodeLocal.Name, tmpMP.ReadOnly, tmpMP.FsType)
+			log.Debugf("mount point %s on %s was excluded, readonly: %t, fsType: %s", mp, nodeLocal.Name, tmpMP.ReadOnly, tmpMP.FsType)
 			continue
 		}
-		log.Infof("adding new mount point %q(total:%d) on node cache %s", mp, mpMapInfo[mp].Total, cacheNode.NodeName)
+		log.Debugf("adding new mount point %q(total:%d) on node cache %s", mp, mpMapInfo[mp].Total, cacheNode.NodeName)
 		allocated := false
 		if nc.IsLSSPVExist(pkg.VolumeTypeMountPoint, mp) {
 			allocated = true
@@ -228,7 +228,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 			localtype.MediaType(deviceMapInfo[mpMapInfo[mp].Device].MediaType),
 			allocated}
 		cacheNode.MountPoints[ResourceName(mp)] = diskResource
-		log.Infof("diskResource: %#v", diskResource)
+		log.Debugf("diskResource: %#v", diskResource)
 	}
 	for _, mp := range unchangedMPs {
 		exMP, _ := cacheNode.MountPoints[ResourceName(mp)]
@@ -236,7 +236,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 		exMP.Capacity = int64(mpMapInfo[mp].Total)
 		exMP.MediaType = localtype.MediaType(deviceMapInfo[exMP.Device].MediaType)
 		cacheNode.MountPoints[ResourceName(mp)] = exMP
-		log.Infof("updating existing mount point %q(total:%d) on node cache %s",
+		log.Debugf("updating existing mount point %q(total:%d) on node cache %s",
 			exMP.Name, exMP.Capacity, cacheNode.NodeName)
 	}
 	for _, mp := range removedMPs {
@@ -244,7 +244,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 			log.Errorf("mount point %q is used by PV.", mp)
 		} else {
 			delete(cacheNode.MountPoints, ResourceName(mp))
-			log.Infof("mount point %q has been deleted from cache", mp)
+			log.Debugf("mount point %q has been deleted from cache", mp)
 		}
 	}
 
@@ -261,13 +261,13 @@ func (nc *NodeCache) AddLVM(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.Infof("pv %s is not bound to any volume group, skipped", pv.Name)
+		log.Debugf("pv %s is not bound to any volume group, skipped", pv.Name)
 		return nil
 	} else {
 		existing, ok := nc.LocalPVs[pv.Name]
 		if ok {
 			if existing.UID == pv.UID {
-				log.Infof("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
+				log.Debugf("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
 			}
 		}
 		if vg, ok := nc.VGs[ResourceName(vgName)]; ok {
@@ -279,13 +279,13 @@ func (nc *NodeCache) AddLVM(pv *corev1.PersistentVolume) error {
 			// Added to node cache
 			nc.AllocatedNum += 1
 			nc.VGs[ResourceName(vgName)] = vg
-			log.Infof("[AddLVM]added pv %s: VG info: old size => %d, new size => %d for vg %s ",
+			log.Debugf("[AddLVM]added pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)
 		} else {
 			// ideally, this path should never be reached
 			// log.Errorf("[AddLVM]no vg %s found in for node %s when adding pv %s", vgName, nc.NodeName, pv.Name)
 			nc.AllocatedNum += 1
-			log.Infof("[AddLVM]vg %s not found in NodeCache", vgName)
+			log.Debugf("[AddLVM]vg %s not found in NodeCache", vgName)
 		}
 		nc.LocalPVs[pv.Name] = *pv
 	}
@@ -303,12 +303,12 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.Infof("pv %s is not a valid open-local lvm pv", pv.Name)
+		log.Debugf("pv %s is not a valid open-local lvm pv", pv.Name)
 	} else {
 		existing, ok := nc.LocalPVs[pv.Name]
 		if ok {
 			if existing.UID == pv.UID {
-				log.Infof("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
+				log.Debugf("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
 				nc.LocalPVs[pv.Name] = *pv
 				return nil
 			}
@@ -320,13 +320,13 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 			oldPVsize := old.Spec.Capacity[corev1.ResourceStorage]
 			vg.Requested = oldRequest - oldPVsize.Value() + newPVsize.Value()
 			nc.VGs[ResourceName(vgName)] = vg
-			log.Infof("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
+			log.Debugf("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)
 		} else {
 			// ideally, this path should never be reached
 			// log.Errorf("[UpdateLVM]no vg %s found in node cache when updating pv %s", vgName, pv.Name)
 			nc.AllocatedNum += 1
-			log.Infof("[UpdateLVM]vg %s not found in NodeCache", vgName)
+			log.Debugf("[UpdateLVM]vg %s not found in NodeCache", vgName)
 		}
 		nc.LocalPVs[pv.Name] = *pv
 	}
@@ -343,7 +343,7 @@ func (nc *NodeCache) RemoveLVM(pv *corev1.PersistentVolume) error {
 	// Hardcode to volume group named vg
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.Infof("pv %s is not a valid open-local pv(lvm with name)", pv.Name)
+		log.Debugf("pv %s is not a valid open-local pv(lvm with name)", pv.Name)
 	}
 	if vg, ok := nc.VGs[ResourceName(vgName)]; ok {
 		oldUsed := vg.Requested
@@ -351,10 +351,10 @@ func (nc *NodeCache) RemoveLVM(pv *corev1.PersistentVolume) error {
 		vg.Requested = oldUsed - s.Value()
 		nc.AllocatedNum -= 1
 		nc.VGs[ResourceName(vgName)] = vg
-		log.Infof("[RemoveLVM]removed pv %s: VG info: old size => %d, new size => %d for vg %s ", pv.Name, oldUsed, vg.Requested, vgName)
+		log.Debugf("[RemoveLVM]removed pv %s: VG info: old size => %d, new size => %d for vg %s ", pv.Name, oldUsed, vg.Requested, vgName)
 	} else {
 		nc.AllocatedNum -= 1
-		log.Infof("[RemoveLVM]pv %s was not in the node cache, skipped updating", pv.Name)
+		log.Debugf("[RemoveLVM]pv %s was not in the node cache, skipped updating", pv.Name)
 	}
 	delete(nc.LocalPVs, pv.Name)
 	return nil
@@ -369,18 +369,18 @@ func (nc *NodeCache) AddLocalMountPoint(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	diskName := utils.GetMountPointFromCsiPV(pv)
 	if len(diskName) == 0 {
-		log.Infof("pv %s is not a valid open-local pv(disk with name)", pv.Name)
+		log.Debugf("pv %s is not a valid open-local pv(disk with name)", pv.Name)
 	} else {
 		if disk, ok := nc.MountPoints[ResourceName(diskName)]; ok {
 			if disk.IsAllocated == false {
 				disk.IsAllocated = true
 				nc.AllocatedNum += 1
 				nc.MountPoints[ResourceName(diskName)] = disk
-				log.Infof("[AddLocalMountPoint]added pv %s: disk info: label it allocated for disk %s", pv.Name, disk.Name)
+				log.Debugf("[AddLocalMountPoint]added pv %s: disk info: label it allocated for disk %s", pv.Name, disk.Name)
 			}
 		} else {
 			nc.AllocatedNum += 1
-			log.Infof("[AddLocalMountPoint]disk %s not found in NodeCache", diskName)
+			log.Debugf("[AddLocalMountPoint]disk %s not found in NodeCache", diskName)
 		}
 		nc.LocalPVs[pv.Name] = *pv
 	}
@@ -396,16 +396,16 @@ func (nc *NodeCache) RemoveLocalMountPoint(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	diskName := utils.GetMountPointFromCsiPV(pv)
 	if len(diskName) == 0 {
-		log.Infof("pv %s is not a valid open-local pv(mount point with name)", pv.Name)
+		log.Debugf("pv %s is not a valid open-local pv(mount point with name)", pv.Name)
 	}
 	if disk, ok := nc.MountPoints[ResourceName(diskName)]; ok {
 		disk.IsAllocated = false
 		nc.AllocatedNum -= 1
 		nc.MountPoints[ResourceName(diskName)] = disk
-		log.Infof("[RemoveLocalMountPoint]removed pv %s: disk info: label it not allocated for disk %s", pv.Name, disk.Name)
+		log.Debugf("[RemoveLocalMountPoint]removed pv %s: disk info: label it not allocated for disk %s", pv.Name, disk.Name)
 	} else {
 		nc.AllocatedNum -= 1
-		log.Infof("[RemoveLocalMountPoint]pv %s was not in the node cache, skipped updating", pv.Name)
+		log.Debugf("[RemoveLocalMountPoint]pv %s was not in the node cache, skipped updating", pv.Name)
 	}
 	delete(nc.LocalPVs, pv.Name)
 	return nil
@@ -427,10 +427,10 @@ func (nc *NodeCache) AddLocalDevice(pv *corev1.PersistentVolume) error {
 				device.IsAllocated = true
 				nc.AllocatedNum += 1
 				nc.Devices[ResourceName(deviceName)] = device
-				log.Infof("[AddLocalDevice]added pv %s: device info: label it allocated for device %s", pv.Name, device.Name)
+				log.Debugf("[AddLocalDevice]added pv %s: device info: label it allocated for device %s", pv.Name, device.Name)
 			}
 		} else {
-			log.Infof("[AddLocalDevice]device %s not found in NodeCache(%s)", deviceName, nc.NodeName)
+			log.Debugf("[AddLocalDevice]device %s not found in NodeCache(%s)", deviceName, nc.NodeName)
 			nc.AllocatedNum += 1
 		}
 		nc.LocalPVs[pv.Name] = *pv
@@ -446,16 +446,16 @@ func (nc *NodeCache) RemoveLocalDevice(pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	deviceName := utils.GetDeviceNameFromCsiPV(pv)
 	if len(deviceName) == 0 {
-		log.Infof("pv %s is not a valid open-local pv(device with name)", pv.Name)
+		log.Debugf("pv %s is not a valid open-local pv(device with name)", pv.Name)
 	}
 	if device, ok := nc.Devices[ResourceName(deviceName)]; ok {
 		device.IsAllocated = false
 		nc.AllocatedNum -= 1
 		nc.Devices[ResourceName(deviceName)] = device
-		log.Infof("[RemoveLocalDevice]removed pv %s: device info: label it not allocated for device %s", pv.Name, device.Name)
+		log.Debugf("[RemoveLocalDevice]removed pv %s: device info: label it not allocated for device %s", pv.Name, device.Name)
 	} else {
 		nc.AllocatedNum -= 1
-		log.Infof("[RemoveLocalDevice]pv %s was not in the node cache, skipped updating", pv.Name)
+		log.Debugf("[RemoveLocalDevice]pv %s was not in the node cache, skipped updating", pv.Name)
 	}
 	delete(nc.LocalPVs, pv.Name)
 	return nil

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/oecp/open-local/cmd/csi"
 	"github.com/oecp/open-local/cmd/scheduler"
 	"github.com/oecp/open-local/cmd/version"
+	localtype "github.com/oecp/open-local/pkg"
 )
 
 var (
@@ -57,7 +59,25 @@ func addCommands() {
 }
 
 func init() {
+	flag.Parse()
 	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
-	// log.InitFlags(goflag.CommandLine)
-	// MainCmd.Flags().AddGoFlagSet(goflag.CommandLine)
+	logLevel := os.Getenv(localtype.EnvLogLevel)
+	switch logLevel {
+	case localtype.LogPanic:
+		log.SetLevel(log.PanicLevel)
+	case localtype.LogFatal:
+		log.SetLevel(log.FatalLevel)
+	case localtype.LogError:
+		log.SetLevel(log.ErrorLevel)
+	case localtype.LogWarn:
+		log.SetLevel(log.WarnLevel)
+	case localtype.LogInfo:
+		log.SetLevel(log.InfoLevel)
+	case localtype.LogDebug:
+		log.SetLevel(log.DebugLevel)
+	case localtype.LogTrace:
+		log.SetLevel(log.TraceLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
 }

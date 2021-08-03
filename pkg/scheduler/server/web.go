@@ -68,32 +68,32 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	// setup storage class informer
 	scInformer := storagev1Informers.StorageClasses().Informer()
 	informersSyncd = append(informersSyncd, scInformer.HasSynced)
-	log.Info("started storage class informer...")
+	log.Debugf("started storage class informer...")
 
 	// setup pv informer
 	pvInformer := corev1Informers.PersistentVolumes().Informer()
 	informersSyncd = append(informersSyncd, pvInformer.HasSynced)
-	log.Info("started PV informer...")
+	log.Debugf("started PV informer...")
 
 	// setup pvc informer
 	pvcInformer := corev1Informers.PersistentVolumeClaims().Informer()
 	informersSyncd = append(informersSyncd, pvcInformer.HasSynced)
-	log.Info("started PVC informer...")
+	log.Debugf("started PVC informer...")
 
 	// setup node informer
 	nodeInformer := corev1Informers.Nodes().Informer()
 	informersSyncd = append(informersSyncd, nodeInformer.HasSynced)
-	log.Info("started Node informer...")
+	log.Debugf("started Node informer...")
 
 	// setup pod informer
 	podInformer := corev1Informers.Pods().Informer()
 	informersSyncd = append(informersSyncd, podInformer.HasSynced)
-	log.Info("started Pod informer...")
+	log.Debugf("started Pod informer...")
 
 	// setup node local storage informer
 	localInformer := localStorageInformers.NodeLocalStorages().Informer()
 	informersSyncd = append(informersSyncd, localInformer.HasSynced)
-	log.Info("started NodeLocalStorage informer...")
+	log.Debugf("started NodeLocalStorage informer...")
 
 	snapInformer := snapshotInformers.VolumeSnapshots().Informer()
 	informersSyncd = append(informersSyncd, snapInformer.HasSynced)

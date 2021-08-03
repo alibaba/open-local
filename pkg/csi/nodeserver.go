@@ -102,7 +102,7 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID string) csi.NodeServer 
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	log.Infof("NodePublishVolume:: local volume request with %v", req)
+	log.Debugf("NodePublishVolume:: local volume request with %v", req)
 
 	// parse request args.
 	targetPath := req.GetTargetPath()
@@ -187,7 +187,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (
 	*csi.NodeExpandVolumeResponse, error) {
-	log.Infof("NodeExpandVolume: local node expand volume with: %v", req)
+	log.Debugf("NodeExpandVolume: local node expand volume with: %v", req)
 	volumeID := req.VolumeId
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes

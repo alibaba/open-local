@@ -102,7 +102,7 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes["vgName"]; ok {
 		return v
 	}
-	log.Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
+	log.Debugf("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
 
 	return ""
 }
@@ -117,7 +117,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
 		return v
 	}
-	log.Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
+	log.Debugf("PV %s has no csi volumeAttributes %q", pv.Name, "device")
 
 	return ""
 }
@@ -132,7 +132,7 @@ func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeMountPoint)]; ok {
 		return v
 	}
-	log.Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
+	log.Debugf("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
 
 	return ""
 }
@@ -144,12 +144,12 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 		if vgNameFromPV == vgName {
 			v, _ := pv.Spec.Capacity[corev1.ResourceStorage]
 			requested += v.Value()
-			log.Infof("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
+			log.Debugf("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
 		} else {
-			log.Infof("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
+			log.Debugf("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
 		}
 	}
-	log.Infof("requested size of VG %s is %d", vgName, requested)
+	log.Debugf("requested size of VG %s is %d", vgName, requested)
 	return requested
 }
 
@@ -160,7 +160,7 @@ func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 	}
 
 	if StringsContains(localtype.SupportedFS, mp.FsType) == -1 {
-		log.Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
+		log.Debugf("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
 		return false
 	}
 
@@ -192,7 +192,7 @@ func HttpResponse(w http.ResponseWriter, code int, msg []byte) {
 
 func HttpJSON(w http.ResponseWriter, code int, result interface{}) {
 	response, err := json.Marshal(result)
-	log.Infof("json output: %s", response)
+	log.Debugf("json output: %s", response)
 	if err != nil {
 		HttpResponse(w, 500, []byte(err.Error()))
 		return
@@ -345,7 +345,7 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers
 	return localtype.MediaType(mediaType)
 }
 
-func IsLSSPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+func IsLocalPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
 	sc := GetStorageClassFromPVC(claim, p)
 	if sc == nil {
 		return false, ""
@@ -575,7 +575,7 @@ func Format(source, fsType string) error {
 		mkfsArgs = []string{"-F", source}
 	}
 
-	log.Infof("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
+	log.Debugf("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
 	out, err := exec.Command(mkfsCmd, mkfsArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("formatting disk failed: %v cmd: '%s %s' output: %q",

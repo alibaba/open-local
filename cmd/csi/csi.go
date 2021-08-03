@@ -17,8 +17,6 @@ limitations under the License.
 package csi
 
 import (
-	"os"
-
 	"github.com/oecp/open-local/pkg/csi"
 	"github.com/oecp/open-local/pkg/om"
 	log "github.com/sirupsen/logrus"
@@ -36,8 +34,7 @@ var Cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Start(&opt)
 		if err != nil {
-			log.Errorf("error :%s, quitting now\n", err.Error())
-			os.Exit(1)
+			log.Fatalf("error :%s, quitting now\n", err.Error())
 		}
 	},
 }

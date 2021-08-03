@@ -44,9 +44,9 @@ import (
 type Discoverer struct {
 	*common.Configuration
 	// kubeclientset is a standard kubernetes clientset
-	kubeclientset kubernetes.Interface
-	lssclientset  clientset.Interface
-	snapclient    snapshot.Interface
+	kubeclientset  kubernetes.Interface
+	localclientset clientset.Interface
+	snapclient     snapshot.Interface
 	// K8sMounter used to verify mountpoints
 	K8sMounter mount.Interface
 	mutex      sync.RWMutex
@@ -66,18 +66,18 @@ const (
 // NewDiscoverer return Discoverer
 func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interface, lssclientset clientset.Interface, snapclient snapshot.Interface) *Discoverer {
 	return &Discoverer{
-		Configuration: config,
-		lssclientset:  lssclientset,
-		kubeclientset: kubeclientset,
-		snapclient:    snapclient,
-		K8sMounter:    mount.New("" /* default mount path */),
-		mutex:         sync.RWMutex{},
+		Configuration:  config,
+		localclientset: lssclientset,
+		kubeclientset:  kubeclientset,
+		snapclient:     snapclient,
+		K8sMounter:     mount.New("" /* default mount path */),
+		mutex:          sync.RWMutex{},
 	}
 }
 
 // updateConfigurationFromNLSC will update the common.Configuration.CRDSpec from nodelocalstorage initconfig
 func (d *Discoverer) updateConfigurationFromNLSC() error {
-	nlsc, err := d.lssclientset.StorageV1alpha1().NodeLocalStorageInitConfigs().Get(context.Background(), d.InitConfig, metav1.GetOptions{})
+	nlsc, err := d.localclientset.StorageV1alpha1().NodeLocalStorageInitConfigs().Get(context.Background(), d.InitConfig, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error updateConfigurationFromNLSC: %s", err.Error())
 	}
@@ -129,12 +129,12 @@ func (d *Discoverer) Discover() {
 		return
 	}
 
-	if nls, err := d.lssclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
+	if nls, err := d.localclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
 		if k8serr.IsNotFound(err) {
 			log.Infof("creating node local storage %s", d.Nodename)
 			nls = d.newLocalStorageCRD()
 			// create new nls
-			_, err = d.lssclientset.StorageV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
+			_, err = d.localclientset.StorageV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
 			if err != nil {
 				log.Errorf("create local storage CRD status failed: %s", err.Error())
 				return
@@ -144,7 +144,7 @@ func (d *Discoverer) Discover() {
 			return
 		}
 	} else {
-		log.Infof("update node local storage %s status", d.Nodename)
+		log.Debugf("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
 		reservedVGInfos := make(map[string]ReservedVGInfo, 0)
@@ -183,7 +183,7 @@ func (d *Discoverer) Discover() {
 		}
 
 		// only update status
-		_, err = d.lssclientset.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+		_, err = d.localclientset.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 		if err != nil {
 			log.Errorf("local storage CRD updateStatus error: %s", err.Error())
 			return
@@ -193,9 +193,9 @@ func (d *Discoverer) Discover() {
 
 // InitResource will create relevant resource
 func (d *Discoverer) InitResource() {
-	nls, err := d.lssclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
+	nls, err := d.localclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
 	if err != nil {
-		log.Warningf("get node local storage %s failed: %s", d.Nodename, err.Error())
+		log.Errorf("get node local storage %s failed: %s", d.Nodename, err.Error())
 		return
 	}
 	vgs := nls.Spec.ResourceToBeInited.VGs
@@ -213,7 +213,7 @@ func (d *Discoverer) InitResource() {
 		notMounted, err := d.K8sMounter.IsLikelyNotMountPoint(mp.Path)
 		if err != nil && strings.Contains(err.Error(), "no such file or directory") {
 			if err := os.MkdirAll(mp.Path, 0777); err != nil {
-				log.Warningf("mkdir error: %s", err.Error())
+				log.Errorf("mkdir error: %s", err.Error())
 				continue
 			}
 		}
@@ -223,11 +223,11 @@ func (d *Discoverer) InitResource() {
 				fsType = DefaultFS
 			}
 			if err := utils.Format(mp.Device, fsType); err != nil {
-				log.Warningf("format error: %s", err.Error())
+				log.Errorf("format error: %s", err.Error())
 				continue
 			}
 			if err := d.K8sMounter.Mount(mp.Device, mp.Path, fsType, mp.Options); err != nil {
-				log.Warningf("mount error: %s", err.Error())
+				log.Errorf("mount error: %s", err.Error())
 				continue
 			}
 		}

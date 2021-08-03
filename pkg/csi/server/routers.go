@@ -36,7 +36,7 @@ func NewServer() Server {
 
 // ListLV list lvm volume
 func (s Server) ListLV(ctx context.Context, in *lib.ListLVRequest) (*lib.ListLVReply, error) {
-	log.Infof("List LVM for vg: %s", in.VolumeGroup)
+	log.Debugf("List LVM for vg: %s", in.VolumeGroup)
 	lvs, err := ListLV(in.VolumeGroup)
 	if err != nil {
 		log.Errorf("List LVM with error: %s", err.Error())
@@ -47,31 +47,31 @@ func (s Server) ListLV(ctx context.Context, in *lib.ListLVRequest) (*lib.ListLVR
 	for i, v := range lvs {
 		pblvs[i] = v.ToProto()
 	}
-	log.Infof("List LVM Successful with result: %+v", pblvs)
+	log.Debugf("List LVM Successful with result: %+v", pblvs)
 	return &lib.ListLVReply{Volumes: pblvs}, nil
 }
 
 // CreateLV create lvm volume
 func (s Server) CreateLV(ctx context.Context, in *lib.CreateLVRequest) (*lib.CreateLVReply, error) {
-	log.Infof("Create LVM with: %+v", in)
+	log.Debugf("Create LVM with: %+v", in)
 	out, err := CreateLV(ctx, in.VolumeGroup, in.Name, in.Size, in.Mirrors, in.Tags, in.Striping)
 	if err != nil {
 		log.Errorf("Create LVM with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to create lv: %v", err)
 	}
-	log.Infof("Create LVM Successful with result: %+v", out)
+	log.Debugf("Create LVM Successful with result: %+v", out)
 	return &lib.CreateLVReply{CommandOutput: out}, nil
 }
 
 // RemoveLV remove lvm volume
 func (s Server) RemoveLV(ctx context.Context, in *lib.RemoveLVRequest) (*lib.RemoveLVReply, error) {
-	log.Infof("Remove LVM with: %+v", in)
+	log.Debugf("Remove LVM with: %+v", in)
 	out, err := RemoveLV(ctx, in.VolumeGroup, in.Name)
 	if err != nil {
 		log.Errorf("Remove LVM with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to remove lv: %v", err)
 	}
-	log.Infof("Remove LVM Successful with result: %+v", out)
+	log.Debugf("Remove LVM Successful with result: %+v", out)
 	return &lib.RemoveLVReply{CommandOutput: out}, nil
 }
 
@@ -82,7 +82,7 @@ func (s Server) CloneLV(ctx context.Context, in *lib.CloneLVRequest) (*lib.Clone
 		log.Errorf("Clone LVM with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to clone lv: %v", err)
 	}
-	log.Infof("Clone LVM with result: %+v", out)
+	log.Debugf("Clone LVM with result: %+v", out)
 	return &lib.CloneLVReply{CommandOutput: out}, nil
 }
 
@@ -98,29 +98,29 @@ func (s Server) ListVG(ctx context.Context, in *lib.ListVGRequest) (*lib.ListVGR
 	for i, v := range vgs {
 		pbvgs[i] = v.ToProto()
 	}
-	log.Infof("List VG with result: %+v", pbvgs)
+	log.Debugf("List VG with result: %+v", pbvgs)
 	return &lib.ListVGReply{VolumeGroups: pbvgs}, nil
 }
 
 // CreateSnapshot create lvm snapshot
 func (s Server) CreateSnapshot(ctx context.Context, in *lib.CreateSnapshotRequest) (*lib.CreateSnapshotReply, error) {
-	log.Infof("Create LVM Snapshot with: %+v", in)
+	log.Debugf("Create LVM Snapshot with: %+v", in)
 	out, err := CreateSnapshot(ctx, in.VolumeGroup, in.SnapName, in.LvName, in.Size)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: create snapshot with error: %s", err.Error())
 	}
-	log.Infof("Create LVM Snapshot Successful with result: %+v", out)
+	log.Debugf("Create LVM Snapshot Successful with result: %+v", out)
 	return &lib.CreateSnapshotReply{CommandOutput: out}, nil
 }
 
 // RemoveSnapshot remove lvm snapshot
 func (s Server) RemoveSnapshot(ctx context.Context, in *lib.RemoveSnapshotRequest) (*lib.RemoveSnapshotReply, error) {
-	log.Infof("Remove LVM Snapshot with: %+v", in)
+	log.Debugf("Remove LVM Snapshot with: %+v", in)
 	out, err := RemoveSnapshot(ctx, in.VolumeGroup, in.SnapName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "RemoveSnapshot: remove snapshot with error: %s", err.Error())
 	}
-	log.Infof("Remove LVM Snapshot Successful with result: %+v", out)
+	log.Debugf("Remove LVM Snapshot Successful with result: %+v", out)
 	return &lib.RemoveSnapshotReply{CommandOutput: out}, nil
 }
 
@@ -131,7 +131,7 @@ func (s Server) CreateVG(ctx context.Context, in *lib.CreateVGRequest) (*lib.Cre
 		log.Errorf("Create VG with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to create vg: %v", err)
 	}
-	log.Infof("Create VG with result: %+v", out)
+	log.Debugf("Create VG with result: %+v", out)
 	return &lib.CreateVGReply{CommandOutput: out}, nil
 }
 
@@ -142,7 +142,7 @@ func (s Server) RemoveVG(ctx context.Context, in *lib.CreateVGRequest) (*lib.Rem
 		log.Errorf("Remove VG with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to remove vg: %v", err)
 	}
-	log.Infof("Remove VG with result: %+v", out)
+	log.Debugf("Remove VG with result: %+v", out)
 	return &lib.RemoveVGReply{CommandOutput: out}, nil
 }
 
@@ -153,7 +153,7 @@ func (s Server) CleanPath(ctx context.Context, in *lib.CleanPathRequest) (*lib.C
 		log.Errorf("CleanPath with error: %s", err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to remove vg: %v", err)
 	}
-	log.Infof("CleanPath with result Successful")
+	log.Debugf("CleanPath with result Successful")
 	return &lib.CleanPathReply{CommandOutput: "Successful remove path: " + in.Path}, nil
 }
 

@@ -53,7 +53,7 @@ func NewStatusSyncer(recorder record.EventRecorder, c clientset.Interface, ctx *
 
 func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalStorage) {
 	if need, err := syncer.isUpdateNeeded(nls); !need {
-		log.Infof("update status skipped")
+		log.Debugf("update status skipped")
 		if err == nil && nls.Status.FilteredStorageInfo.UpdateStatus.Status == nodelocalstorage.UpdateStatusFailed {
 			e := syncer.CleanStatus(nls)
 			if e != nil {
@@ -96,7 +96,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			VGFromCache = append(VGFromCache, vg.Name)
 		}
 		addedVGs, unchangedVGs, removedVGs := utils.GetAddedAndRemovedItems(VGFiltered, VGFromCache)
-		log.Infof("added vgs: %#v", addedVGs)
+		log.Debugf("added vgs: %#v", addedVGs)
 		sum := len(addedVGs) + len(removedVGs)
 		if sum != 0 {
 			updateVG = true
@@ -113,8 +113,8 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			MPFromCache = append(MPFromCache, mp.Name)
 		}
 		addedMountPoints, unchangedMountPoints, removedMountPoints := utils.GetAddedAndRemovedItems(MPFiltered, MPFromCache)
-		log.Infof("removed mountpoints: %#v", removedMountPoints)
-		log.Infof("added mountpoints: %#v", removedMountPoints)
+		log.Debugf("removed mountpoints: %#v", removedMountPoints)
+		log.Debugf("added mountpoints: %#v", removedMountPoints)
 		for _, mp := range removedMountPoints {
 			if mpCache, exist := tmpCache.MountPoints[cache.ResourceName(mp)]; exist {
 				if mpCache.IsAllocated {
@@ -127,7 +127,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 					}
 					return false, fmt.Errorf(reason)
 				} else {
-					log.Infof("mountpoint %s in node %s will be deleted", mp, nls.Name)
+					log.Debugf("mountpoint %s in node %s will be deleted", mp, nls.Name)
 				}
 			}
 		}
@@ -147,8 +147,8 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 			DevFromCache = append(DevFromCache, dev.Name)
 		}
 		addedDeivces, unchangedDeivces, removedDevices := utils.GetAddedAndRemovedItems(DeviceFiltered, DevFromCache)
-		log.Infof("removed devices: %#v", removedDevices)
-		log.Infof("added devices: %#v", addedDeivces)
+		log.Debugf("removed devices: %#v", removedDevices)
+		log.Debugf("added devices: %#v", addedDeivces)
 		for _, dev := range removedDevices {
 			if devCache, exist := tmpCache.Devices[cache.ResourceName(dev)]; exist {
 				if devCache.IsAllocated {
@@ -161,7 +161,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 					}
 					return false, fmt.Errorf(reason)
 				} else {
-					log.Infof("device %s in node %s will be deleted", dev, nls.Name)
+					log.Debugf("device %s in node %s will be deleted", dev, nls.Name)
 				}
 			}
 		}

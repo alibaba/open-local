@@ -27,7 +27,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type ExtenderOptions struct {
+type extenderOptions struct {
 	Master                  string
 	Kubeconfig              string
 	DataDir                 string
@@ -40,7 +40,7 @@ const (
 	DefaultNodeAffinityWeight int = 5
 )
 
-func (option *ExtenderOptions) AddFlags(fs *pflag.FlagSet) {
+func (option *extenderOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
 	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.Int32Var(&option.Port, "port", option.Port, "Port for receiving scheduler callback, set to '0' to disable http server")
@@ -48,7 +48,7 @@ func (option *ExtenderOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Strategy, "scheduler-strategy", "binpack", "Scheduler Strategy: binpack or spread")
 }
 
-func (option *ExtenderOptions) ParseWeight() (weights *pkg.NodeAntiAffinityWeight, err error) {
+func (option *extenderOptions) ParseWeight() (weights *pkg.NodeAntiAffinityWeight, err error) {
 	weights = pkg.NewNodeAntiAffinityWeight()
 	if len(option.EnabledNodeAntiAffinity) > 0 {
 		// example format
@@ -91,7 +91,7 @@ func (option *ExtenderOptions) ParseWeight() (weights *pkg.NodeAntiAffinityWeigh
 	return
 }
 
-func (option *ExtenderOptions) ParseStrategy() error {
+func (option *extenderOptions) ParseStrategy() error {
 	switch option.Strategy {
 	case "binpack":
 		pkg.SchedulerStrategy = pkg.StrategyBinpack

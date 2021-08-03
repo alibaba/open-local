@@ -82,7 +82,7 @@ func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*
 		return nil, err
 	}
 
-	log.Infof("Schedule Volume with Url(%s) Finished, get result: %v, %v", url, bindingInfo, string(respBody))
+	log.Debugf("Schedule Volume with Url(%s) Finished, get result: %v, %v", url, bindingInfo, string(respBody))
 	return bindingInfo, nil
 }
 
@@ -98,6 +98,6 @@ func ExpandVolume(pvcNameSpace, pvcName string, newSize int) error {
 		return err
 	}
 
-	log.Infof("Volume Expand with Url(%s) Finished, get result: %s", url, string(respBody))
+	log.Debugf("Volume Expand with Url(%s) Finished, get result: %s", url, string(respBody))
 	return nil
 }

@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshot
+metadata:
+  name: new-snapshot-test
+spec:
+  volumeSnapshotClassName: open-local-default
+  source:
+    # 需执行快照的源PVC名称
+    persistentVolumeClaimName: html-nginx-lvm-0

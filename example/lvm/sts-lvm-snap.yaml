@@ -1,32 +1,36 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-lvm
+  name: nginx-lvm-snap
   labels:
-    app: nginx-lvm
+    app: nginx-lvm-snap
 spec:
   ports:
   - port: 80
     name: web
   clusterIP: None
   selector:
-    app: nginx-lvm
+    app: nginx-lvm-snap
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: nginx-lvm
+  name: nginx-lvm-snap
 spec:
   selector:
     matchLabels:
-      app: nginx-lvm
+      app: nginx-lvm-snap
   podManagementPolicy: Parallel
-  serviceName: "nginx-lvm"
+  serviceName: "nginx-lvm-snap"
   replicas: 1
   volumeClaimTemplates:
   - metadata:
       name: html
     spec:
+      dataSource:
+        name: new-snapshot-test # 指定刚创建的VolumeSnapshot名称
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
       accessModes:
         - ReadWriteOnce
       storageClassName: open-local-default
@@ -36,7 +40,7 @@ spec:
   template:
     metadata:
       labels:
-        app: nginx-lvm
+        app: nginx-lvm-snap
     spec:
       tolerations:
         - key: node-role.kubernetes.io/master

@@ -30,14 +30,13 @@ import (
 	"strings"
 	"unicode"
 
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/csi/lib"
 	"github.com/oecp/open-local/pkg/utils"
 	"golang.org/x/net/context"
 )
 
 const (
-	// NsenterCmd is the nsenter command
-	NsenterCmd = "/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 	// ProjQuotaPrefix is the template of quota fullpath
 	ProjQuotaPrefix = "/mnt/quotapath.%s/%s"
 	// ProjQuotaNamespacePrefix ...
@@ -47,7 +46,7 @@ const (
 // ListLV lists lvm volumes
 func ListLV(listspec string) ([]*lib.LV, error) {
 	lvs := []*lib.LV{}
-	cmdList := []string{NsenterCmd, "lvs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
+	cmdList := []string{localtype.NsenterCmd, "lvs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
 		"-o", "lv_name,lv_size,lv_uuid,lv_attr,copy_percent,lv_kernel_major,lv_kernel_minor,lv_tags", "--nameprefixes", "-a", listspec}
 	cmd := strings.Join(cmdList, " ")
 	out, err := utils.Run(cmd)
@@ -78,7 +77,7 @@ func CreateLV(ctx context.Context, vg string, name string, size uint64, mirrors 
 	if size == 0 {
 		return "", errors.New("size must be greater than 0")
 	}
-	args := []string{NsenterCmd, "lvcreate", "-n", name, "-L", fmt.Sprintf("%db", size), "-W", "y", "-y"}
+	args := []string{localtype.NsenterCmd, "lvcreate", "-n", name, "-L", fmt.Sprintf("%db", size), "-W", "y", "-y"}
 	if mirrors > 0 {
 		args = append(args, "-m", fmt.Sprintf("%d", mirrors), "--nosync")
 	}
@@ -133,7 +132,7 @@ func RemoveLV(ctx context.Context, vg string, name string) (string, error) {
 		}
 	}
 
-	args := []string{NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+	args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -144,7 +143,7 @@ func RemoveLV(ctx context.Context, vg string, name string) (string, error) {
 func CloneLV(ctx context.Context, src, dest string) (string, error) {
 	// FIXME(farcaller): bloody insecure. And broken.
 
-	args := []string{NsenterCmd, "dd", fmt.Sprintf("if=%s", src), fmt.Sprintf("of=%s", dest), "bs=4M"}
+	args := []string{localtype.NsenterCmd, "dd", fmt.Sprintf("if=%s", src), fmt.Sprintf("of=%s", dest), "bs=4M"}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -153,7 +152,7 @@ func CloneLV(ctx context.Context, src, dest string) (string, error) {
 
 // ListVG get vg info
 func ListVG() ([]*lib.VG, error) {
-	args := []string{NsenterCmd, "vgs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
+	args := []string{localtype.NsenterCmd, "vgs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
 		"-o", "vg_name,vg_size,vg_free,vg_uuid,vg_tags,pv_count", "--nameprefixes", "-a"}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
@@ -180,7 +179,7 @@ func CreateSnapshot(ctx context.Context, vg string, snapshotName string, originL
 		return "", errors.New("size must be greater than 0")
 	}
 
-	args := []string{NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", size), fmt.Sprintf("%s/%s", vg, originLVName), "-y"}
+	args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", size), fmt.Sprintf("%s/%s", vg, originLVName), "-y"}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -200,7 +199,7 @@ func RemoveSnapshot(ctx context.Context, vg string, name string) (string, error)
 		return "", fmt.Errorf("expected 1 LV, got %d", len(lvs))
 	}
 
-	args := []string{NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+	args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -209,7 +208,7 @@ func RemoveSnapshot(ctx context.Context, vg string, name string) (string, error)
 
 // CreateVG create volume group
 func CreateVG(ctx context.Context, name string, physicalVolume string, tags []string) (string, error) {
-	args := []string{NsenterCmd, "vgcreate", name, physicalVolume, "-v"}
+	args := []string{localtype.NsenterCmd, "vgcreate", name, physicalVolume, "-v"}
 	for _, tag := range tags {
 		args = append(args, "--add-tag", tag)
 	}
@@ -241,7 +240,7 @@ func RemoveVG(ctx context.Context, name string) (string, error) {
 		}
 	}
 
-	args := []string{NsenterCmd, "vgremove", "-v", "-f", name}
+	args := []string{localtype.NsenterCmd, "vgremove", "-v", "-f", name}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -285,7 +284,7 @@ func AddTagLV(ctx context.Context, vg string, name string, tags []string) (strin
 	}
 
 	args := make([]string, 0)
-	args = append(args, NsenterCmd)
+	args = append(args, localtype.NsenterCmd)
 	args = append(args, "lvchange")
 	for _, tag := range tags {
 		args = append(args, "--addtag", tag)
@@ -310,7 +309,7 @@ func RemoveTagLV(ctx context.Context, vg string, name string, tags []string) (st
 	}
 
 	args := make([]string, 0)
-	args = append(args, NsenterCmd)
+	args = append(args, localtype.NsenterCmd)
 	args = append(args, "lvchange")
 	for _, tag := range tags {
 		args = append(args, "--deltag", tag)
@@ -328,7 +327,7 @@ func CreateNameSpace(ctx context.Context, region string, name string, size uint6
 	if size == 0 {
 		return "", errors.New("size must be greater than 0")
 	}
-	args := []string{NsenterCmd, "ndctl", "create-namespace", "-r", region, "-s", fmt.Sprintf("%d", size), "-n", name}
+	args := []string{localtype.NsenterCmd, "ndctl", "create-namespace", "-r", region, "-s", fmt.Sprintf("%d", size), "-n", name}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	return string(out), err
@@ -364,7 +363,7 @@ func str2ASCII(origin string) string {
 // SetProjectID2PVSubpath ...
 func SetProjectID2PVSubpath(subPath, fullPath string, run utils.CommandRunFunc) (string, error) {
 	projectID := ConvertString2int(subPath)
-	args := []string{NsenterCmd, "chattr", "+P -p", fmt.Sprintf("%s %s", projectID, fullPath)}
+	args := []string{localtype.NsenterCmd, "chattr", "+P -p", fmt.Sprintf("%s %s", projectID, fullPath)}
 	cmd := strings.Join(args, " ")
 	_, err := run(cmd)
 	if err != nil {
@@ -400,7 +399,7 @@ func getTotalLimitKBFromCSV(in string) (totalLimit int64, err error) {
 
 // GetNamespaceAssignedQuota ...
 func GetNamespaceAssignedQuota(namespace string) (int, error) {
-	args := []string{NsenterCmd, "repquota", "-P -O csv", fmt.Sprintf(ProjQuotaNamespacePrefix, namespace)}
+	args := []string{localtype.NsenterCmd, "repquota", "-P -O csv", fmt.Sprintf(ProjQuotaNamespacePrefix, namespace)}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	if err != nil {
@@ -436,7 +435,7 @@ func findBlockLimitByProjectID(out, projectID string) (string, string, error) {
 
 func checkSubpathProjQuotaEqual(projQuotaNamespacePath, projectID, blockHardLimitExpected, blockSoftLimitExpected string) (bool, error) {
 
-	args := []string{NsenterCmd, "repquota", "-P -O csv", projQuotaNamespacePath}
+	args := []string{localtype.NsenterCmd, "repquota", "-P -O csv", projQuotaNamespacePath}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	if err != nil {
@@ -455,7 +454,7 @@ func checkSubpathProjQuotaEqual(projQuotaNamespacePath, projectID, blockHardLimi
 // SetSubpathProjQuota ...
 func SetSubpathProjQuota(ctx context.Context, projQuotaSubpath, blockHardlimit, blockSoftlimit string) (string, error) {
 	projectID := ConvertString2int(filepath.Base(projQuotaSubpath))
-	args := []string{NsenterCmd, "setquota", "-P", fmt.Sprintf("%s %s %s 0 0 %s", projectID, blockHardlimit, blockHardlimit, filepath.Dir(projQuotaSubpath))}
+	args := []string{localtype.NsenterCmd, "setquota", "-P", fmt.Sprintf("%s %s %s 0 0 %s", projectID, blockHardlimit, blockHardlimit, filepath.Dir(projQuotaSubpath))}
 	cmd := strings.Join(args, " ")
 	_, err := utils.Run(cmd)
 	if err != nil {
@@ -470,7 +469,7 @@ func SetSubpathProjQuota(ctx context.Context, projQuotaSubpath, blockHardlimit, 
 
 // RemoveProjQuotaSubpath ...
 func RemoveProjQuotaSubpath(ctx context.Context, quotaSubpath string) (string, error) {
-	args := []string{NsenterCmd, "rm", "-rf", quotaSubpath}
+	args := []string{localtype.NsenterCmd, "rm", "-rf", quotaSubpath}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	if err != nil {

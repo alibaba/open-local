@@ -83,6 +83,8 @@ const (
 	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
 	DefaultSnapshotThreshold     = 0.5
 	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+
+	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 )
 
 var (

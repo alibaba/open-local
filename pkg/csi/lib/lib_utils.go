@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	utilexec "k8s.io/utils/exec"
@@ -17,8 +18,6 @@ const (
 	fsckErrorsCorrected = 1
 	// fsckErrorsUncorrected tag
 	fsckErrorsUncorrected = 4
-	// NsenterCmd is the nsenter command
-	NsenterCmd = "/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 )
 
 // ErrParse is an error that is returned when parse operation fails
@@ -157,7 +156,7 @@ func EnsureFolder(target string) error {
 		return err
 	}
 
-	mkdirFullPath := fmt.Sprintf("%s mkdir -p %s", NsenterCmd, target)
+	mkdirFullPath := fmt.Sprintf("%s mkdir -p %s", localtype.NsenterCmd, target)
 	_, err = utils.Run(mkdirFullPath)
 	if err != nil {
 		log.Errorf("Create path error: %v", err)

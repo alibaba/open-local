@@ -23,6 +23,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
+	localtype "github.com/oecp/open-local/pkg"
 	"github.com/oecp/open-local/pkg/csi/server"
 	"github.com/oecp/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
@@ -39,8 +40,6 @@ import (
 )
 
 const (
-	// NsenterCmd is the nsenter command
-	NsenterCmd = "/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 	// VgNameTag is the vg name tag
 	VgNameTag = "vgName"
 	// VolumeTypeTag is the pv type tag
@@ -307,7 +306,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, expectSize int64, volume
 
 		// resize lvm volume
 		// lvextend -L3G /dev/vgtest/lvm-5db74864-ea6b-11e9-a442-00163e07fb69
-		resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s", NsenterCmd, expectSize, devicePath)
+		resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s", localtype.NsenterCmd, expectSize, devicePath)
 		_, err = utils.Run(resizeCmd)
 		if err != nil {
 			log.Errorf("NodeExpandVolume: lvm volume %s expand error with %v", volumeID, err)

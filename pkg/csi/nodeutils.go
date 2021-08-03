@@ -285,7 +285,7 @@ func (ns *nodeServer) createVolume(ctx context.Context, volumeID, vgName, lvmTyp
 	var err error
 
 	// check vg exist
-	ckCmd := fmt.Sprintf("%s vgck %s", NsenterCmd, vgName)
+	ckCmd := fmt.Sprintf("%s vgck %s", localtype.NsenterCmd, vgName)
 	_, err = utils.Run(ckCmd)
 	if err != nil {
 		log.Errorf("createVolume:: VG is not exist: %s", vgName)
@@ -308,7 +308,7 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 			log.Errorf("createVolume:: VG is exist: %s, bug get pv number as 0", vgName)
 			return errors.New("")
 		}
-		cmd := fmt.Sprintf("%s lvcreate -i %d -n %s -L %d%s %s", NsenterCmd, pvNumber, volumeID, pvSize, unit, vgName)
+		cmd := fmt.Sprintf("%s lvcreate -i %d -n %s -L %d%s %s", localtype.NsenterCmd, pvNumber, volumeID, pvSize, unit, vgName)
 		_, err := utils.Run(cmd)
 		if err != nil {
 			log.Errorf("createVolume:: lvcreate command %s error: %v", cmd, err)
@@ -316,7 +316,7 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 		}
 		log.Infof("Successful Create Striping LVM volume: %s, with command: %s", volumeID, cmd)
 	} else if lvmType == LinearType {
-		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s %s", NsenterCmd, volumeID, pvSize, unit, vgName)
+		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s %s", localtype.NsenterCmd, volumeID, pvSize, unit, vgName)
 		_, err := utils.Run(cmd)
 		if err != nil {
 			log.Errorf("createVolume:: lvcreate linear command %s error: %v", cmd, err)

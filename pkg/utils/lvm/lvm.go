@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	localtype "github.com/oecp/open-local/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -60,9 +61,6 @@ var tagRegexp = regexp.MustCompile("^[A-Za-z0-9_+.][A-Za-z0-9_+.-]*$")
 
 const ErrTagInvalidLength = simpleError("lvm: Tag length must be between 1 and 1024 characters")
 const ErrTagHasInvalidChars = simpleError("lvm: Tag must consist of only [A-Za-z0-9_+.-] and cannot start with a '-'")
-
-// NsenterCmd is the nsenter command
-const NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 
 type PhysicalVolume struct {
 	dev string
@@ -500,7 +498,7 @@ func (lv *LogicalVolume) Remove() error {
 }
 
 func (lv *LogicalVolume) Expand(size uint64) error {
-	args := []string{NsenterCmd, "lvextend", fmt.Sprintf("--size=+%db", size), lv.vg.name + "/" + lv.name}
+	args := []string{localtype.NsenterCmd, "lvextend", fmt.Sprintf("--size=+%db", size), lv.vg.name + "/" + lv.name}
 	cmd := strings.Join(args, " ")
 	log.Infof("[Expand]cmd: %s", cmd)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
@@ -737,7 +735,7 @@ func LookupPhysicalVolume(name string) (*PhysicalVolume, error) {
 
 func run(cmd string, v interface{}, extraArgs ...string) error {
 	var args []string
-	cmdUseNsenter := fmt.Sprintf("%s %s", NsenterCmd, cmd)
+	cmdUseNsenter := fmt.Sprintf("%s %s", localtype.NsenterCmd, cmd)
 	args = append(args, cmdUseNsenter)
 	if v != nil {
 		args = append(args, "--reportformat=json")

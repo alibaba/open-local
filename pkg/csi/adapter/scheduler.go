@@ -48,7 +48,7 @@ const (
 )
 
 // URLHost default value
-var URLHost = "http://yoda-scheduler-extender-service:23000"
+var URLHost = "http://open-local-scheduler-extender:23000"
 
 // ScheduleVolume make request and get expect schedule topology
 func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*BindingInfo, error) {

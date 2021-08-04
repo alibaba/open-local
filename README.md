@@ -1,35 +1,32 @@
-# Open-Local - 云原生本地磁盘管理系统
+# Open-Local
 
-`Open-Local`是由多个组件构成的**本地磁盘管理系统**，目标是解决当前 Kubernetes 本地存储能力缺失问题。通过`Open-Local`，**使用本地存储会像集中式存储一样简单**。
+English | [简体中文](./README-zh_CN.md)
 
-`Open-Local`已广泛用于生产环境，目前使用的产品包括：
-- 阿里云 OECP (企业级容器平台)
-- 阿里云 ADP (云原生应用交付平台)
-- 蚂蚁 AntStack Plus 产品
+`Open-Local` is a **local disk management system** composed of multiple components. With `Open-Local`, **using local storage in Kubernetes will be as simple as centralized storage**.
 
-## 特性
-- 本地存储池管理
-- 存储卷动态分配
-- 存储卷容量隔离
-- 存储卷扩容
-- 存储卷快照
-- 存储卷监控
+## Features
+- Local storage pool management
+- Dynamic volume provisioning
+- Extended scheduler
+- Volume expansion
+- Volume snapshot
+- Volume metrics
 
-## 架构
-![](doc/img/architecture.png)
-`Open-Local`包含三大类组件：
-- Scheduler-Extender: 作为 Kubernetes Scheduler 的扩展组件，通过 Extender 方式实现，新增本地存储调度算法
-- CSI: 按照 [CSI(Container Storage Interface)](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/) 标准实现本地磁盘管理能力
-- Agent: 运行在集群中的每个节点，通过上报集群中本地存储设备信息以供 Scheduler-Extender 决策调度
+## Overall Architecture
+![](docs/imgs/architecture.png)
+`Open-Local`contains three types of components:
+- Scheduler extender: as an extended component of Kubernetes Scheduler, adding local storage scheduling algorithm
+- CSI plugins: providing the ability to create/delete volume, expand volume and take snapshots of the volume
+- Agent: running on each node in the K8s cluster, and report local storage device information for Scheduler extender
 
-## 开发
-详见[文档](doc/develop.md)
-```bash
-mkdir -p $GOPATH/src/github.com/oecp/
-cd $GOPATH/src/github.com/oecp/
-git clone https://github.com/oecp/open-local.git
-# build binary
-make
-# build image
-make image
-```
+## Who uses Open-Local
+
+`Open-Local` has been widely used in production environments, and currently used products include:
+
+- Alibaba Cloud ECP (Enterprise Container Platform)
+- Alibaba Cloud ADP (Cloud-Native Application Delivery Platform)
+- AntStack Plus Products
+
+## License
+
+[Apache 2.0 License](LICENSE)

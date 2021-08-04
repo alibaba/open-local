@@ -13,10 +13,10 @@ images:                       # 镜像
     tag: v0.1.0
   registrar:
     image: thebeatles1994/csi-node-driver-registrar
-    tag: v1.3.0
+    tag: v1.3
   provisioner:
     image: thebeatles1994/csi-provisioner
-    tag: v1.6.0
+    tag: v1.6.1
   resizer:
     image: thebeatles1994/csi-resizer
     tag: v1.2.0

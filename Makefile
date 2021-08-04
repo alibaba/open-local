@@ -6,7 +6,7 @@ GO_TEST=$(GO_CMD) test -v
 GO_PACKAGE=github.com/oecp/open-local
 
 # build info
-NAME=open-local
+NAME=thebeatles1994/open-local
 OUTPUT_DIR=./bin
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"

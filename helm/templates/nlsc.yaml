@@ -13,7 +13,7 @@ spec:
         - {{ .Values.name }}-pool-[0-9]+
       mountPoints:
         include:
-        - /mnt/yoda/disk-[0-9]+
+        - /mnt/open-local/disk-[0-9]+
     resourceToBeInited:
       vgs:
       - devices:

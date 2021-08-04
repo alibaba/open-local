@@ -1,30 +1,30 @@
 name: open-local
-namespace: kube-system   # Yoda命名空间, 1.17版本之前的K8s必须指定为kube-system
+namespace: kube-system
 driver: csi.storage.oecp.io
 images:                       # 镜像
   agent:
-    image: open-local
+    image: thebeatles1994/open-local
     tag: v0.1.0
   extender:
-    image: open-local
+    image: thebeatles1994/open-local
     tag: v0.1.0
   csi:
-    image: open-local
+    image: thebeatles1994/open-local
     tag: v0.1.0
   registrar:
-    image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-node-driver-registrar
+    image: thebeatles1994/csi-node-driver-registrar
     tag: v1.3.0
   provisioner:
-    image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-provisioner
+    image: thebeatles1994/csi-provisioner
     tag: v1.6.0
   resizer:
-    image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-resizer
+    image: thebeatles1994/csi-resizer
     tag: v1.2.0
   snapshotter:
-    image: registry.cn-hangzhou.aliyuncs.com/oecp/csi-snapshotter
+    image: thebeatles1994/csi-snapshotter
     tag: v3.0.3
   snapshot_controller:
-    image: registry.cn-hangzhou.aliyuncs.com/oecp/snapshot-controller
+    image: thebeatles1994/snapshot-controller
     tag: v3.0.3
 agent:
   name: open-local-agent

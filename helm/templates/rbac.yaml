@@ -38,7 +38,9 @@ rules:
       - services
       - endpoints
       - persistentvolumeclaims
+      - persistentvolumeclaims/status
       - persistentvolumes
+      - persistentvolumes/status
       - configmaps
     verbs:
       - create

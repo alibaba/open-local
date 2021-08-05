@@ -350,13 +350,13 @@ func isNoPhysicalVolumeLabel(err error) bool {
 
 func IsVolumeGroupNotFound(err error) bool {
 	const prefix = "Volume group"
-	const suffix = "not found"
+	const notFound = "not found"
 	lines := strings.Split(err.Error(), "\n")
 	if len(lines) == 0 {
 		return false
 	}
 	for _, line := range lines {
-		if strings.HasPrefix(line, prefix) && strings.HasSuffix(line, suffix) {
+		if strings.HasPrefix(line, prefix) && strings.Contains(line, notFound) {
 			return true
 		}
 	}

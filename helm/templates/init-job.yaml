@@ -37,7 +37,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: init
-        image: {{ .Values.images.agent.image }}:{{ .Values.images.agent.tag }}
+        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         command:
         - sh
         - "-c"

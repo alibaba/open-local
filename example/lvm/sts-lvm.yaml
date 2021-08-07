@@ -32,7 +32,7 @@ spec:
       storageClassName: open-local-default
       resources:
         requests:
-          storage: 4Gi
+          storage: 5Gi
   template:
     metadata:
       labels:

@@ -136,6 +136,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 	// Step 2: get necessary info
 	volumeID := req.GetName()
 	pvcName, pvcNameSpace, volumeType, nodeSelected, storageSelected := "", "", "", "", ""
+	var err error
 	parameters := req.GetParameters()
 	if value, ok := parameters[VolumeTypeKey]; ok {
 		for _, supportVolType := range supportVolumeTypes {
@@ -154,8 +155,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 	if value, ok := parameters[PvcNsTag]; ok {
 		pvcNameSpace = value
 	}
-	if value, ok := parameters[NodeSchedueTag]; ok {
-		nodeSelected = value
+
+	if nodeSelected, err = getNodeName(cs.client, pvcName, pvcNameSpace); err != nil {
+		return nil, status.Errorf(codes.Internal, "get node name failed: %s", err.Error())
 	}
 	if value, ok := parameters[StorageSchedueTag]; ok {
 		storageSelected = value
@@ -719,6 +721,21 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 
 func getVolumes(client kubernetes.Interface) (*v1.PersistentVolumeList, error) {
 	return client.CoreV1().PersistentVolumes().List(context.Background(), metav1.ListOptions{})
+}
+
+func getNodeName(client kubernetes.Interface, pvcName string, pvcNameSpace string) (nodeName string, err error) {
+	pvc, err := client.CoreV1().PersistentVolumeClaims(pvcNameSpace).Get(context.Background(), pvcName, metav1.GetOptions{})
+
+	if err != nil {
+		return "", err
+	}
+
+	nodeName, exist := pvc.Annotations[NodeSchedueTag]
+	if exist == false {
+		return "", fmt.Errorf("no annotation %s found in pvc %s/%s", NodeSchedueTag, pvcNameSpace, pvcName)
+	}
+
+	return nodeName, nil
 }
 
 func getVolumeSnapshotClass(snapclient snapshot.Interface, className string) (*snapshotapi.VolumeSnapshotClass, error) {

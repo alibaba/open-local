@@ -53,7 +53,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.agent.image }}:{{ .Values.images.agent.tag }}
+        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: IfNotPresent
         resources:
           limits:
@@ -106,7 +106,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.csi.image }}:{{ .Values.images.csi.tag }}
+        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: IfNotPresent
         args:
         - csi

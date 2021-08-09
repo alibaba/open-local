@@ -3,7 +3,7 @@ kind: VolumeSnapshot
 metadata:
   name: new-snapshot-test
 spec:
-  volumeSnapshotClassName: open-local-default
+  volumeSnapshotClassName: open-local-lvm
   source:
     # 需执行快照的源PVC名称
     persistentVolumeClaimName: html-nginx-lvm-0

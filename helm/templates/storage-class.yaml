@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: {{ .Values.storageclass.name }}
+  name: {{ .Values.storageclass.lvm.name }}
 provisioner: {{ .Values.driver }}
 parameters:
   volumeType: "LVM"
@@ -9,3 +9,27 @@ parameters:
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageclass.device_hdd.name }}
+provisioner: {{ .Values.driver }}
+parameters:
+  volumeType: Device
+  mediaType: hdd
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageclass.device_ssd.name }}
+provisioner: {{ .Values.driver }}
+parameters:
+  volumeType: Device
+  mediaType: sdd
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false

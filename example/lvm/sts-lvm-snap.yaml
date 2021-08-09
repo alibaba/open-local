@@ -33,7 +33,7 @@ spec:
         apiGroup: snapshot.storage.k8s.io
       accessModes:
         - ReadWriteOnce
-      storageClassName: open-local-default
+      storageClassName: open-local-lvm
       resources:
         requests:
           storage: 4Gi

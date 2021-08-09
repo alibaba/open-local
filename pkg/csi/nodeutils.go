@@ -206,6 +206,14 @@ func (ns *nodeServer) mountDeviceVolume(ctx context.Context, req *csi.NodePublis
 		fsType = mnt.FsType
 	}
 
+	// Check targetPath
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(targetPath, 0750); err != nil {
+			log.Errorf("mountDeviceVolume: volume %s mkdir target path %s with error: %s", sourceDevice, targetPath, err.Error())
+			return status.Error(codes.Internal, err.Error())
+		}
+	}
+
 	// do format-mount or mount
 	diskMounter := &k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()}
 	if err := diskMounter.FormatAndMount(sourceDevice, targetPath, fsType, options); err != nil {

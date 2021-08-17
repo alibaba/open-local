@@ -4,15 +4,18 @@ metadata:
   name: {{ .Values.name }}-csi-snapshotter
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}-csi-snapshotter
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-csi-snapshotter
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.name }}-csi-snapshotter
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-csi-snapshotter
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}-csi-snapshotter
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-csi-snapshotter
     spec:
       tolerations:
       - operator: Exists

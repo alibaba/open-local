@@ -8,18 +8,21 @@ spec:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ .Values.agent.name }}
+  name: {{ .Values.name }}-agent
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.agent.name }}
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-agent
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.agent.name }}
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-agent
   template:
     metadata:
       labels:
-        app: {{ .Values.agent.name }}
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-agent
     spec:
       tolerations:
       - operator: Exists

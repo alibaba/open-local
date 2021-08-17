@@ -4,16 +4,19 @@ metadata:
   name: {{ .Values.name }}-csi-provisioner
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}-csi-provisioner
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-csi-provisioner
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.name }}-csi-provisioner
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-csi-provisioner
   replicas: 1
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}-csi-provisioner
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-csi-provisioner
     spec:
       tolerations:
       - operator: Exists

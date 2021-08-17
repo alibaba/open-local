@@ -1,18 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.extender.name }}
+  name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.extender.name }}
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-scheduler-extender
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.extender.name }}
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-scheduler-extender
   template:
     metadata:
       labels:
-        app: {{ .Values.extender.name }}
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-scheduler-extender
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -34,7 +37,7 @@ spec:
               - key: app
                 operator: In
                 values:
-                - {{ .Values.extender.name }}
+                - {{ .Values.name }}-scheduler-extender
             topologyKey: kubernetes.io/hostname
       containers:
       - args:
@@ -43,7 +46,7 @@ spec:
         - --scheduler-strategy={{ .Values.extender.strategy }}
         image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: IfNotPresent
-        name: {{ .Values.extender.name }}
+        name: {{ .Values.name }}-scheduler-extender
         resources:
           limits:
             cpu: 500m
@@ -60,12 +63,14 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: {{ .Values.extender.name }}
-  name: {{ .Values.extender.name }}
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-scheduler-extender
+  name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
 spec:
   selector:
-    app: {{ .Values.extender.name }}
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-scheduler-extender
   ports:
   - protocol: TCP
     port: {{ .Values.extender.port }}

@@ -4,15 +4,18 @@ metadata:
   name: {{ .Values.name }}-snapshot-controller
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}-snapshot-controller
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-snapshot-controller
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.name }}-snapshot-controller
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-snapshot-controller
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}-snapshot-controller
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-snapshot-controller
     spec:
       tolerations:
       - operator: Exists

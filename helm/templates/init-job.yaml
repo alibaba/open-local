@@ -4,14 +4,16 @@ metadata:
   name: {{ .Values.name }}-init-job
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}-init-job
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-init-job
 spec:
   completions: 3
   parallelism: 3
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}-init-job
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-init-job
     spec:
       hostNetwork: true
       tolerations:

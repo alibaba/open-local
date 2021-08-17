@@ -27,6 +27,9 @@ English | [简体中文](./README-zh_CN.md)
 - Alibaba Cloud ADP (Cloud-Native Application Delivery Platform)
 - AntStack Plus Products
 
+## User guide
+More details [here](docs/user-guide.md)
+
 ## License
 
 [Apache 2.0 License](LICENSE)

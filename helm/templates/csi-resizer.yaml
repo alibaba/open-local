@@ -4,16 +4,19 @@ metadata:
   name: {{ .Values.name }}-csi-resizer
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}-csi-resizer
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-csi-resizer
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.name }}-csi-resizer
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-csi-resizer
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}-csi-resizer
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-csi-resizer
     spec:
       tolerations:
       - operator: Exists

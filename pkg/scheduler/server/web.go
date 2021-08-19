@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,19 +23,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oecp/open-local/pkg"
+	"github.com/alibaba/open-local/pkg"
 
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	"github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
+	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	"github.com/alibaba/open-local/pkg/metrics"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
+	"github.com/alibaba/open-local/pkg/scheduler/statussyncer"
 	"github.com/julienschmidt/httprouter"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	"github.com/oecp/open-local/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
-	"github.com/oecp/open-local/pkg/metrics"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/predicates"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
-	"github.com/oecp/open-local/pkg/scheduler/statussyncer"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +58,7 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	port int32, weights *pkg.NodeAntiAffinityWeight) *ExtenderServer {
 	corev1Informers := kubeInformerFactory.Core().V1()
 	storagev1Informers := kubeInformerFactory.Storage().V1()
-	localStorageInformers := localStorageInformerFactory.Storage().V1alpha1()
+	localStorageInformers := localStorageInformerFactory.Csi().V1alpha1()
 	snapshotInformers := volumesnapshotInformerFactory.Snapshot().V1beta1()
 
 	Ctx := algorithm.NewSchedulingContext(corev1Informers, storagev1Informers, localStorageInformers, snapshotInformers, weights)

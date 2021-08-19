@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alibaba/open-local/pkg/agent/common"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	lssfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
-	"github.com/oecp/open-local/pkg/agent/common"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	lssfake "github.com/oecp/open-local/pkg/generated/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )

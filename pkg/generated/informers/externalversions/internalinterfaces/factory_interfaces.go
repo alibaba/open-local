@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package internalinterfaces
 import (
 	time "time"
 
-	versioned "github.com/oecp/open-local/pkg/generated/clientset/versioned"
+	versioned "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	cache "k8s.io/client-go/tools/cache"

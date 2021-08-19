@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 
 const (
 	DefaultEndpoint   string = "unix://tmp/csi.sock"
-	DefaultDriverName string = "csi.storage.oecp.io"
+	DefaultDriverName string = "local.csi.alibaba.com"
 )
 
 type CSIPlugin struct {

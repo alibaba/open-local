@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ import (
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 
-	"github.com/oecp/open-local/pkg"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local/pkg/utils"
+	"github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 

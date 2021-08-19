@@ -5,7 +5,7 @@ metadata:
   name: {{ .Values.name }}
 rules:
   - apiGroups:
-      - storage.oecp.io
+      - csi.alibaba.com
     resources:
       - nodelocalstorages
       - nodelocalstorages/status

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	v1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -52,11 +52,11 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=storage.oecp.io, Version=v1alpha1
+	// Group=csi.alibaba.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("nodelocalstorages"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Storage().V1alpha1().NodeLocalStorages().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Csi().V1alpha1().NodeLocalStorages().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("nodelocalstorageinitconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Storage().V1alpha1().NodeLocalStorageInitConfigs().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Csi().V1alpha1().NodeLocalStorageInitConfigs().Informer()}, nil
 
 	}
 

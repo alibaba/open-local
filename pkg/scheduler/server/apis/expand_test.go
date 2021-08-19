@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ package apis
 
 // 	corev1 "k8s.io/api/core/v1"
 // 	"k8s.io/apimachinery/pkg/api/resource"
-// 	"github.com/oecp/open-local/pkg/scheduler/algorithm"
-// 	"github.com/oecp/open-local/test/framework"
+// 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+// 	"github.com/alibaba/open-local/test/framework"
 // )
 
 // func TestExpandPVC(t *testing.T) {

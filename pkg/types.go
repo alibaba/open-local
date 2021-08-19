@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 )
 
 type VolumeType string
@@ -37,7 +37,7 @@ const (
 
 	AgentName           string = "open-local-agent"
 	ProvisionerNameYoda string = "yodaplugin.csi.alibabacloud.com"
-	ProvisionerName     string = "csi.storage.oecp.io"
+	ProvisionerName     string = "local.csi.alibaba.com"
 	SchedulerName       string = "open-local-scheduler"
 
 	EnvLogLevel = "LogLevel"
@@ -83,10 +83,10 @@ const (
 	TriggerPendingPodCycle               = time.Second * 300
 
 	ParamSnapshotName            = "yoda.io/snapshot-name"
-	ParamSnapshotReadonly        = "storage.oecp.io/readonly"
-	ParamSnapshotInitialSize     = "storage.oecp.io/snapshot-initial-size"
-	ParamSnapshotThreshold       = "storage.oecp.io/snapshot-expansion-threshold"
-	ParamSnapshotExpansionSize   = "storage.oecp.io/snapshot-expansion-size"
+	ParamSnapshotReadonly        = "csi.alibaba.com/readonly"
+	ParamSnapshotInitialSize     = "csi.alibaba.com/snapshot-initial-size"
+	ParamSnapshotThreshold       = "csi.alibaba.com/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "csi.alibaba.com/snapshot-expansion-size"
 	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
 	DefaultSnapshotPrefix        = "snap"
 	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024

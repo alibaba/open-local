@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,16 +23,16 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/bind"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/preemptions"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/bind"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/preemptions"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/predicates"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/priorities"
-	"github.com/oecp/open-local/pkg/version"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
+	"github.com/alibaba/open-local/pkg/version"
 	"github.com/peter-wangxu/simple-golang-tools/pkg/httputil"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )

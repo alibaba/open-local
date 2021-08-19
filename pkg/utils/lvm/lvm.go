@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"strings"
 
-	localtype "github.com/oecp/open-local/pkg"
+	localtype "github.com/alibaba/open-local/pkg"
 	log "github.com/sirupsen/logrus"
 )
 

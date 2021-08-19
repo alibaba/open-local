@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/alibaba/open-local/pkg/agent/common"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	"github.com/oecp/open-local/pkg/agent/common"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 )
 
 // Agent is the primary "node agent" for open-local that runs on each node

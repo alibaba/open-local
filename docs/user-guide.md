@@ -50,9 +50,9 @@ Modify the requested spec.resourceToBeInited.vgs of the custom resource to creat
 Open-Local has storageclasses as following:
 ```bash
 NAME                    PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-open-local-device-hdd   csi.storage.oecp.io        Delete          WaitForFirstConsumer   false                  6h56m
-open-local-device-ssd   csi.storage.oecp.io        Delete          WaitForFirstConsumer   false                  6h56m
-open-local-lvm          csi.storage.oecp.io        Delete          WaitForFirstConsumer   true                   6h56m
+open-local-device-hdd   local.csi.alibaba.com        Delete          WaitForFirstConsumer   false                  6h56m
+open-local-device-ssd   local.csi.alibaba.com        Delete          WaitForFirstConsumer   false                  6h56m
+open-local-lvm          local.csi.alibaba.com        Delete          WaitForFirstConsumer   true                   6h56m
 ```
 
 Create a Pod that uses Open-Local volumes by running this command:
@@ -80,7 +80,7 @@ Volume:        local-52f1bab4-d39b-4cde-abad-6c5963b47761
 Labels:        app=nginx-lvm
 Annotations:   pv.kubernetes.io/bind-completed: yes
                pv.kubernetes.io/bound-by-controller: yes
-               volume.beta.kubernetes.io/storage-provisioner: csi.storage.oecp.io
+               volume.beta.kubernetes.io/storage-provisioner: local.csi.alibaba.com
                volume.kubernetes.io/selected-node: minikube
 Finalizers:    [kubernetes.io/pvc-protection]
 Capacity:      5Gi
@@ -91,9 +91,9 @@ Events:
   Type    Reason                 Age                From                                                               Message
   ----    ------                 ----               ----                                                               -------
   Normal  WaitForFirstConsumer   11m                persistentvolume-controller                                        waiting for first consumer to be created before binding
-  Normal  ExternalProvisioning   11m (x2 over 11m)  persistentvolume-controller                                        waiting for a volume to be created, either by external provisioner "csi.storage.oecp.io" or manually created by system administrator
-  Normal  Provisioning           11m (x2 over 11m)  csi.storage.oecp.io_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  External provisioner is provisioning volume for claim "default/html-nginx-lvm-0"
-  Normal  ProvisioningSucceeded  11m (x2 over 11m)  csi.storage.oecp.io_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  Successfully provisioned volume local-52f1bab4-d39b-4cde-abad-6c5963b47761
+  Normal  ExternalProvisioning   11m (x2 over 11m)  persistentvolume-controller                                        waiting for a volume to be created, either by external provisioner "local.csi.alibaba.com" or manually created by system administrator
+  Normal  Provisioning           11m (x2 over 11m)  local.csi.alibaba.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  External provisioner is provisioning volume for claim "default/html-nginx-lvm-0"
+  Normal  ProvisioningSucceeded  11m (x2 over 11m)  local.csi.alibaba.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  Successfully provisioned volume local-52f1bab4-d39b-4cde-abad-6c5963b47761
 ```
 
 ## Volume expansion
@@ -117,7 +117,7 @@ local-52f1bab4-d39b-4cde-abad-6c5963b47761   20Gi       RWO            Delete   
 Open-Local has volumesnapshotclass as following:
 ```bash
 NAME             DRIVER                DELETIONPOLICY   AGE
-open-local-lvm   csi.storage.oecp.io   Delete           20m
+open-local-lvm   local.csi.alibaba.com   Delete           20m
 ```
 
 Create a VolumeSnapshot
@@ -129,7 +129,7 @@ NAME                READYTOUSE   SOURCEPVC          SOURCESNAPSHOTCONTENT   REST
 new-snapshot-test   true         html-nginx-lvm-0                           1863          open-local-lvm   snapcontent-815def28-8979-408e-86de-1e408033de65   19s            19s
 # kubectl get volumesnapshotcontent
 NAME                                               READYTOUSE   RESTORESIZE   DELETIONPOLICY   DRIVER                VOLUMESNAPSHOTCLASS   VOLUMESNAPSHOT      AGE
-snapcontent-815def28-8979-408e-86de-1e408033de65   true         1863          Delete           csi.storage.oecp.io   open-local-lvm        new-snapshot-test   48s
+snapcontent-815def28-8979-408e-86de-1e408033de65   true         1863          Delete           local.csi.alibaba.com   open-local-lvm        new-snapshot-test   48s
 ```
 
 Create a Pod that uses volume pre-populated with data from snapshots:
@@ -153,7 +153,7 @@ Volume:        local-1c69455d-c50b-422d-a5c0-2eb5c7d0d21b
 Labels:        app=nginx-lvm-snap
 Annotations:   pv.kubernetes.io/bind-completed: yes
                pv.kubernetes.io/bound-by-controller: yes
-               volume.beta.kubernetes.io/storage-provisioner: csi.storage.oecp.io
+               volume.beta.kubernetes.io/storage-provisioner: local.csi.alibaba.com
                volume.kubernetes.io/selected-node: minikube
 Finalizers:    [kubernetes.io/pvc-protection]
 Capacity:      4Gi
@@ -168,7 +168,7 @@ Events:
   Type    Reason                 Age                    From                                                               Message
   ----    ------                 ----                   ----                                                               -------
   Normal  WaitForFirstConsumer   2m37s                  persistentvolume-controller                                        waiting for first consumer to be created before binding
-  Normal  ExternalProvisioning   2m37s                  persistentvolume-controller                                        waiting for a volume to be created, either by external provisioner "csi.storage.oecp.io" or manually created by system administrator
-  Normal  Provisioning           2m37s (x2 over 2m37s)  csi.storage.oecp.io_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  External provisioner is provisioning volume for claim "default/html-nginx-lvm-snap-0"
-  Normal  ProvisioningSucceeded  2m37s (x2 over 2m37s)  csi.storage.oecp.io_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  Successfully provisioned volume local-1c69455d-c50b-422d-a5c0-2eb5c7d0d21b
+  Normal  ExternalProvisioning   2m37s                  persistentvolume-controller                                        waiting for a volume to be created, either by external provisioner "local.csi.alibaba.com" or manually created by system administrator
+  Normal  Provisioning           2m37s (x2 over 2m37s)  local.csi.alibaba.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  External provisioner is provisioning volume for claim "default/html-nginx-lvm-snap-0"
+  Normal  ProvisioningSucceeded  2m37s (x2 over 2m37s)  local.csi.alibaba.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  Successfully provisioned volume local-1c69455d-c50b-422d-a5c0-2eb5c7d0d21b
 ```

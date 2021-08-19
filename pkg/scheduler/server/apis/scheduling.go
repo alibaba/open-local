@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,12 +22,12 @@ import (
 
 	utiltrace "k8s.io/utils/trace"
 
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local/pkg/utils"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/alibaba/open-local/pkg/utils"
 
-	"github.com/oecp/open-local/pkg/scheduler"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/algo"
+	"github.com/alibaba/open-local/pkg/scheduler"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 )

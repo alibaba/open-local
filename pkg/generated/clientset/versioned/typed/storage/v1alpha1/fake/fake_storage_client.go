@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,26 +19,26 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/oecp/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
+	v1alpha1 "github.com/alibaba/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeStorageV1alpha1 struct {
+type FakeCsiV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeStorageV1alpha1) NodeLocalStorages() v1alpha1.NodeLocalStorageInterface {
+func (c *FakeCsiV1alpha1) NodeLocalStorages() v1alpha1.NodeLocalStorageInterface {
 	return &FakeNodeLocalStorages{c}
 }
 
-func (c *FakeStorageV1alpha1) NodeLocalStorageInitConfigs() v1alpha1.NodeLocalStorageInitConfigInterface {
+func (c *FakeCsiV1alpha1) NodeLocalStorageInitConfigs() v1alpha1.NodeLocalStorageInitConfigInterface {
 	return &FakeNodeLocalStorageInitConfigs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeStorageV1alpha1) RESTClient() rest.Interface {
+func (c *FakeCsiV1alpha1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

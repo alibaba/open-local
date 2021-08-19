@@ -3,7 +3,7 @@
 GO_CMD=go
 GO_BUILD=$(GO_CMD) build
 GO_TEST=$(GO_CMD) test -v
-GO_PACKAGE=github.com/oecp/open-local
+GO_PACKAGE=github.com/alibaba/open-local
 
 # build info
 NAME=open-local
@@ -12,7 +12,7 @@ IMAGE_NAME=thebeatles1994/${NAME}
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"
 GIT_COMMIT=$(shell git rev-parse --short HEAD)
-VERSION=v0.1.2
+VERSION=v0.2.0
 
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 CRD_VERSION=v1alpha1

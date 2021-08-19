@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package proto;
-option go_package = "github.com/oecp/open-local/pkg/csi/lib";
+option go_package = "github.com/alibaba/open-local/pkg/csi/lib";
 
 message LogicalVolume {
   string name = 1;

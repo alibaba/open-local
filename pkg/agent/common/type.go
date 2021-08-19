@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 import (
-	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 )
 
 // Configuration stores all the user-defined parameters to the controller

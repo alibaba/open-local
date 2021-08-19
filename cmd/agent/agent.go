@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ package agent
 import (
 	"fmt"
 
+	"github.com/alibaba/open-local/pkg/agent/common"
+	"github.com/alibaba/open-local/pkg/agent/controller"
+	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	"github.com/alibaba/open-local/pkg/signals"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	"github.com/oecp/open-local/pkg/agent/common"
-	"github.com/oecp/open-local/pkg/agent/controller"
-	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	"github.com/oecp/open-local/pkg/signals"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

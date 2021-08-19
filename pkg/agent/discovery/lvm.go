@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"reflect"
 
-	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	"github.com/oecp/open-local/pkg/utils/lvm"
+	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	"github.com/alibaba/open-local/pkg/utils/lvm"
 	log "github.com/sirupsen/logrus"
 )
 

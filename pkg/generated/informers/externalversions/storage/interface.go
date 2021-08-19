@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package storage
 
 import (
-	internalinterfaces "github.com/oecp/open-local/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/oecp/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
+	internalinterfaces "github.com/alibaba/open-local/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"regexp"
 
-	nodelocalstorage "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local/pkg/scheduler/algorithm/cache"
-	"github.com/oecp/open-local/pkg/utils"
+	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,7 +73,7 @@ func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalS
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 
 	// only update status
-	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 	}
@@ -182,7 +182,7 @@ func (syncer *StatusSyncer) UpdateFailedStatus(nls *nodelocalstorage.NodeLocalSt
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = reason
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Status = nodelocalstorage.UpdateStatusFailed
 	// only update status
-	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err
@@ -196,7 +196,7 @@ func (syncer *StatusSyncer) CleanStatus(nls *nodelocalstorage.NodeLocalStorage) 
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = metav1.Now()
 	// only update status
-	_, err := syncer.client.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err

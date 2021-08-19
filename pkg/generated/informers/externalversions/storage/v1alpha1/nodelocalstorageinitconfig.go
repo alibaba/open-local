@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import (
 	"context"
 	time "time"
 
-	storagev1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	versioned "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/oecp/open-local/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/oecp/open-local/pkg/generated/listers/storage/v1alpha1"
+	storagev1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	versioned "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/alibaba/open-local/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/alibaba/open-local/pkg/generated/listers/storage/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -61,13 +61,13 @@ func NewFilteredNodeLocalStorageInitConfigInformer(client versioned.Interface, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StorageV1alpha1().NodeLocalStorageInitConfigs().List(context.TODO(), options)
+				return client.CsiV1alpha1().NodeLocalStorageInitConfigs().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StorageV1alpha1().NodeLocalStorageInitConfigs().Watch(context.TODO(), options)
+				return client.CsiV1alpha1().NodeLocalStorageInitConfigs().Watch(context.TODO(), options)
 			},
 		},
 		&storagev1alpha1.NodeLocalStorageInitConfig{},

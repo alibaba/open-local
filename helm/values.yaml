@@ -1,10 +1,10 @@
 name: open-local
 namespace: kube-system
-driver: csi.storage.oecp.io
+driver: local.csi.alibaba.com
 images:
   local:
     image: thebeatles1994/open-local
-    tag: v0.1.2
+    tag: v0.2.0
   registrar:
     image: thebeatles1994/csi-node-driver-registrar
     tag: v1.3

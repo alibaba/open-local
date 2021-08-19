@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/oecp/open-local/pkg/scheduler/algorithm"
-	"github.com/oecp/open-local/pkg/scheduler/errors"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"

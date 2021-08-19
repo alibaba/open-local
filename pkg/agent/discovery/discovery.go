@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,13 +25,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/open-local/pkg/agent/common"
+	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	"github.com/alibaba/open-local/pkg/utils"
+	"github.com/alibaba/open-local/pkg/utils/lvm"
 	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	"github.com/oecp/open-local/pkg/agent/common"
-	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	"github.com/oecp/open-local/pkg/utils"
-	"github.com/oecp/open-local/pkg/utils/lvm"
 	log "github.com/sirupsen/logrus"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,7 +60,7 @@ type ReservedVGInfo struct {
 
 const (
 	DefaultFS          = "ext4"
-	AnnoStorageReserve = "storage.oecp.io/storage-reserved"
+	AnnoStorageReserve = "csi.alibaba.com/storage-reserved"
 )
 
 // NewDiscoverer return Discoverer
@@ -77,7 +77,7 @@ func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interf
 
 // updateConfigurationFromNLSC will update the common.Configuration.CRDSpec from nodelocalstorage initconfig
 func (d *Discoverer) updateConfigurationFromNLSC() error {
-	nlsc, err := d.localclientset.StorageV1alpha1().NodeLocalStorageInitConfigs().Get(context.Background(), d.InitConfig, metav1.GetOptions{})
+	nlsc, err := d.localclientset.CsiV1alpha1().NodeLocalStorageInitConfigs().Get(context.Background(), d.InitConfig, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error updateConfigurationFromNLSC: %s", err.Error())
 	}
@@ -129,12 +129,12 @@ func (d *Discoverer) Discover() {
 		return
 	}
 
-	if nls, err := d.localclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
+	if nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
 		if k8serr.IsNotFound(err) {
 			log.Infof("creating node local storage %s", d.Nodename)
 			nls = d.newLocalStorageCRD()
 			// create new nls
-			_, err = d.localclientset.StorageV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
+			_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
 			if err != nil {
 				log.Errorf("create local storage CRD status failed: %s", err.Error())
 				return
@@ -183,7 +183,7 @@ func (d *Discoverer) Discover() {
 		}
 
 		// only update status
-		_, err = d.localclientset.StorageV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+		_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 		if err != nil {
 			log.Errorf("local storage CRD updateStatus error: %s", err.Error())
 			return
@@ -193,7 +193,7 @@ func (d *Discoverer) Discover() {
 
 // InitResource will create relevant resource
 func (d *Discoverer) InitResource() {
-	nls, err := d.localclientset.StorageV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
+	nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("get node local storage %s failed: %s", d.Nodename, err.Error())
 		return

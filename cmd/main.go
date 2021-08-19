@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,15 +21,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oecp/open-local/pkg/utils"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/oecp/open-local/cmd/agent"
-	"github.com/oecp/open-local/cmd/csi"
-	"github.com/oecp/open-local/cmd/scheduler"
-	"github.com/oecp/open-local/cmd/version"
-	localtype "github.com/oecp/open-local/pkg"
+	"github.com/alibaba/open-local/cmd/agent"
+	"github.com/alibaba/open-local/cmd/csi"
+	"github.com/alibaba/open-local/cmd/scheduler"
+	"github.com/alibaba/open-local/cmd/version"
+	localtype "github.com/alibaba/open-local/pkg"
 )
 
 var (

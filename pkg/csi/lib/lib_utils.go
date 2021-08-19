@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	localtype "github.com/oecp/open-local/pkg"
-	"github.com/oecp/open-local/pkg/utils"
+	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 

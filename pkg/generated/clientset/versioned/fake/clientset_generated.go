@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	storagev1alpha1 "github.com/oecp/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
-	fakestoragev1alpha1 "github.com/oecp/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1/fake"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	csiv1alpha1 "github.com/alibaba/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1"
+	fakecsiv1alpha1 "github.com/alibaba/open-local/pkg/generated/clientset/versioned/typed/storage/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -76,7 +76,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// StorageV1alpha1 retrieves the StorageV1alpha1Client
-func (c *Clientset) StorageV1alpha1() storagev1alpha1.StorageV1alpha1Interface {
-	return &fakestoragev1alpha1.FakeStorageV1alpha1{Fake: &c.Fake}
+// CsiV1alpha1 retrieves the CsiV1alpha1Client
+func (c *Clientset) CsiV1alpha1() csiv1alpha1.CsiV1alpha1Interface {
+	return &fakecsiv1alpha1.FakeCsiV1alpha1{Fake: &c.Fake}
 }

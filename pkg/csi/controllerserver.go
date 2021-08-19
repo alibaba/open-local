@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,10 @@ import (
 	"strings"
 	"time"
 
+	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/csi/adapter"
+	"github.com/alibaba/open-local/pkg/csi/client"
+	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/docker/go-units"
@@ -33,10 +37,6 @@ import (
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	localtype "github.com/oecp/open-local/pkg"
-	"github.com/oecp/open-local/pkg/csi/adapter"
-	"github.com/oecp/open-local/pkg/csi/client"
-	"github.com/oecp/open-local/pkg/csi/server"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"

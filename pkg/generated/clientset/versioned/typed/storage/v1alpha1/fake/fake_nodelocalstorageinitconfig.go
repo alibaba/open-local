@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
+	v1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,12 +32,12 @@ import (
 
 // FakeNodeLocalStorageInitConfigs implements NodeLocalStorageInitConfigInterface
 type FakeNodeLocalStorageInitConfigs struct {
-	Fake *FakeStorageV1alpha1
+	Fake *FakeCsiV1alpha1
 }
 
-var nodelocalstorageinitconfigsResource = schema.GroupVersionResource{Group: "storage.oecp.io", Version: "v1alpha1", Resource: "nodelocalstorageinitconfigs"}
+var nodelocalstorageinitconfigsResource = schema.GroupVersionResource{Group: "csi.alibaba.com", Version: "v1alpha1", Resource: "nodelocalstorageinitconfigs"}
 
-var nodelocalstorageinitconfigsKind = schema.GroupVersionKind{Group: "storage.oecp.io", Version: "v1alpha1", Kind: "NodeLocalStorageInitConfig"}
+var nodelocalstorageinitconfigsKind = schema.GroupVersionKind{Group: "csi.alibaba.com", Version: "v1alpha1", Kind: "NodeLocalStorageInitConfig"}
 
 // Get takes name of the nodeLocalStorageInitConfig, and returns the corresponding nodeLocalStorageInitConfig object, and an error if there is any.
 func (c *FakeNodeLocalStorageInitConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NodeLocalStorageInitConfig, err error) {

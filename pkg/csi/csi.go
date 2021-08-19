@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ limitations under the License.
 package csi
 
 import (
+	"github.com/alibaba/open-local/pkg/version"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
-	"github.com/oecp/open-local/pkg/version"
 )
 
 func NewDriver(driverName, nodeID, endpoint string) *CSIPlugin {

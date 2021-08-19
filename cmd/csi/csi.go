@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@ limitations under the License.
 package csi
 
 import (
-	"github.com/oecp/open-local/pkg/csi"
-	"github.com/oecp/open-local/pkg/om"
+	"github.com/alibaba/open-local/pkg/csi"
+	"github.com/alibaba/open-local/pkg/om"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

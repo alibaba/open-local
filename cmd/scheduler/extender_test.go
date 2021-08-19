@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
+	localtype "github.com/alibaba/open-local/pkg"
+	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	lssfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
+	lssinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	localtype "github.com/oecp/open-local/pkg"
-	lssv1alpha1 "github.com/oecp/open-local/pkg/apis/storage/v1alpha1"
-	lssfake "github.com/oecp/open-local/pkg/generated/clientset/versioned/fake"
-	lssinformers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
-	"github.com/oecp/open-local/pkg/scheduler/server"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -325,7 +325,7 @@ func TestUpdateCR(t *testing.T) {
 	}
 
 	// TODO(huizhi): don't know why this does not trigger scheduler onNodeLocalStorageAdd function
-	if _, err := f.lssclient.StorageV1alpha1().NodeLocalStorages().Update(context.TODO(), updateCR, metav1.UpdateOptions{}); err != nil {
+	if _, err := f.lssclient.CsiV1alpha1().NodeLocalStorages().Update(context.TODO(), updateCR, metav1.UpdateOptions{}); err != nil {
 		f.t.Errorf(err.Error())
 	}
 	time.Sleep(2 * time.Second)

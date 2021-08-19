@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ package scheduler
 import (
 	"fmt"
 
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	informers "github.com/oecp/open-local/pkg/generated/informers/externalversions"
-	"github.com/oecp/open-local/pkg/scheduler/server"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"

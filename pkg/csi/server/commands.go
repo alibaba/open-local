@@ -30,9 +30,9 @@ import (
 	"strings"
 	"unicode"
 
-	localtype "github.com/oecp/open-local/pkg"
-	"github.com/oecp/open-local/pkg/csi/lib"
-	"github.com/oecp/open-local/pkg/utils"
+	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/utils"
 	"golang.org/x/net/context"
 )
 

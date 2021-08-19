@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oecp/open-local/pkg/csi/client"
+	"github.com/alibaba/open-local/pkg/csi/client"
 	log "github.com/sirupsen/logrus"
 )
 

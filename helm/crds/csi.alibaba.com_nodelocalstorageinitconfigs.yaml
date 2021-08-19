@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.5.0
   creationTimestamp: null
-  name: nodelocalstorageinitconfigs.storage.oecp.io
+  name: nodelocalstorageinitconfigs.csi.alibaba.com
 spec:
-  group: storage.oecp.io
+  group: csi.alibaba.com
   names:
     kind: NodeLocalStorageInitConfig
     listKind: NodeLocalStorageInitConfigList

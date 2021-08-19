@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/oecp/open-local/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/oecp/open-local/pkg/generated/informers/externalversions/internalinterfaces"
-	storage "github.com/oecp/open-local/pkg/generated/informers/externalversions/storage"
+	versioned "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/alibaba/open-local/pkg/generated/informers/externalversions/internalinterfaces"
+	storage "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -172,9 +172,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Storage() storage.Interface
+	Csi() storage.Interface
 }
 
-func (f *sharedInformerFactory) Storage() storage.Interface {
+func (f *sharedInformerFactory) Csi() storage.Interface {
 	return storage.New(f, f.namespace, f.tweakListOptions)
 }

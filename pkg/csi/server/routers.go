@@ -17,7 +17,7 @@ limitations under the License.
 package server
 
 import (
-	"github.com/oecp/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/csi/lib"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"

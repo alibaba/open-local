@@ -1,5 +1,5 @@
 /*
-Copyright 2021 OECP Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,12 +26,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
-	clientset "github.com/oecp/open-local/pkg/generated/clientset/versioned"
 
-	localtype "github.com/oecp/open-local/pkg"
-	"github.com/oecp/open-local/pkg/agent/common"
-	"github.com/oecp/open-local/pkg/agent/discovery"
+	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/agent/common"
+	"github.com/alibaba/open-local/pkg/agent/discovery"
 )
 
 // NewAgent returns a new open-local agent

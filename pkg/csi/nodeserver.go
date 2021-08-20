@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 
-	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -191,7 +190,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	volumeID := req.VolumeId
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes
-	if err := ns.resizeVolume(ctx, expectSize, volumeID, targetPath); err != nil {
+	if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
 		log.Errorf("NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -259,9 +258,8 @@ func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 	return utils.GetMetrics(targetPath)
 }
 
-func (ns *nodeServer) resizeVolume(ctx context.Context, expectSize int64, volumeID, targetPath string) error {
+func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath string) error {
 	vgName := ""
-	var curSize int64
 
 	// Get volumeType
 	volumeType := LvmVolumeType
@@ -285,33 +283,9 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, expectSize int64, volume
 			return status.Errorf(codes.Internal, "resizeVolume: Volume %s with vgname empty", pv.Name)
 		}
 
-		lvList, err := server.ListLV(vgName)
-		if err != nil {
-			log.Errorf("resizeVolume: Resize volume %s with list lv error %v", volumeID, err)
-			return status.Error(codes.Internal, "List lvm error with: "+err.Error())
-		}
-		for _, lv := range lvList {
-			if lv.Name == volumeID {
-				curSize = int64(lv.Size)
-			}
-		}
 		devicePath := filepath.Join("/dev", vgName, volumeID)
 
-		// if lvmsize equal/bigger than pv size, no do expand.
-		if curSize >= expectSize {
-			log.Infof("NodeExpandVolume:: volumeId: %s, devicePath: %s, curent size: %d is larger than expect Size: %d", volumeID, devicePath, curSize, expectSize)
-			return nil
-		}
-		log.Infof("NodeExpandVolume:: volumeId: %s, devicePath: %s, from size: %d, to Size: %d", volumeID, devicePath, curSize, expectSize)
-
-		// resize lvm volume
-		// lvextend -L3G /dev/vgtest/lvm-5db74864-ea6b-11e9-a442-00163e07fb69
-		resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s", localtype.NsenterCmd, expectSize, devicePath)
-		_, err = utils.Run(resizeCmd)
-		if err != nil {
-			log.Errorf("NodeExpandVolume: lvm volume %s expand error with %v", volumeID, err)
-			return err
-		}
+		log.Infof("NodeExpandVolume:: volumeId: %s, devicePath: %s", volumeID, devicePath)
 
 		// use resizer to expand volume filesystem
 		resizer := resizefs.NewResizeFs(&k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()})

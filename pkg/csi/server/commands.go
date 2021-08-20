@@ -150,6 +150,19 @@ func CloneLV(ctx context.Context, src, dest string) (string, error) {
 	return string(out), err
 }
 
+// ExpandLV expand a volume
+func ExpandLV(ctx context.Context, vgName string, volumeId string, expectSize uint64) (string, error) {
+	// resize lvm volume
+	// lvextend -L3G /dev/vgtest/lvm-5db74864-ea6b-11e9-a442-00163e07fb69
+	resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s/%s", localtype.NsenterCmd, expectSize, vgName, volumeId)
+	out, err := utils.Run(resizeCmd)
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), err
+}
+
 // ListVG get vg info
 func ListVG() ([]*lib.VG, error) {
 	args := []string{localtype.NsenterCmd, "vgs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",

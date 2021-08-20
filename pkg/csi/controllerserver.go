@@ -642,21 +642,21 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	return &csi.DeleteSnapshotResponse{}, nil
 }
 
-// ControllerExpandVolume csi interface
+// ControllerExpandVolume expand volume
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	log.Infof("ControllerExpandVolume::: %v", req)
+	log.Infof("ControllerExpandVolume: Starting Expand Volume %s with response: %v", req.VolumeId, req)
+
+	// Step 1: get nodeName
+	volumeID := req.GetVolumeId()
+	nodeName, vgName, pvObj, err := getPvSpec(cs.client, volumeID, cs.driverName)
+	if err != nil {
+		log.Errorf("ControllerExpandVolume: get pv %s error: %s", volumeID, err.Error())
+		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: get pv %s error: %s", volumeID, err.Error())
+	}
+
+	// Step 2: check whether the volume can be expanded
 	volSizeBytes := int64(req.GetCapacityRange().GetRequiredBytes())
 	volSizeGB := int((volSizeBytes + 1024*1024*1024 - 1) / (1024 * 1024 * 1024))
-	volumeID := req.GetVolumeId()
-	pvObj, err := getPvObj(cs.client, volumeID)
-	if err != nil {
-		log.Errorf("ControllerExpandVolume: get volume object %s error with: %s", volumeID, err.Error())
-		return nil, err
-	}
-	if pvObj.Spec.CSI == nil {
-		log.Errorf("ControllerExpandVolume: volume is not csi type %s", volumeID)
-		return nil, errors.New("ControllerExpandVolume: volume is not csi type: " + volumeID)
-	}
 	attributes := pvObj.Spec.CSI.VolumeAttributes
 	pvcName, pvcNameSpace := "", ""
 	if value, ok := attributes[PvcNameTag]; ok {
@@ -670,6 +670,21 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, errors.New("ControllerExpandVolume: expand volume error " + err.Error())
 	}
 
+	// Step 3: get grpc client
+	conn, err := cs.getNodeConn(nodeName)
+	if err != nil {
+		log.Errorf("ControllerExpandVolume: get grpc client at node %s error: %s", nodeName, err.Error())
+		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: get grpc client at node %s error: %s", nodeName, err.Error())
+	}
+	defer conn.Close()
+
+	// Step 4: expand volume
+	if err := conn.ExpandLvm(ctx, vgName, volumeID, uint64(volSizeBytes)); err != nil {
+		log.Errorf("ControllerExpandVolume: expand lvm %s/%s with error: %s", vgName, volumeID, err.Error())
+		return nil, errors.New("Create Lvm with error " + err.Error())
+	}
+
+	log.Infof("ControllerExpandVolume: Successful expand lvm %s/%s in node %s", vgName, volumeID, nodeName)
 	return &csi.ControllerExpandVolumeResponse{CapacityBytes: volSizeBytes, NodeExpansionRequired: true}, nil
 }
 

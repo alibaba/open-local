@@ -154,6 +154,16 @@ message CloneLVReply {
   string command_output = 1;
 }
 
+message ExpandLVRequest {
+  string volume_group = 1;
+  string name = 2;
+  uint64 size = 3;
+}
+
+message ExpandLVReply {
+  string command_output = 1;
+}
+
 message CreateSnapshotRequest {
   string volume_group = 1;
   string snap_name = 2;
@@ -230,6 +240,7 @@ service LVM {
   rpc CreateLV(CreateLVRequest) returns (CreateLVReply) {}
   rpc RemoveLV(RemoveLVRequest) returns (RemoveLVReply) {}
   rpc CloneLV(CloneLVRequest) returns (CloneLVReply) {}
+  rpc ExpandLV(ExpandLVRequest) returns (ExpandLVReply) {}
 
   rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotReply) {}
   rpc RemoveSnapshot(RemoveSnapshotRequest) returns (RemoveSnapshotReply) {}

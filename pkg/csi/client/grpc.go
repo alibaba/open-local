@@ -37,6 +37,7 @@ type Connection interface {
 	DeleteLvm(ctx context.Context, volGroup string, volumeID string) error
 	CreateSnapshot(ctx context.Context, volGroup string, snapVolumeID string, volumeID string, size uint64) (string, error)
 	DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string) error
+	ExpandLvm(ctx context.Context, volGroup string, volumeID string, size uint64) error
 	CleanPath(ctx context.Context, path string) error
 	Close() error
 }
@@ -203,6 +204,22 @@ func (c *workerConnection) CleanPath(ctx context.Context, path string) error {
 		return err
 	}
 	log.Debugf("CleanPath with result: %v", response.GetCommandOutput())
+	return err
+}
+
+func (c *workerConnection) ExpandLvm(ctx context.Context, volGroup string, volumeID string, size uint64) error {
+	client := lib.NewLVMClient(c.conn)
+	req := lib.ExpandLVRequest{
+		VolumeGroup: volGroup,
+		Name:        volumeID,
+		Size:        size,
+	}
+	response, err := client.ExpandLV(ctx, &req)
+	if err != nil {
+		log.Errorf("Expand Lvm with error: %v", err.Error())
+		return err
+	}
+	log.Debugf("Expand Lvm with result: %v", response.GetCommandOutput())
 	return err
 }
 

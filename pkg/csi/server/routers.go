@@ -86,6 +86,17 @@ func (s Server) CloneLV(ctx context.Context, in *lib.CloneLVRequest) (*lib.Clone
 	return &lib.CloneLVReply{CommandOutput: out}, nil
 }
 
+// ExpandLV expand lvm volume
+func (s Server) ExpandLV(ctx context.Context, in *lib.ExpandLVRequest) (*lib.ExpandLVReply, error) {
+	out, err := ExpandLV(ctx, in.VolumeGroup, in.Name, in.Size)
+	if err != nil {
+		log.Errorf("Expand LVM with error: %s", err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to expand lv: %v", err)
+	}
+	log.Debugf("Expand LVM with result: %+v", out)
+	return &lib.ExpandLVReply{CommandOutput: out}, nil
+}
+
 // ListVG list volume group
 func (s Server) ListVG(ctx context.Context, in *lib.ListVGRequest) (*lib.ListVGReply, error) {
 	vgs, err := ListVG()

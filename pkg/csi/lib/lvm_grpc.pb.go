@@ -22,6 +22,7 @@ type LVMClient interface {
 	CreateLV(ctx context.Context, in *CreateLVRequest, opts ...grpc.CallOption) (*CreateLVReply, error)
 	RemoveLV(ctx context.Context, in *RemoveLVRequest, opts ...grpc.CallOption) (*RemoveLVReply, error)
 	CloneLV(ctx context.Context, in *CloneLVRequest, opts ...grpc.CallOption) (*CloneLVReply, error)
+	ExpandLV(ctx context.Context, in *ExpandLVRequest, opts ...grpc.CallOption) (*ExpandLVReply, error)
 	CreateSnapshot(ctx context.Context, in *CreateSnapshotRequest, opts ...grpc.CallOption) (*CreateSnapshotReply, error)
 	RemoveSnapshot(ctx context.Context, in *RemoveSnapshotRequest, opts ...grpc.CallOption) (*RemoveSnapshotReply, error)
 	AddTagLV(ctx context.Context, in *AddTagLVRequest, opts ...grpc.CallOption) (*AddTagLVReply, error)
@@ -70,6 +71,15 @@ func (c *lVMClient) RemoveLV(ctx context.Context, in *RemoveLVRequest, opts ...g
 func (c *lVMClient) CloneLV(ctx context.Context, in *CloneLVRequest, opts ...grpc.CallOption) (*CloneLVReply, error) {
 	out := new(CloneLVReply)
 	err := c.cc.Invoke(ctx, "/proto.LVM/CloneLV", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *lVMClient) ExpandLV(ctx context.Context, in *ExpandLVRequest, opts ...grpc.CallOption) (*ExpandLVReply, error) {
+	out := new(ExpandLVReply)
+	err := c.cc.Invoke(ctx, "/proto.LVM/ExpandLV", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +166,7 @@ type LVMServer interface {
 	CreateLV(context.Context, *CreateLVRequest) (*CreateLVReply, error)
 	RemoveLV(context.Context, *RemoveLVRequest) (*RemoveLVReply, error)
 	CloneLV(context.Context, *CloneLVRequest) (*CloneLVReply, error)
+	ExpandLV(context.Context, *ExpandLVRequest) (*ExpandLVReply, error)
 	CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotReply, error)
 	RemoveSnapshot(context.Context, *RemoveSnapshotRequest) (*RemoveSnapshotReply, error)
 	AddTagLV(context.Context, *AddTagLVRequest) (*AddTagLVReply, error)
@@ -182,6 +193,9 @@ func (UnimplementedLVMServer) RemoveLV(context.Context, *RemoveLVRequest) (*Remo
 }
 func (UnimplementedLVMServer) CloneLV(context.Context, *CloneLVRequest) (*CloneLVReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CloneLV not implemented")
+}
+func (UnimplementedLVMServer) ExpandLV(context.Context, *ExpandLVRequest) (*ExpandLVReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExpandLV not implemented")
 }
 func (UnimplementedLVMServer) CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSnapshot not implemented")
@@ -288,6 +302,24 @@ func _LVM_CloneLV_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(LVMServer).CloneLV(ctx, req.(*CloneLVRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LVM_ExpandLV_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExpandLVRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LVMServer).ExpandLV(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.LVM/ExpandLV",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LVMServer).ExpandLV(ctx, req.(*ExpandLVRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -458,6 +490,10 @@ var LVM_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CloneLV",
 			Handler:    _LVM_CloneLV_Handler,
+		},
+		{
+			MethodName: "ExpandLV",
+			Handler:    _LVM_ExpandLV_Handler,
 		},
 		{
 			MethodName: "CreateSnapshot",

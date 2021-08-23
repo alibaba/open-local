@@ -30,7 +30,6 @@ spec:
         - name: csi-provisioner
           image: {{ .Values.images.provisioner.image }}:{{ .Values.images.provisioner.tag }}
           args:
-            - --provisioner={{ .Values.driver }}
             - --csi-address=$(ADDRESS)
             - --volume-name-prefix=local
             - --feature-gates=Topology=True

@@ -3,7 +3,7 @@
 This is the user guide for Open-Local.
 
 ## Requirements
-- Kubernetes v1.16+
+- Kubernetes v1.18+
 - helm v3.0+
 - [lvm2](https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux))
 

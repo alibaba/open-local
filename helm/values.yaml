@@ -1,6 +1,6 @@
 name: open-local
 namespace: kube-system
-driver: local.csi.alibaba.com
+driver: local.csi.aliyun.com
 images:
   local:
     image: thebeatles1994/open-local

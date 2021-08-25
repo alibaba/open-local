@@ -30,7 +30,7 @@ type CsiV1alpha1Interface interface {
 	NodeLocalStorageInitConfigsGetter
 }
 
-// CsiV1alpha1Client is used to interact with features provided by the csi.alibaba.com group.
+// CsiV1alpha1Client is used to interact with features provided by the csi.aliyun.com group.
 type CsiV1alpha1Client struct {
 	restClient rest.Interface
 }

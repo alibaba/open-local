@@ -35,9 +35,9 @@ type FakeNodeLocalStorageInitConfigs struct {
 	Fake *FakeCsiV1alpha1
 }
 
-var nodelocalstorageinitconfigsResource = schema.GroupVersionResource{Group: "csi.alibaba.com", Version: "v1alpha1", Resource: "nodelocalstorageinitconfigs"}
+var nodelocalstorageinitconfigsResource = schema.GroupVersionResource{Group: "csi.aliyun.com", Version: "v1alpha1", Resource: "nodelocalstorageinitconfigs"}
 
-var nodelocalstorageinitconfigsKind = schema.GroupVersionKind{Group: "csi.alibaba.com", Version: "v1alpha1", Kind: "NodeLocalStorageInitConfig"}
+var nodelocalstorageinitconfigsKind = schema.GroupVersionKind{Group: "csi.aliyun.com", Version: "v1alpha1", Kind: "NodeLocalStorageInitConfig"}
 
 // Get takes name of the nodeLocalStorageInitConfig, and returns the corresponding nodeLocalStorageInitConfig object, and an error if there is any.
 func (c *FakeNodeLocalStorageInitConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NodeLocalStorageInitConfig, err error) {

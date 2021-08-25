@@ -1,4 +1,4 @@
-apiVersion: csi.alibaba.com/v1alpha1
+apiVersion: csi.aliyun.com/v1alpha1
 kind: NodeLocalStorageInitConfig
 metadata:
   name: {{ .Values.name }}

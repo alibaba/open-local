@@ -5,7 +5,7 @@ metadata:
 driver: {{ .Values.driver }}
 deletionPolicy: Delete
 parameters:
-  csi.alibaba.com/readonly: "true"
-  csi.alibaba.com/snapshot-initial-size: 4Gi
-  csi.alibaba.com/snapshot-expansion-size: 1Gi
-  csi.alibaba.com/snapshot-expansion-threshold: 50%
+  csi.aliyun.com/readonly: "true"
+  csi.aliyun.com/snapshot-initial-size: 4Gi
+  csi.aliyun.com/snapshot-expansion-size: 1Gi
+  csi.aliyun.com/snapshot-expansion-threshold: 50%

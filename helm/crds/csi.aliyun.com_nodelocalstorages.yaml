@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.5.0
   creationTimestamp: null
-  name: nodelocalstorages.csi.alibaba.com
+  name: nodelocalstorages.csi.aliyun.com
 spec:
-  group: csi.alibaba.com
+  group: csi.aliyun.com
   names:
     kind: NodeLocalStorage
     listKind: NodeLocalStorageList

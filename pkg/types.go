@@ -37,7 +37,7 @@ const (
 
 	AgentName           string = "open-local-agent"
 	ProvisionerNameYoda string = "yodaplugin.csi.alibabacloud.com"
-	ProvisionerName     string = "local.csi.alibaba.com"
+	ProvisionerName     string = "local.csi.aliyun.com"
 	SchedulerName       string = "open-local-scheduler"
 
 	EnvLogLevel = "LogLevel"
@@ -83,10 +83,10 @@ const (
 	TriggerPendingPodCycle               = time.Second * 300
 
 	ParamSnapshotName            = "yoda.io/snapshot-name"
-	ParamSnapshotReadonly        = "csi.alibaba.com/readonly"
-	ParamSnapshotInitialSize     = "csi.alibaba.com/snapshot-initial-size"
-	ParamSnapshotThreshold       = "csi.alibaba.com/snapshot-expansion-threshold"
-	ParamSnapshotExpansionSize   = "csi.alibaba.com/snapshot-expansion-size"
+	ParamSnapshotReadonly        = "csi.aliyun.com/readonly"
+	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
+	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
 	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
 	DefaultSnapshotPrefix        = "snap"
 	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024

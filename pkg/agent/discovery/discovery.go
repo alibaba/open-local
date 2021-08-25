@@ -60,7 +60,7 @@ type ReservedVGInfo struct {
 
 const (
 	DefaultFS          = "ext4"
-	AnnoStorageReserve = "csi.alibaba.com/storage-reserved"
+	AnnoStorageReserve = "csi.aliyun.com/storage-reserved"
 )
 
 // NewDiscoverer return Discoverer

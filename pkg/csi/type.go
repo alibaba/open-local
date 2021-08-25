@@ -23,7 +23,7 @@ import (
 
 const (
 	DefaultEndpoint   string = "unix://tmp/csi.sock"
-	DefaultDriverName string = "local.csi.alibaba.com"
+	DefaultDriverName string = "local.csi.aliyun.com"
 )
 
 type CSIPlugin struct {

@@ -17,5 +17,5 @@ limitations under the License.
 package storage
 
 const (
-	GroupName = "csi.alibaba.com"
+	GroupName = "csi.aliyun.com"
 )

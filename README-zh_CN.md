@@ -25,7 +25,7 @@
 - Agent: 运行在集群中的每个节点，通过上报集群中本地存储设备信息以供 Scheduler-Extender 决策调度
 
 ## 开发
-详见[文档](doc/develop.md)
+详见[文档](docs/develop.md)
 ```bash
 mkdir -p $GOPATH/src/github.com/oecp/
 cd $GOPATH/src/github.com/oecp/

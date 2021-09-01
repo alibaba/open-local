@@ -4,7 +4,7 @@ driver: local.csi.aliyun.com
 images:
   local:
     image: thebeatles1994/open-local
-    tag: v0.2.1-dev
+    tag: v0.2.1
   registrar:
     image: k8s.gcr.io/sig-storage/csi-node-driver-registrar
     tag: v2.3.0

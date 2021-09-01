@@ -89,6 +89,10 @@ func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*
 // ExpandVolume do volume capacity check
 func ExpandVolume(pvcNameSpace, pvcName string, newSize int) error {
 	urlPath := fmt.Sprintf("/apis/expand/%s/persistentvolumeclaims/%s?newSize=%d", pvcNameSpace, pvcName, newSize)
+	hostEnv := os.Getenv(SchedulerHostTag)
+	if hostEnv != "" {
+		URLHost = hostEnv
+	}
 	url := URLHost + urlPath
 
 	// Request restful api

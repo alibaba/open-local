@@ -12,7 +12,7 @@ IMAGE_NAME=thebeatles1994/${NAME}
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"
 GIT_COMMIT=$(shell git rev-parse --short HEAD)
-VERSION=v0.2.0
+VERSION=v0.2.1-dev
 
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 CRD_VERSION=v1alpha1

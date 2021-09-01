@@ -106,6 +106,18 @@ rules:
       - update
       - delete
       - patch
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    verbs:
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - get
 ---
 apiVersion: v1
 kind: ServiceAccount

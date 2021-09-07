@@ -30,6 +30,9 @@ English | [简体中文](./README-zh_CN.md)
 ## User guide
 More details [here](docs/user-guide.md)
 
+## Contact
+Join us from DingTalk: Group No.34118035
+
 ## License
 
 [Apache 2.0 License](LICENSE)

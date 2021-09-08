@@ -46,7 +46,7 @@ const (
 // ListLV lists lvm volumes
 func ListLV(listspec string) ([]*lib.LV, error) {
 	lvs := []*lib.LV{}
-	cmdList := []string{localtype.NsenterCmd, "lvs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
+	cmdList := []string{localtype.NsenterCmd, "lvs", "--units=b", fmt.Sprintf("--separator=\"%s\"", localtype.Separator), "--nosuffix", "--noheadings",
 		"-o", "lv_name,lv_size,lv_uuid,lv_attr,copy_percent,lv_kernel_major,lv_kernel_minor,lv_tags", "--nameprefixes", "-a", listspec}
 	cmd := strings.Join(cmdList, " ")
 	out, err := utils.Run(cmd)
@@ -85,10 +85,14 @@ func CreateLV(ctx context.Context, vg string, name string, size uint64, mirrors 
 		args = append(args, "--add-tag", tag)
 	}
 	if striping {
-		pvCount := getPVNumber(vg)
-		if pvCount != 0 {
-			args = append(args, "-i", strconv.Itoa(pvCount))
+		pvCount, err := getRequiredPVNumber(vg, size)
+		if err != nil {
+			return "", err
 		}
+		if pvCount == 0 {
+			return "", fmt.Errorf("could not create `striping` logical volume, not enough space")
+		}
+		args = append(args, "-i", strconv.Itoa(pvCount))
 	}
 
 	args = append(args, vg)
@@ -97,18 +101,26 @@ func CreateLV(ctx context.Context, vg string, name string, size uint64, mirrors 
 	return string(out), err
 }
 
-func getPVNumber(vgName string) int {
-	var pvCount = 0
-	vgList, err := ListVG()
+func getRequiredPVNumber(vgName string, lvSize uint64) (int, error) {
+	pvs, err := ListPV(vgName)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	for _, vg := range vgList {
-		if vg.Name == vgName {
-			pvCount = int(vg.PvCount)
+	// calculate pv count
+	pvCount := len(pvs)
+	for pvCount > 0 {
+		avgPvRequest := lvSize / uint64(pvCount)
+		for num, pv := range pvs {
+			if pv.FreeSize < avgPvRequest {
+				pvs = append(pvs[:num], pvs[num+1:]...)
+			}
 		}
+		if pvCount == len(pvs) {
+			break
+		}
+		pvCount = len(pvs)
 	}
-	return pvCount
+	return pvCount, nil
 }
 
 // ProtectedTagName is a tag that prevents RemoveLV & RemoveVG from removing a volume
@@ -165,7 +177,7 @@ func ExpandLV(ctx context.Context, vgName string, volumeId string, expectSize ui
 
 // ListVG get vg info
 func ListVG() ([]*lib.VG, error) {
-	args := []string{localtype.NsenterCmd, "vgs", "--units=b", "--separator=\"<:SEP:>\"", "--nosuffix", "--noheadings",
+	args := []string{localtype.NsenterCmd, "vgs", "--units=b", fmt.Sprintf("--separator=\"%s\"", localtype.Separator), "--nosuffix", "--noheadings",
 		"-o", "vg_name,vg_size,vg_free,vg_uuid,vg_tags,pv_count", "--nameprefixes", "-a"}
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
@@ -184,6 +196,29 @@ func ListVG() ([]*lib.VG, error) {
 		vgs[i] = vg
 	}
 	return vgs, nil
+}
+
+// ListPV get pv info in vg
+func ListPV(vgName string) ([]*lib.PV, error) {
+	args := []string{localtype.NsenterCmd, "pvs", "--units=b", fmt.Sprintf("--separator=\"%s\"", localtype.Separator), "--nosuffix", "--noheadings",
+		"-o", "pv_name,pv_size,pv_free,pv_uuid,pv_tags,vg_name", "-S", fmt.Sprintf("%s=%s", "vg_name", vgName), "--nameprefixes", "-a"}
+	cmd := strings.Join(args, " ")
+	out, err := utils.Run(cmd)
+	if err != nil {
+		return nil, err
+	}
+	outStr := strings.TrimSpace(string(out))
+	outLines := strings.Split(outStr, "\n")
+	pvs := make([]*lib.PV, len(outLines))
+	for i, line := range outLines {
+		line = strings.TrimSpace(line)
+		pv, err := lib.ParsePV(line)
+		if err != nil {
+			return nil, err
+		}
+		pvs[i] = pv
+	}
+	return pvs, nil
 }
 
 // CreateSnapshot creates a new volume snapshot

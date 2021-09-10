@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-)
 
-const separator = "<:SEP:>"
+	"github.com/alibaba/open-local/pkg"
+)
 
 // VolumeType is volume type
 type VolumeType byte
@@ -281,6 +281,16 @@ type VG struct {
 	PvCount  uint64
 }
 
+// PV is physical volume
+type PV struct {
+	Name     string
+	Size     uint64
+	FreeSize uint64
+	UUID     string
+	Tags     []string
+	VgName   string
+}
+
 // ToProto returns lvm.LogicalVolume representation of struct
 func (lv LV) ToProto() *LogicalVolume {
 	return &LogicalVolume{
@@ -308,7 +318,7 @@ func (vg VG) ToProto() *VolumeGroup {
 }
 
 func parse(line string, numComponents int) (map[string]string, error) {
-	components := strings.Split(line, separator)
+	components := strings.Split(line, pkg.Separator)
 	if len(components) != numComponents {
 		return nil, fmt.Errorf("expected %d components, got %d", numComponents, len(components))
 	}
@@ -344,35 +354,35 @@ func ParseLV(line string) (*LV, error) {
 		return nil, err
 	}
 
-	size, err := strconv.ParseUint(fields["LVM2_LV_SIZE"], 10, 64)
+	size, err := strconv.ParseUint(fields[pkg.Lvm2LVSizeTag], 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	kernelMajNumber, err := strconv.ParseUint(fields["LVM2_LV_KERNEL_MAJOR"], 10, 32)
+	kernelMajNumber, err := strconv.ParseUint(fields[pkg.Lvm2LVKernelMajorTag], 10, 32)
 	if err != nil {
 		return nil, err
 	}
 
-	kernelMinNumber, err := strconv.ParseUint(fields["LVM2_LV_KERNEL_MINOR"], 10, 32)
+	kernelMinNumber, err := strconv.ParseUint(fields[pkg.Lvm2LVKernelMinorTag], 10, 32)
 	if err != nil {
 		return nil, err
 	}
 
-	attrs, err := parseAttrs(fields["LVM2_LV_ATTR"])
+	attrs, err := parseAttrs(fields[pkg.Lvm2LVAttrTag])
 	if err != nil {
 		return nil, err
 	}
 
 	return &LV{
-		Name:               fields["LVM2_LV_NAME"],
+		Name:               fields[pkg.Lvm2LVNameTag],
 		Size:               size,
-		UUID:               fields["LVM2_LV_UUID"],
+		UUID:               fields[pkg.Lvm2LVUuidTag],
 		Attributes:         *attrs,
-		CopyPercent:        fields["LVM2_COPY_PERCENT"],
+		CopyPercent:        fields[pkg.Lvm2CopyPercentTag],
 		ActualDevMajNumber: uint32(kernelMajNumber),
 		ActualDevMinNumber: uint32(kernelMinNumber),
-		Tags:               strings.Split(fields["LVM2_LV_TAGS"], ","),
+		Tags:               strings.Split(fields[pkg.Lvm2LVTagsTag], ","),
 	}, nil
 }
 
@@ -384,26 +394,53 @@ func ParseVG(line string) (*VG, error) {
 		return nil, err
 	}
 
-	size, err := strconv.ParseUint(fields["LVM2_VG_SIZE"], 10, 64)
+	size, err := strconv.ParseUint(fields[pkg.Lvm2VGSizeTag], 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	freeSize, err := strconv.ParseUint(fields["LVM2_VG_FREE"], 10, 64)
+	freeSize, err := strconv.ParseUint(fields[pkg.Lvm2VGFreeTag], 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	pvCount, err := strconv.ParseUint(fields["LVM2_PV_COUNT"], 10, 64)
+	pvCount, err := strconv.ParseUint(fields[pkg.Lvm2PVCountTag], 10, 64)
 	if err != nil {
 		return nil, err
 	}
 	return &VG{
-		Name:     fields["LVM2_VG_NAME"],
+		Name:     fields[pkg.Lvm2VGNameTag],
 		Size:     size,
 		FreeSize: freeSize,
-		UUID:     fields["LVM2_VG_UUID"],
-		Tags:     strings.Split(fields["LVM2_VG_TAGS"], ","),
+		UUID:     fields[pkg.Lvm2VGUuidTag],
+		Tags:     strings.Split(fields[pkg.Lvm2VGTagsTag], ","),
 		PvCount:  pvCount,
+	}, nil
+}
+
+// ParsePV parses physical volume
+func ParsePV(line string) (*PV, error) {
+	// pvs --units=b --separator="<:SEP:>" --nosuffix --noheadings -o pv_name,pv_size,pv_free,pv_uuid,pv_tags,vg_name -S vg_name=<vg> --nameprefixes -a
+	fields, err := parse(line, 6)
+	if err != nil {
+		return nil, err
+	}
+
+	size, err := strconv.ParseUint(fields[pkg.Lvm2PVSizeTag], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	freeSize, err := strconv.ParseUint(fields[pkg.Lvm2PVFreeTag], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return &PV{
+		Name:     fields[pkg.Lvm2PVNameTag],
+		Size:     size,
+		FreeSize: freeSize,
+		UUID:     fields[pkg.Lvm2PVUuidTag],
+		Tags:     strings.Split(fields[pkg.Lvm2PVTagsTag], ","),
+		VgName:   fields[pkg.Lvm2VGNameTag],
 	}, nil
 }
 

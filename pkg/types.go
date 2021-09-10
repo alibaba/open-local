@@ -93,6 +93,33 @@ const (
 	DefaultSnapshotThreshold     = 0.5
 	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
 
+	Separator = "<:SEP:>"
+
+	// lv tags
+	Lvm2LVNameTag = "LVM2_LV_NAME"
+	Lvm2LVSizeTag = "LVM2_LV_SIZE"
+	Lvm2LVKernelMajorTag = "LVM2_LV_KERNEL_MAJOR"
+	Lvm2LVKernelMinorTag = "LVM2_LV_KERNEL_MINOR"
+	Lvm2LVAttrTag = "LVM2_LV_ATTR"
+	Lvm2LVUuidTag = "LVM2_LV_UUID"
+	Lvm2CopyPercentTag = "LVM2_COPY_PERCENT"
+	Lvm2LVTagsTag = "LVM2_LV_TAGS"
+
+	// vg tags
+	Lvm2VGNameTag = "LVM2_VG_NAME"
+	Lvm2VGSizeTag = "LVM2_VG_SIZE"
+	Lvm2VGFreeTag = "LVM2_VG_FREE"
+	Lvm2VGUuidTag = "LVM2_VG_UUID"
+	Lvm2VGTagsTag = "LVM2_VG_TAGS"
+	Lvm2PVCountTag = "LVM2_PV_COUNT"
+
+	// pv tags
+	Lvm2PVUuidTag = "LVM2_PV_UUID"
+	Lvm2PVNameTag = "LVM2_PV_NAME"
+	Lvm2PVSizeTag = "LVM2_PV_SIZE"
+	Lvm2PVFreeTag = "LVM2_PV_FREE"
+	Lvm2PVTagsTag = "LVM2_PV_TAGS"
+
 	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 )
 

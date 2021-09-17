@@ -44,3 +44,7 @@ storageclass:
     name: open-local-device-ssd
   device_hdd:
     name: open-local-device-hdd
+  mountpoint_ssd:
+    name: open-local-mountpoint-ssd
+  mountpoint_hdd:
+    name: open-local-mountpoint-hdd

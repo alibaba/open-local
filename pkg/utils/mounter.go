@@ -272,6 +272,7 @@ func (m *mounter) IsMounted(target string) (bool, error) {
 	outStr := strings.TrimSpace(string(out))
 	if err != nil {
 		if outStr == "" {
+			log.Warningf("check if target %s is mounted failed, error is %s, cmd is %v %v", target, err.Error(), findmntCmd, findmntArgs)
 			return false, nil
 		}
 		return false, fmt.Errorf("checking mounted failed: %v cmd: %q output: %q",
@@ -280,6 +281,7 @@ func (m *mounter) IsMounted(target string) (bool, error) {
 	if strings.Contains(outStr, target) {
 		return true, nil
 	}
+	log.Warningf("target %s is not mounted, cmd is %v %v", target, findmntCmd, findmntArgs)
 	return false, nil
 }
 

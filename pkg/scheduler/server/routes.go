@@ -73,7 +73,9 @@ func PredicateRoute(predicate predicates.Predicate) httprouter.Handle {
 				Error:       err.Error(),
 			}
 		} else {
-			extenderFilterResult, err = predicate.Handler(extenderArgs)
+			if extenderFilterResult, err = predicate.Handler(extenderArgs); err != nil {
+				panic(err)
+			}
 		}
 
 		if resultBody, err := json.Marshal(extenderFilterResult); err != nil {
@@ -82,7 +84,9 @@ func PredicateRoute(predicate predicates.Predicate) httprouter.Handle {
 			log.Debugf("predicate name: %s, extenderFilterResult = %s", predicate.Name, string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(resultBody)
+			if _, err = w.Write(resultBody); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
@@ -114,7 +118,9 @@ func PrioritizeRoute(prioritize priorities.Prioritize) httprouter.Handle {
 			log.Debugf("prioritize name: %s, hostPriorityList = %s", prioritize.Name, string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(resultBody)
+			if _, err = w.Write(resultBody); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
@@ -144,7 +150,9 @@ func BindRoute(bind bind.Bind) httprouter.Handle {
 			log.Debugf("extenderBindingResult = %s", string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(resultBody)
+			if _, err = w.Write(resultBody); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
@@ -174,13 +182,15 @@ func PreemptionRoute(preemption preemptions.Preemption) httprouter.Handle {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(resultBody)
+			if _, err = w.Write(resultBody); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
 
 func VersionRoute(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, fmt.Sprintf("%s-%s", version.Version, version.GitCommit))
+	fmt.Fprintf(w, "%s-%s", version.Version, version.GitCommit)
 }
 
 func AddVersion(router *httprouter.Router) {

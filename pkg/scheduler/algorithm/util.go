@@ -113,7 +113,7 @@ func GetAllPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, containReadonlySnaps
 	return pvcs, err
 }
 
-func IsLSSNode(nodeName string, ctx *SchedulingContext) bool {
+func IsLocalNode(nodeName string, ctx *SchedulingContext) bool {
 	nodeCache := ctx.ClusterNodeCache.GetNodeCache(nodeName)
 
 	if nodeCache == nil {
@@ -141,7 +141,7 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface, coreInformer corev1informers.Interface) (*cache.AllocatedUnit, error) {
 	_, nodeName := utils.IsLocalPV(pv)
 	containReadonlySnapshot := false
-	_, volumeType := utils.IsLSSPV(pv, scInformer, coreInformer, containReadonlySnapshot)
+	_, volumeType := utils.IsOpenLocalPV(pv, scInformer, coreInformer, containReadonlySnapshot)
 	requested := utils.GetPVSize(pv)
 	allocated := requested
 	vgName := utils.GetVGNameFromCsiPV(pv)

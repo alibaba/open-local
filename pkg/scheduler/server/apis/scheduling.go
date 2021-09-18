@@ -72,7 +72,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	}
 
 	if len(lvmPVCs)+len(mpPVCs)+len(devicePVCs) == 0 {
-		msg := fmt.Sprintf("unexpected schedulering request for all pvcs are bounded")
+		msg := "unexpected schedulering request for all pvcs are bounded"
 		log.Info(msg)
 		return nil, fmt.Errorf(msg)
 	}

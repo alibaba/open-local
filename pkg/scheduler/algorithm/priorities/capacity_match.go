@@ -40,10 +40,10 @@ func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *core
 	if err != nil {
 		return MinScore, err
 	}
-	// if pod has no open-local pvc, it should be scheduled to non LSS nodes
+	// if pod has no open-local pvc, it should be scheduled to non Open-Local nodes
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 {
 		log.Infof("no open-local volume request on pod %s, skipped", pod.Name)
-		if algorithm.IsLSSNode(node.Name, ctx) == true {
+		if algorithm.IsLocalNode(node.Name, ctx) == true {
 			log.Infof("node %s is open-local node, so pod %s gets minimal score %d", node.Name, pod.Name, MinScore)
 			return MinScore, nil
 		}

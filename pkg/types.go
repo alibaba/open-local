@@ -96,21 +96,21 @@ const (
 	Separator = "<:SEP:>"
 
 	// lv tags
-	Lvm2LVNameTag = "LVM2_LV_NAME"
-	Lvm2LVSizeTag = "LVM2_LV_SIZE"
+	Lvm2LVNameTag        = "LVM2_LV_NAME"
+	Lvm2LVSizeTag        = "LVM2_LV_SIZE"
 	Lvm2LVKernelMajorTag = "LVM2_LV_KERNEL_MAJOR"
 	Lvm2LVKernelMinorTag = "LVM2_LV_KERNEL_MINOR"
-	Lvm2LVAttrTag = "LVM2_LV_ATTR"
-	Lvm2LVUuidTag = "LVM2_LV_UUID"
-	Lvm2CopyPercentTag = "LVM2_COPY_PERCENT"
-	Lvm2LVTagsTag = "LVM2_LV_TAGS"
+	Lvm2LVAttrTag        = "LVM2_LV_ATTR"
+	Lvm2LVUuidTag        = "LVM2_LV_UUID"
+	Lvm2CopyPercentTag   = "LVM2_COPY_PERCENT"
+	Lvm2LVTagsTag        = "LVM2_LV_TAGS"
 
 	// vg tags
-	Lvm2VGNameTag = "LVM2_VG_NAME"
-	Lvm2VGSizeTag = "LVM2_VG_SIZE"
-	Lvm2VGFreeTag = "LVM2_VG_FREE"
-	Lvm2VGUuidTag = "LVM2_VG_UUID"
-	Lvm2VGTagsTag = "LVM2_VG_TAGS"
+	Lvm2VGNameTag  = "LVM2_VG_NAME"
+	Lvm2VGSizeTag  = "LVM2_VG_SIZE"
+	Lvm2VGFreeTag  = "LVM2_VG_FREE"
+	Lvm2VGUuidTag  = "LVM2_VG_UUID"
+	Lvm2VGTagsTag  = "LVM2_VG_TAGS"
 	Lvm2PVCountTag = "LVM2_PV_COUNT"
 
 	// pv tags
@@ -159,7 +159,7 @@ func VolumeTypeFromString(s string) (VolumeType, error) {
 			return v, nil
 		}
 	}
-	return "", fmt.Errorf("invalid LSS Volume type: %q, valid values are %s", s, ValidVolumeType)
+	return "", fmt.Errorf("invalid Local Volume type: %q, valid values are %s", s, ValidVolumeType)
 }
 
 type NodeAntiAffinityWeight struct {
@@ -183,7 +183,7 @@ func (w *NodeAntiAffinityWeight) Get(volumeType VolumeType) int {
 }
 
 func (w *NodeAntiAffinityWeight) Items(copy bool) map[VolumeType]int {
-	if copy == false {
+	if !copy {
 		return w.weights
 	}
 	result := make(map[VolumeType]int)

@@ -26,12 +26,16 @@ import (
 	lssfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 var (
-	noResyncPeriodFunc = func() time.Duration { return 0 }
+	noResyncPeriodFunc = func() time.Duration {
+		log.Info("test noResyncPeriodFunc")
+		return 0
+	}
 )
 
 func TestNewAgent(t *testing.T) {

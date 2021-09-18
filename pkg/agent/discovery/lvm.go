@@ -73,7 +73,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 				continue
 			}
 			lv.Total = tmplv.SizeInBytes()
-			if d.isLSSLV(lvname) == false {
+			if !d.isLocalLV(lvname) {
 				vgCrd.Allocatable -= lv.Total
 			}
 			lv.Condition = lssv1alpha1.StorageReady
@@ -126,8 +126,8 @@ func (d *Discoverer) createVG(vgname string, devices []string) error {
 	return nil
 }
 
-// isLSSLV check if lv is created by open-local according to the lv name
-func (d *Discoverer) isLSSLV(lvname string) bool {
+// isLocalLV check if lv is created by open-local according to the lv name
+func (d *Discoverer) isLocalLV(lvname string) bool {
 	prefixlen := len(d.Configuration.LogicalVolumeNamePrefix)
 
 	if len(lvname) >= prefixlen && d.Configuration.LogicalVolumeNamePrefix == lvname[:prefixlen] {

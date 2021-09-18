@@ -27,17 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type findmntResponse struct {
-	FileSystems []fileSystem `json:"filesystems"`
-}
-
-type fileSystem struct {
-	Target      string `json:"target"`
-	Propagation string `json:"propagation"`
-	FsType      string `json:"fstype"`
-	Options     string `json:"options"`
-}
-
 // Mounter is responsible for formatting and mounting volumes
 type Mounter interface {
 	// If the folder doesn't exist, it will call 'mkdir -p'

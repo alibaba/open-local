@@ -216,7 +216,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 	if err != nil {
 		return false, rstUnits, err
 	}
-	if fits != true {
+	if !fits {
 		return false, rstUnits, nil
 	}
 	units = append(units, rstUnits...)
@@ -234,7 +234,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 	if err != nil {
 		return false, rstUnits, err
 	}
-	if fits != true {
+	if !fits {
 		return false, rstUnits, nil
 	}
 	units = append(units, rstUnits...)
@@ -267,9 +267,9 @@ func GetFreeMP(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeMPSSD, 
 	}
 
 	for _, mp := range nodeCache.MountPoints {
-		if mp.MediaType == localtype.MediaTypeSSD && mp.IsAllocated == false {
+		if mp.MediaType == localtype.MediaTypeSSD && !mp.IsAllocated {
 			freeMPSSD = append(freeMPSSD, mp)
-		} else if mp.MediaType == localtype.MediaTypeHHD && mp.IsAllocated == false {
+		} else if mp.MediaType == localtype.MediaTypeHHD && !mp.IsAllocated {
 			freeMPHDD = append(freeMPHDD, mp)
 		}
 	}
@@ -371,9 +371,9 @@ func GetFreeDevice(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeDev
 	}
 
 	for _, device := range nodeCache.Devices {
-		if device.MediaType == localtype.MediaTypeSSD && device.IsAllocated == false {
+		if device.MediaType == localtype.MediaTypeSSD && !device.IsAllocated {
 			freeDeviceSSD = append(freeDeviceSSD, device)
-		} else if device.MediaType == localtype.MediaTypeHHD && device.IsAllocated == false {
+		} else if device.MediaType == localtype.MediaTypeHHD && !device.IsAllocated {
 			freeDeviceHDD = append(freeDeviceHDD, device)
 		}
 	}
@@ -421,7 +421,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	if err != nil {
 		return false, rstUnits, err
 	}
-	if fits != true {
+	if !fits {
 		return false, rstUnits, nil
 	}
 	units = append(units, rstUnits...)
@@ -452,7 +452,7 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node,
 	nodeName := node.Name
 	for _, pvc := range pvcs {
 		// step 0: check if is snapshot pvc
-		if utils.IsSnapshotPVC(pvc) == false {
+		if !utils.IsSnapshotPVC(pvc) {
 			continue
 		}
 		log.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is snapshot", pvc.Namespace, pvc.Name)
@@ -557,7 +557,6 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 				return false, units, err
 			}
 			units = append(units, tmpunits...)
-			break
 		case localtype.StrategySpread:
 			fits, tmpunits, err := Spread(pod, pvc, node, cacheVGsMap)
 			if fits == false {
@@ -662,8 +661,7 @@ func ScoreLVM(units []cache.AllocatedUnit, cacheVGsMap map[cache.ResourceName]ca
 	// make a map store VG size pvcs used
 	// key: VG name
 	// value: used size
-	var scoreMap map[string]int64
-	scoreMap = make(map[string]int64)
+	scoreMap := make(map[string]int64)
 	for _, unit := range units {
 		if size, ok := scoreMap[unit.VgName]; ok {
 			size += unit.Allocated
@@ -682,7 +680,6 @@ func ScoreLVM(units []cache.AllocatedUnit, cacheVGsMap map[cache.ResourceName]ca
 			scoref += float64(used) / float64(cacheVGsMap[cache.ResourceName(vg)].Capacity)
 			count++
 		}
-		score = int(scoref / float64(count) * float64(MaxScore))
 	case localtype.StrategySpread:
 		for vg, used := range scoreMap {
 			scoref += (1.0 - float64(used)/float64(cacheVGsMap[cache.ResourceName(vg)].Capacity))

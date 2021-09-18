@@ -381,31 +381,6 @@ func (vg *VolumeGroup) ListPhysicalVolumeNames() ([]string, error) {
 	return names, nil
 }
 
-// Tags returns the volume group tags.
-func (vg *VolumeGroup) Tags() ([]string, error) {
-	result := new(vgsOutput)
-	if err := run("vgs", result, "--options=vg_tags", vg.name); err != nil {
-		if IsVolumeGroupNotFound(err) {
-			return nil, ErrVolumeGroupNotFound
-		}
-		log.Errorf("volume group tags error: %s", err.Error())
-		return nil, err
-	}
-	for _, report := range result.Report {
-		for _, vg := range report.Vg {
-			var tags []string
-			for _, tag := range strings.Split(vg.VgTags, ",") {
-				tag = strings.TrimSpace(tag)
-				if tag != "" {
-					tags = append(tags, tag)
-				}
-			}
-			return tags, nil
-		}
-	}
-	return nil, ErrVolumeGroupNotFound
-}
-
 // Remove removes the volume group from disk.
 func (vg *VolumeGroup) Remove() error {
 	if err := run("vgremove", nil, "-f", vg.name); err != nil {
@@ -457,36 +432,8 @@ func (lv *LogicalVolume) Path() (string, error) {
 	return "", ErrLogicalVolumeNotFound
 }
 
-// Tags returns the volume group tags.
-func (lv *LogicalVolume) Tags() ([]string, error) {
-	result := new(lvsOutput)
-	if err := run("lvs", result, "--options=lv_tags", lv.vg.name+"/"+lv.name); err != nil {
-		if IsLogicalVolumeNotFound(err) {
-			return nil, ErrLogicalVolumeNotFound
-		}
-		log.Errorf("LogicalVolume tags error: %s", err.Error())
-		return nil, err
-	}
-	for _, report := range result.Report {
-		for _, lv := range report.Lv {
-			var tags []string
-			for _, tag := range strings.Split(lv.LvTags, ",") {
-				tag = strings.TrimSpace(tag)
-				if tag != "" {
-					tags = append(tags, tag)
-				}
-			}
-			return tags, nil
-		}
-	}
-	return nil, ErrLogicalVolumeNotFound
-}
-
 func (lv *LogicalVolume) IsSnapshot() bool {
-	if lv.originLvName == "" {
-		return false
-	}
-	return true
+	return lv.originLvName != ""
 }
 
 func (lv *LogicalVolume) Remove() error {

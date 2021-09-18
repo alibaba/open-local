@@ -83,6 +83,9 @@ func (d *Discoverer) updateConfigurationFromNLSC() error {
 	}
 
 	node, err := d.kubeclientset.CoreV1().Nodes().Get(context.Background(), d.Nodename, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("kubeclientset get node %s failed", d.Nodename)
+	}
 	nodeLabels := node.Labels
 	for _, nodeconfig := range nlsc.Spec.NodesConfig {
 		selector, err := metav1.LabelSelectorAsSelector(nodeconfig.Selector)
@@ -147,7 +150,7 @@ func (d *Discoverer) Discover() {
 		log.Debugf("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
-		reservedVGInfos := make(map[string]ReservedVGInfo, 0)
+		reservedVGInfos := make(map[string]ReservedVGInfo)
 		if anno, exist := nlsCopy.Annotations[AnnoStorageReserve]; exist {
 			if reservedVGInfos, err = getReservedVGInfo(anno); err != nil {
 				log.Errorf("get reserved vg info failed: %s, but we ignore...", err.Error())
@@ -241,7 +244,7 @@ func checkIfStatusTransition(old, new *lssv1alpha1.NodeLocalStorageStatus) (tran
 
 func getReservedVGInfo(reservedAnno string) (infos map[string]ReservedVGInfo, err error) {
 	// step 0: var definition
-	infos = make(map[string]ReservedVGInfo, 0)
+	infos = make(map[string]ReservedVGInfo)
 	reservedVGMap := map[string]string{}
 	// step 1: unmarshal
 	if err := json.Unmarshal([]byte(reservedAnno), &reservedVGMap); err != nil {

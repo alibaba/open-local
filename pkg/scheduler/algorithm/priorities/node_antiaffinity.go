@@ -43,9 +43,15 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 	var scoreMP, scoreDevice int
 
 	// currently ,we only take FREE mount point and devices into account
-	isLSS := algorithm.IsLSSNode(node.Name, ctx)
+	isLocal := algorithm.IsLocalNode(node.Name, ctx)
 	freeMPCount, err := freeMountPoints(nc)
+	if err != nil {
+		return 0, err
+	}
 	freeDeviceCount, err := freeDevices(nc)
+	if err != nil {
+		return 0, err
+	}
 	volumeTypeAntiFound := make(map[pkg.VolumeType]bool)
 	for volumeType, weight := range ctx.NodeAntiAffinityWeight.Items(false) {
 		if weight <= 0 {
@@ -53,16 +59,16 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 		}
 		switch volumeType {
 		case pkg.VolumeTypeMountPoint:
-			log.Infof("node=%s,isLSS: %t, nc.MountPoints: %d, freeMPCount: %d", node.Name, isLSS, len(nc.MountPoints), freeMPCount)
-			if len(mpPVCs) <= 0 && (!isLSS || (freeMPCount <= 0)) {
+			log.Infof("node=%s,isLocal: %t, nc.MountPoints: %d, freeMPCount: %d", node.Name, isLocal, len(nc.MountPoints), freeMPCount)
+			if len(mpPVCs) <= 0 && (!isLocal || (freeMPCount <= 0)) {
 				// non-open-local Pod and Node is not enough open-local volume of this type
 				scoreMP = weight * 1
 				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
 				volumeTypeAntiFound[volumeType] = true
 			}
 		case pkg.VolumeTypeDevice:
-			log.Infof("node=%s,isLSS: %t, nc.Devices: %d, freeDeviceCount: %d", node.Name, isLSS, len(nc.Devices), freeDeviceCount)
-			if len(devicePVCs) <= 0 && (!isLSS || (freeDeviceCount <= 0)) {
+			log.Infof("node=%s,isLocal: %t, nc.Devices: %d, freeDeviceCount: %d", node.Name, isLocal, len(nc.Devices), freeDeviceCount)
+			if len(devicePVCs) <= 0 && (!isLocal || (freeDeviceCount <= 0)) {
 				scoreDevice = weight * 1
 
 				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)

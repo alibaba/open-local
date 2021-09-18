@@ -32,12 +32,12 @@ func NewNodeCache(nodeName string) *NodeCache {
 	return &NodeCache{
 		rwLock: sync.RWMutex{},
 		NodeInfo: NodeInfo{NodeName: nodeName,
-			VGs:          make(map[ResourceName]SharedResource, 0),
-			MountPoints:  make(map[ResourceName]ExclusiveResource, 0),
-			Devices:      make(map[ResourceName]ExclusiveResource, 0),
+			VGs:          make(map[ResourceName]SharedResource),
+			MountPoints:  make(map[ResourceName]ExclusiveResource),
+			Devices:      make(map[ResourceName]ExclusiveResource),
 			AllocatedNum: 0,
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
-			LocalPVs: make(map[string]corev1.PersistentVolume, 0)},
+			LocalPVs: make(map[string]corev1.PersistentVolume)},
 	}
 }
 
@@ -61,7 +61,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 	}
 
 	// Devices
-	deviceInfoMap := make(map[string]nodelocalstorage.DeviceInfo, 0)
+	deviceInfoMap := make(map[string]nodelocalstorage.DeviceInfo)
 	for _, d := range nodeLocal.Status.NodeStorageInfo.DeviceInfos {
 		deviceInfoMap[d.Name] = d
 	}
@@ -85,7 +85,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 	}
 
 	// MountPoint
-	mpInfoMap := make(map[string]nodelocalstorage.MountPoint, 0)
+	mpInfoMap := make(map[string]nodelocalstorage.MountPoint)
 	for _, mp := range nodeLocal.Status.NodeStorageInfo.MountPoints {
 		mpInfoMap[mp.Name] = mp
 	}
@@ -118,7 +118,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	// VG
 	// get vg from CR
 	volumeGroups := nodeLocal.Status.NodeStorageInfo.VolumeGroups
-	vgMapInfo := make(map[string]nodelocalstorage.VolumeGroup, 0)
+	vgMapInfo := make(map[string]nodelocalstorage.VolumeGroup)
 	for _, vg := range volumeGroups {
 		vgMapInfo[vg.Name] = vg
 	}
@@ -141,7 +141,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	}
 	for _, vg := range unchangedVGs {
 		// update the size if the updatedName got extended
-		v, _ := cacheNode.VGs[ResourceName(vg)]
+		v := cacheNode.VGs[ResourceName(vg)]
 		v.Capacity = int64(vgMapInfo[vg].Allocatable)
 		cacheNode.VGs[ResourceName(vg)] = v
 		log.Debugf("updating existing volume group %q(total:%d,allocatable:%d,used:%d) on node cache %s",
@@ -155,7 +155,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	// Device
 	// get device from CR
 	devices := nodeLocal.Status.NodeStorageInfo.DeviceInfos
-	deviceMapInfo := make(map[string]nodelocalstorage.DeviceInfo, 0)
+	deviceMapInfo := make(map[string]nodelocalstorage.DeviceInfo)
 	for _, d := range devices {
 		deviceMapInfo[d.Name] = d
 	}
@@ -169,7 +169,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	for _, device := range addedDevices {
 		log.Debugf("adding new device %q(total:%d) on node cache %s", device, deviceMapInfo[device].Total, cacheNode.NodeName)
 		allocated := false
-		if nc.IsLSSPVExist(pkg.VolumeTypeDevice, device) {
+		if nc.IsLocalPVExist(pkg.VolumeTypeDevice, device) {
 			allocated = true
 		}
 		diskResource := ExclusiveResource{
@@ -182,7 +182,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	}
 	for _, device := range unchangedDevices {
 		// update the size if the device got extended
-		exDevice, _ := cacheNode.Devices[ResourceName(device)]
+		exDevice := cacheNode.Devices[ResourceName(device)]
 		exDevice.Capacity = int64(deviceMapInfo[device].Total)
 		exDevice.MediaType = localtype.MediaType(deviceMapInfo[device].MediaType)
 		cacheNode.Devices[ResourceName(device)] = exDevice
@@ -199,7 +199,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	// MountPoint
 	// get mountpoint from CR
 	mountPoints := nodeLocal.Status.NodeStorageInfo.MountPoints
-	mpMapInfo := make(map[string]nodelocalstorage.MountPoint, 0)
+	mpMapInfo := make(map[string]nodelocalstorage.MountPoint)
 	for _, mp := range mountPoints {
 		mpMapInfo[mp.Name] = mp
 	}
@@ -218,7 +218,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 		}
 		log.Debugf("adding new mount point %q(total:%d) on node cache %s", mp, mpMapInfo[mp].Total, cacheNode.NodeName)
 		allocated := false
-		if nc.IsLSSPVExist(pkg.VolumeTypeMountPoint, mp) {
+		if nc.IsLocalPVExist(pkg.VolumeTypeMountPoint, mp) {
 			allocated = true
 		}
 		diskResource := ExclusiveResource{
@@ -471,8 +471,8 @@ func (nc *NodeCache) isNodeLocal(pv *corev1.PersistentVolume) bool {
 	return false
 }
 
-// IsLSSPVExist will check whether PV exists in LocalPV according to resourceName and kind
-func (nc *NodeCache) IsLSSPVExist(kind pkg.VolumeType, resourceName string) bool {
+// IsLocalPVExist will check whether PV exists in LocalPV according to resourceName and kind
+func (nc *NodeCache) IsLocalPVExist(kind pkg.VolumeType, resourceName string) bool {
 	for _, pv := range nc.LocalPVs {
 		attributes := pv.Spec.CSI.VolumeAttributes
 		if kind, exist := attributes[pkg.VolumeTypeKey]; exist {

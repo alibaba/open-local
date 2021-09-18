@@ -167,6 +167,10 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	isMnt, err = ns.mounter.IsMounted(targetPath)
+	if err != nil {
+		log.Errorf("NodeUnpublishVolume: check if path %s is mounted error %v", targetPath, err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 	if isMnt {
 		log.Errorf("NodeUnpublishVolume: Umount volume %s for path %s not successful", req.VolumeId, targetPath)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Umount volume %s not successful", req.VolumeId))

@@ -54,7 +54,7 @@ func (ns *nodeServer) mountLvm(ctx context.Context, req *csi.NodePublishVolumeRe
 	// Create LVM if not exist
 	//volumeNewCreated := false
 	volumeID := req.GetVolumeId()
-	var isSnapshot bool = false
+	var isSnapshot bool
 	var isSnapshotReadOnly bool = false
 	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
 		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
@@ -226,65 +226,6 @@ func (ns *nodeServer) mountDeviceVolume(ctx context.Context, req *csi.NodePublis
 		return status.Error(codes.Internal, err.Error())
 	}
 
-	return nil
-}
-
-func (ns *nodeServer) checkTargetMounted(targetPath string) (bool, error) {
-	isMnt, err := ns.mounter.IsMounted(targetPath)
-	if err != nil {
-		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-			if err := os.MkdirAll(targetPath, 0750); err != nil {
-				return isMnt, status.Error(codes.Internal, err.Error())
-			}
-			isMnt = false
-		} else {
-			return false, err
-		}
-	}
-	return isMnt, nil
-}
-
-func (ns *nodeServer) updatePVNodeAffinity(volumeID string) error {
-	oldPv, err := ns.client.CoreV1().PersistentVolumes().Get(context.Background(), volumeID, metav1.GetOptions{})
-	if err != nil {
-		log.Errorf("NodePublishVolume: Get Persistent Volume(%s) Error: %s", volumeID, err.Error())
-		return status.Error(codes.Internal, err.Error())
-	}
-	if oldPv.Spec.NodeAffinity == nil {
-		oldData, err := json.Marshal(oldPv)
-		if err != nil {
-			log.Errorf("NodePublishVolume: Marshal Persistent Volume(%s) Error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
-		}
-		pvClone := oldPv.DeepCopy()
-
-		// construct new persistent volume data
-		values := []string{ns.nodeID}
-		nSR := v1.NodeSelectorRequirement{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: values}
-		matchExpress := []v1.NodeSelectorRequirement{nSR}
-		nodeSelectorTerm := v1.NodeSelectorTerm{MatchExpressions: matchExpress}
-		nodeSelectorTerms := []v1.NodeSelectorTerm{nodeSelectorTerm}
-		required := v1.NodeSelector{NodeSelectorTerms: nodeSelectorTerms}
-		pvClone.Spec.NodeAffinity = &v1.VolumeNodeAffinity{Required: &required}
-		newData, err := json.Marshal(pvClone)
-		if err != nil {
-			log.Errorf("NodePublishVolume: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
-		}
-		patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, pvClone)
-		if err != nil {
-			log.Errorf("NodePublishVolume: CreateTwoWayMergePatch Volume(%s) Error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
-		}
-
-		// Upgrade PersistentVolume with NodeAffinity
-		_, err = ns.client.CoreV1().PersistentVolumes().Patch(context.Background(), volumeID, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-		if err != nil {
-			log.Errorf("NodePublishVolume: Patch Volume(%s) Error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
-		}
-		log.Infof("NodePublishVolume: upgrade Persistent Volume(%s) with nodeAffinity: %s", volumeID, ns.nodeID)
-	}
 	return nil
 }
 

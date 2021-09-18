@@ -21,9 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -47,15 +45,18 @@ import (
 )
 
 var (
-	noResyncPeriodFunc = func() time.Duration { return 0 }
+	noResyncPeriodFunc = func() time.Duration {
+		log.Info("test noResyncPeriodFunc")
+		return 0
+	}
 )
 
 const (
 	// General
-	LSSGi        uint64 = 1024 * 1024 * 1024
-	LSSMi        uint64 = 1024 * 1024
-	TestPort     int32  = 23000
-	LSSNameSpace string = "default"
+	LocalGi        uint64 = 1024 * 1024 * 1024
+	LocalMi        uint64 = 1024 * 1024
+	TestPort       int32  = 23000
+	LocalNameSpace string = "default"
 	// Node
 	NodeName1 string = "node-192.168.0.1"
 	NodeName2 string = "node-192.168.0.2"
@@ -69,14 +70,14 @@ const (
 	SCLVMWithoutVG string = "sc-novg"
 	SCWithMP       string = "sc-mp"
 	SCWithDevice   string = "sc-device"
-	SCNoLSS        string = "sc-nolss"
+	SCNoLocal      string = "sc-nolss"
 	// PVC
 	PVCWithVG         string = "pvc-vg"
 	PVCWithoutVG      string = "pvc-novg"
 	PVCWithVGError    string = "pvc-vg-error"
 	PVCWithMountPoint string = "pvc-mp"
 	PVCWithDevice     string = "pvc-device"
-	PVCNoLSS          string = "pvc-nolss"
+	PVCNoLocal        string = "pvc-nolss"
 	// Pod
 	PodName string = "testpod"
 )
@@ -215,13 +216,13 @@ func TestDevice(t *testing.T) {
 	}
 }
 
-// 测试使用非LSS PVC的Pod是否调度到非LSS节点上
-func TestNoLSS(t *testing.T) {
+// 测试使用非Open-Local PVC的Pod是否调度到非Open-Local节点上
+func TestNoLocal(t *testing.T) {
 	f.setT(t)
 
 	var extenderFilterResult schedulerapi.ExtenderFilterResult
 	var hostPriorityList schedulerapi.HostPriorityList
-	pod := getTestPod(PVCNoLSS)
+	pod := getTestPod(PVCNoLocal)
 	nodeNames := NodeNamesAll
 
 	extenderFilterResult = predicateFunc(pod, nodeNames)
@@ -261,24 +262,24 @@ func TestUpdateCR(t *testing.T) {
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           100 * LSSGi,
-						Available:       100 * LSSGi,
-						Allocatable:     100 * LSSGi,
+						Total:           100 * LocalGi,
+						Available:       100 * LocalGi,
+						Allocatable:     100 * LocalGi,
 					},
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           500 * LSSGi,
-						Available:       500 * LSSGi,
-						Allocatable:     500 * LSSGi,
+						Total:           500 * LocalGi,
+						Available:       500 * LocalGi,
+						Allocatable:     500 * LocalGi,
 					},
 				},
 				MountPoints: []lssv1alpha1.MountPoint{
 					{
 						Name:      "/mnt/lss/testmnt-node1-a",
-						Total:     200 * LSSGi,
-						Available: 200 * LSSGi,
+						Total:     200 * LocalGi,
+						Available: 200 * LocalGi,
 						FsType:    "ext4",
 						Options:   []string{"rw", "ordered"},
 						Device:    "/dev/sdb",
@@ -286,8 +287,8 @@ func TestUpdateCR(t *testing.T) {
 					},
 					{
 						Name:      "/mnt/lss/testmnt-node1-b",
-						Total:     150 * LSSGi,
-						Available: 150 * LSSGi,
+						Total:     150 * LocalGi,
+						Available: 150 * LocalGi,
 						FsType:    "ext4",
 						Options:   []string{"rw", "ordered"},
 						Device:    "/dev/sdc",
@@ -298,19 +299,19 @@ func TestUpdateCR(t *testing.T) {
 					{
 						Name:      "/dev/sda",
 						MediaType: "hdd",
-						Total:     100 * LSSGi,
+						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
 						MediaType: string(localtype.MediaTypeSSD),
-						Total:     200 * LSSGi,
+						Total:     200 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     150 * LSSGi,
+						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
 				},
@@ -462,24 +463,24 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           100 * LSSGi,
-						Available:       100 * LSSGi,
-						Allocatable:     100 * LSSGi,
+						Total:           100 * LocalGi,
+						Available:       100 * LocalGi,
+						Allocatable:     100 * LocalGi,
 					},
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           500 * LSSGi,
-						Available:       500 * LSSGi,
-						Allocatable:     500 * LSSGi,
+						Total:           500 * LocalGi,
+						Available:       500 * LocalGi,
+						Allocatable:     500 * LocalGi,
 					},
 				},
 				MountPoints: []lssv1alpha1.MountPoint{
 					{
 						Name:      "/mnt/lss/testmnt-node1-a",
-						Total:     500 * LSSGi,
-						Available: 500 * LSSGi,
+						Total:     500 * LocalGi,
+						Available: 500 * LocalGi,
 						FsType:    "ext4",
 						Options:   []string{"rw", "ordered"},
 						Device:    "/dev/sdb",
@@ -490,19 +491,19 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     100 * LSSGi,
+						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
 						MediaType: string(localtype.MediaTypeSSD),
-						Total:     500 * LSSGi,
+						Total:     500 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     150 * LSSGi,
+						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
 				},
@@ -537,24 +538,24 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           200 * LSSGi,
-						Available:       200 * LSSGi,
-						Allocatable:     200 * LSSGi,
+						Total:           200 * LocalGi,
+						Available:       200 * LocalGi,
+						Allocatable:     200 * LocalGi,
 					},
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           750 * LSSGi,
-						Available:       750 * LSSGi,
-						Allocatable:     750 * LSSGi,
+						Total:           750 * LocalGi,
+						Available:       750 * LocalGi,
+						Allocatable:     750 * LocalGi,
 					},
 				},
 				MountPoints: []lssv1alpha1.MountPoint{
 					{
 						Name:      "/mnt/lss/testmnt-node1-a",
-						Total:     750 * LSSGi,
-						Available: 750 * LSSGi,
+						Total:     750 * LocalGi,
+						Available: 750 * LocalGi,
 						FsType:    "ext4",
 						Options:   []string{"rw", "ordered"},
 						Device:    "/dev/sdb",
@@ -565,25 +566,25 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     100 * LSSGi,
+						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     200 * LSSGi,
+						Total:     200 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     150 * LSSGi,
+						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdd",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     100 * LSSGi,
+						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 				},
@@ -619,16 +620,16 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
 						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
-						Total:           300 * LSSGi,
-						Available:       300 * LSSGi,
-						Allocatable:     300 * LSSGi,
+						Total:           300 * LocalGi,
+						Available:       300 * LocalGi,
+						Allocatable:     300 * LocalGi,
 					},
 				},
 				MountPoints: []lssv1alpha1.MountPoint{
 					{
 						Name:      "/mnt/lss/testmnt-node1-a",
-						Total:     1000 * LSSGi,
-						Available: 1000 * LSSGi,
+						Total:     1000 * LocalGi,
+						Available: 1000 * LocalGi,
 						FsType:    "ext4",
 						Options:   []string{"rw", "ordered"},
 						Device:    "/dev/sdb",
@@ -639,19 +640,19 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     100 * LSSGi,
+						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     200 * LSSGi,
+						Total:     200 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
 						MediaType: string(localtype.MediaTypeHHD),
-						Total:     150 * LSSGi,
+						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
 				},
@@ -711,9 +712,9 @@ func newPersistentVolumeClaim() (pvcs []*corev1.PersistentVolumeClaim) {
 			scName:  SCWithDevice,
 		},
 		{
-			pvcName: PVCNoLSS,
+			pvcName: PVCNoLocal,
 			size:    "100Gi",
-			scName:  SCNoLSS,
+			scName:  SCNoLocal,
 		},
 	}
 
@@ -721,7 +722,7 @@ func newPersistentVolumeClaim() (pvcs []*corev1.PersistentVolumeClaim) {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      pvcInfo.pvcName,
-				Namespace: LSSNameSpace,
+				Namespace: LocalNameSpace,
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
@@ -743,8 +744,7 @@ func newPersistentVolumeClaim() (pvcs []*corev1.PersistentVolumeClaim) {
 
 func newStorageClass() (scs []*storagev1.StorageClass) {
 	// storage class: special vg
-	var param1 map[string]string
-	param1 = make(map[string]string, 0)
+	param1 := make(map[string]string)
 	param1["fs"] = "ext4"
 	param1["vgName"] = VGSSD
 	param1["volumeType"] = string(localtype.VolumeTypeLVM)
@@ -756,8 +756,7 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 		Parameters:  param1,
 	}
 	// storage class: no vg
-	var param2 map[string]string
-	param2 = make(map[string]string, 0)
+	param2 := make(map[string]string)
 	param2["fs"] = "ext4"
 	param2["volumeType"] = string(localtype.VolumeTypeLVM)
 	scLVMWithoutVG := &storagev1.StorageClass{
@@ -770,7 +769,7 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 
 	// storage class: mount point
 	var param3 map[string]string
-	param3 = make(map[string]string, 0)
+	param3 = make(map[string]string)
 	param3["volumeType"] = string(localtype.VolumeTypeMountPoint)
 	param3["mediaType"] = "hdd"
 	scWithMP := &storagev1.StorageClass{
@@ -795,14 +794,14 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 	}
 
 	// storage class: device
-	scWithNoLSS := &storagev1.StorageClass{
+	scWithNoLocal := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: SCNoLSS,
+			Name: SCNoLocal,
 		},
 		Provisioner: "kubernetes.io/no-provisioner",
 	}
 
-	scs = append(scs, scLVMWithVG, scLVMWithoutVG, scWithMP, scWithDevice, scWithNoLSS)
+	scs = append(scs, scLVMWithVG, scLVMWithoutVG, scWithMP, scWithDevice, scWithNoLocal)
 
 	return scs
 }
@@ -834,40 +833,11 @@ func (f *fixture) runExtender() {
 	extenderServer.WaitForCacheSync(stopCh)
 }
 
-func (f *fixture) httpGet(url string) []byte {
-	resp, err := http.Get(url)
-	if err != nil {
-		f.t.Fatalf(err.Error())
-	}
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		f.t.Fatalf(err.Error())
-	}
-
-	return body
-}
-
-func (f *fixture) httpPost(url string) []byte {
-	resp, err := http.Post(url, "application/x-www-form-urlencoded", strings.NewReader("name=cjb"))
-	if err != nil {
-		f.t.Fatalf(err.Error())
-	}
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		f.t.Fatalf(err.Error())
-	}
-	return body
-}
-
 func getTestPod(pvcName string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      PodName,
-			Namespace: LSSNameSpace,
+			Namespace: LocalNameSpace,
 		},
 		Spec: v1.PodSpec{
 			Volumes: []v1.Volume{

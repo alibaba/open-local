@@ -279,8 +279,6 @@ func SameStringSliceIgnoreOrder(x, y []string) bool {
 			delete(diff, _y)
 		}
 	}
-	if len(diff) == 0 {
-		return true
-	}
-	return false
+
+	return len(diff) == 0
 }

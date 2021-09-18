@@ -26,14 +26,14 @@ import (
 )
 
 type NodeInfo struct {
-	NodeName string `json:"nodeName,string"`
+	NodeName string
 	// VGs is the volume group
-	VGs         map[ResourceName]SharedResource    `json:"vgs,omitempty"`
-	MountPoints map[ResourceName]ExclusiveResource `json:"mps,omitempty"`
+	VGs         map[ResourceName]SharedResource
+	MountPoints map[ResourceName]ExclusiveResource
 	// Devices only contains the whitelist raw devices
-	Devices      map[ResourceName]ExclusiveResource `json:"devices,omitempty"`
-	AllocatedNum int64                              `json:"num,number"`
-	LocalPVs     map[string]corev1.PersistentVolume `json:"pvs,omitempty"`
+	Devices      map[ResourceName]ExclusiveResource
+	AllocatedNum int64
+	LocalPVs     map[string]corev1.PersistentVolume
 }
 
 type NodeCache struct {
@@ -50,18 +50,18 @@ const (
 )
 
 type ExclusiveResource struct {
-	Name      string              `json:"name,string"`
-	Device    string              `json:"device,string"`
-	Capacity  int64               `json:"cap,number"`
-	MediaType localtype.MediaType `json:"type,string"`
+	Name      string
+	Device    string
+	Capacity  int64
+	MediaType localtype.MediaType
 	// "IsAllocated = true" means the disk is used by PV
-	IsAllocated bool `json:"isAllocated,boolean"`
+	IsAllocated bool
 }
 
 type SharedResource struct {
-	Name      string `json:"name,string"`
-	Capacity  int64  `json:"cap,number"`
-	Requested int64  `json:"req,number"`
+	Name      string
+	Capacity  int64
+	Requested int64
 }
 
 type AllocatedUnit struct {

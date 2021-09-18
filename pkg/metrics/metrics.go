@@ -34,7 +34,7 @@ var (
 		},
 		[]string{"nodename", "vgname"},
 	)
-	VolumeGroupUsedByLSS = prometheus.NewGaugeVec(
+	VolumeGroupUsedByLocal = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Subsystem: Subsystem,
 			Name:      "volume_group_used",

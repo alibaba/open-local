@@ -32,7 +32,4 @@ type CSIPlugin struct {
 	idServer         *identityServer
 	nodeServer       csivendor.NodeServer
 	controllerServer *controllerServer
-
-	cap   []*csivendor.VolumeCapability_AccessMode
-	cscap []*csivendor.ControllerServiceCapability
 }

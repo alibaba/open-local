@@ -77,7 +77,6 @@ func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalS
 	if err != nil {
 		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 	}
-	return
 }
 
 // isUpdateNeeded will check whether .status.filteredStorageInfo of nls need update

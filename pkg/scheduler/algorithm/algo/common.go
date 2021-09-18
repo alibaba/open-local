@@ -707,7 +707,7 @@ func ScoreMountPointVolume(
 	if err != nil {
 		return MinScore, units, err
 	}
-	if fits != true {
+	if !fits {
 		return MinScore, units, nil
 	}
 	score = ScoreMP(units)
@@ -741,7 +741,7 @@ func ScoreDeviceVolume(
 	if err != nil {
 		return MinScore, units, err
 	}
-	if fits != true {
+	if !fits {
 		return MinScore, units, nil
 	}
 

@@ -47,6 +47,5 @@ func CacheRoute(ctx *algorithm.SchedulingContext) httprouter.Handle {
 		} else {
 			utils.HttpJSON(w, http.StatusOK, ctx.ClusterNodeCache)
 		}
-		return
 	}
 }

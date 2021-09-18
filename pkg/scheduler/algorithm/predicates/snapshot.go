@@ -51,7 +51,7 @@ func SnapshotPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		if err != nil {
 			log.Error(err)
 			return false, err
-		} else if fits == false {
+		} else if !fits {
 			return false, nil
 		}
 	}

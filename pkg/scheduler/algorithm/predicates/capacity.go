@@ -52,7 +52,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		if err != nil {
 			log.Error(err)
 			return false, err
-		} else if fits == false {
+		} else if !fits {
 			return false, nil
 		}
 	}
@@ -64,7 +64,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		if err != nil {
 			log.Error(err)
 			return false, err
-		} else if fits == false {
+		} else if !fits {
 			return false, nil
 		}
 	}
@@ -76,7 +76,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		if err != nil {
 			log.Error(err)
 			return false, err
-		} else if fits == false {
+		} else if !fits {
 			return false, nil
 		}
 	}
@@ -94,7 +94,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node, ctx); err != nil {
 			return false, err
 		}
-		if fits == false {
+		if !fits {
 			return false, nil
 		}
 	}

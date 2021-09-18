@@ -438,7 +438,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	if err != nil {
 		return false, rstUnits, err
 	}
-	if fits != true {
+	if !fits {
 		return false, rstUnits, nil
 	}
 	units = append(units, rstUnits...)
@@ -496,7 +496,7 @@ func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node 
 	if err != nil {
 		return MinScore, units, err
 	}
-	if fits != true {
+	if !fits {
 		return MinScore, units, nil
 	}
 
@@ -553,13 +553,13 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 		switch localtype.SchedulerStrategy {
 		case localtype.StrategyBinpack:
 			fits, tmpunits, err := Binpack(pod, pvc, node, cacheVGsMap)
-			if fits == false {
+			if !fits {
 				return false, units, err
 			}
 			units = append(units, tmpunits...)
 		case localtype.StrategySpread:
 			fits, tmpunits, err := Spread(pod, pvc, node, cacheVGsMap)
-			if fits == false {
+			if !fits {
 				return false, units, err
 			}
 			units = append(units, tmpunits...)

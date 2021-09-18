@@ -145,7 +145,7 @@ func (c *ClusterNodeCache) assumeMountPointAllocatedUnit(unit AllocatedUnit, nod
 	nodeCache.AllocatedNum += 1
 
 	if v, ok := nodeCache.MountPoints[ResourceName(unit.MountPoint)]; ok {
-		if v.IsAllocated == true {
+		if v.IsAllocated {
 			return nil, fmt.Errorf("disk resource %s was already allocated", v.Name)
 		}
 	}
@@ -189,7 +189,7 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 	nodeCache.AllocatedNum += 1
 
 	if v, ok := nodeCache.Devices[ResourceName(unit.MountPoint)]; ok {
-		if v.IsAllocated == true {
+		if v.IsAllocated {
 			return nil, fmt.Errorf("disk resource %s was already allocated", v.Name)
 		}
 	}

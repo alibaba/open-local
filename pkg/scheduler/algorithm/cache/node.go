@@ -92,7 +92,7 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 	// add mount points
 	for _, mp := range nodeLocal.Status.FilteredStorageInfo.MountPoints {
 		tmpMP := mpInfoMap[mp]
-		if utils.CheckMountPointOptions(&tmpMP) == false {
+		if !utils.CheckMountPointOptions(&tmpMP) {
 			continue
 		}
 		log.Debugf("adding new mount point %q(total:%d) on node cache %s",
@@ -212,7 +212,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	addedMPs, unchangedMPs, removedMPs := utils.GetAddedAndRemovedItems(nodeLocal.Status.FilteredStorageInfo.MountPoints, cacheMP)
 	for _, mp := range addedMPs {
 		tmpMP := mpMapInfo[mp]
-		if utils.CheckMountPointOptions(&tmpMP) == false {
+		if !utils.CheckMountPointOptions(&tmpMP) {
 			log.Debugf("mount point %s on %s was excluded, readonly: %t, fsType: %s", mp, nodeLocal.Name, tmpMP.ReadOnly, tmpMP.FsType)
 			continue
 		}
@@ -231,7 +231,7 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 		log.Debugf("diskResource: %#v", diskResource)
 	}
 	for _, mp := range unchangedMPs {
-		exMP, _ := cacheNode.MountPoints[ResourceName(mp)]
+		exMP := cacheNode.MountPoints[ResourceName(mp)]
 		// update capacity of existing mount point
 		exMP.Capacity = int64(mpMapInfo[mp].Total)
 		exMP.MediaType = localtype.MediaType(deviceMapInfo[exMP.Device].MediaType)
@@ -372,7 +372,7 @@ func (nc *NodeCache) AddLocalMountPoint(pv *corev1.PersistentVolume) error {
 		log.Debugf("pv %s is not a valid open-local pv(disk with name)", pv.Name)
 	} else {
 		if disk, ok := nc.MountPoints[ResourceName(diskName)]; ok {
-			if disk.IsAllocated == false {
+			if !disk.IsAllocated {
 				disk.IsAllocated = true
 				nc.AllocatedNum += 1
 				nc.MountPoints[ResourceName(diskName)] = disk
@@ -423,7 +423,7 @@ func (nc *NodeCache) AddLocalDevice(pv *corev1.PersistentVolume) error {
 		return err
 	} else {
 		if device, ok := nc.Devices[ResourceName(deviceName)]; ok {
-			if device.IsAllocated == false {
+			if !device.IsAllocated {
 				device.IsAllocated = true
 				nc.AllocatedNum += 1
 				nc.Devices[ResourceName(deviceName)] = device

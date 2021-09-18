@@ -113,7 +113,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	// if it is, check what type it is
 	containReadonlySnapshot := false
 	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isOpenLocalPV == false {
+	if !isOpenLocalPV {
 		return
 	}
 	if pv.Status.Phase == corev1.VolumePending {
@@ -200,7 +200,7 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 
 	containReadonlySnapshot := false
 	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isOpenLocalPV == false {
+	if !isOpenLocalPV {
 		return
 	}
 	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
@@ -278,7 +278,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 	}
 	containReadonlySnapshot := false
 	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isOpenLocalPV == false {
+	if !isOpenLocalPV {
 		return
 	}
 	// handle according to different type

@@ -88,7 +88,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 	}
 	// if pod has snapshot pvc
 	// select all snapshot pvcs, and check if nodes of them are the same
-	if utils.ContainsSnapshotPVC(lvmPVCs) == true {
+	if utils.ContainsSnapshotPVC(lvmPVCs) {
 		var fits bool
 		var err error
 		if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node, ctx); err != nil {

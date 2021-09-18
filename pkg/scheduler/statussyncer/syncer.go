@@ -90,7 +90,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 
 	// VG
 	VGFiltered := FilterVGInfo(nls)
-	if SameStringSliceIgnoreOrder(VGFiltered, nls.Status.FilteredStorageInfo.VolumeGroups) == false {
+	if !SameStringSliceIgnoreOrder(VGFiltered, nls.Status.FilteredStorageInfo.VolumeGroups) {
 		var VGFromCache []string
 		for _, vg := range tmpCache.VGs {
 			VGFromCache = append(VGFromCache, vg.Name)
@@ -107,7 +107,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 
 	// MountPoint
 	MPFiltered := FilterMPInfo(nls)
-	if SameStringSliceIgnoreOrder(MPFiltered, nls.Status.FilteredStorageInfo.MountPoints) == false {
+	if !SameStringSliceIgnoreOrder(MPFiltered, nls.Status.FilteredStorageInfo.MountPoints) {
 		var MPFromCache []string
 		for _, mp := range tmpCache.MountPoints {
 			MPFromCache = append(MPFromCache, mp.Name)
@@ -141,7 +141,7 @@ func (syncer *StatusSyncer) isUpdateNeeded(nls *nodelocalstorage.NodeLocalStorag
 
 	// Device
 	DeviceFiltered := FilterDeviceInfo(nls)
-	if SameStringSliceIgnoreOrder(DeviceFiltered, nls.Status.FilteredStorageInfo.Devices) == false {
+	if !SameStringSliceIgnoreOrder(DeviceFiltered, nls.Status.FilteredStorageInfo.Devices) {
 		var DevFromCache []string
 		for _, dev := range tmpCache.Devices {
 			DevFromCache = append(DevFromCache, dev.Name)
@@ -252,7 +252,7 @@ func FilterInfo(info []string, include []string, exclude []string) []string {
 	}
 
 	var filterSlice []string
-	for vg, _ := range filterMap {
+	for vg := range filterMap {
 		filterSlice = append(filterSlice, vg)
 	}
 

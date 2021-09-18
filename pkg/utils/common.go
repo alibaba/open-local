@@ -385,7 +385,7 @@ func IsOpenLocalPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, 
 }
 
 func IsLocalSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	return IsSnapshotPVC(claim) != false
+	return IsSnapshotPVC(claim)
 }
 
 func IsSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {

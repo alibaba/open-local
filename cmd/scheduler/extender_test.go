@@ -768,8 +768,7 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 	}
 
 	// storage class: mount point
-	var param3 map[string]string
-	param3 = make(map[string]string)
+	param3 := make(map[string]string)
 	param3["volumeType"] = string(localtype.VolumeTypeMountPoint)
 	param3["mediaType"] = "hdd"
 	scWithMP := &storagev1.StorageClass{
@@ -781,8 +780,7 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 	}
 
 	// storage class: device
-	var param4 map[string]string
-	param4 = make(map[string]string, 0)
+	param4 := make(map[string]string)
 	param4["volumeType"] = string(localtype.VolumeTypeDevice)
 	param4["mediaType"] = "hdd"
 	scWithDevice := &storagev1.StorageClass{

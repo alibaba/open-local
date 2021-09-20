@@ -18,8 +18,10 @@ package discovery
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
+	localtype "github.com/alibaba/open-local/pkg"
 	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	log "github.com/sirupsen/logrus"
@@ -109,16 +111,22 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 }
 
 func (d *Discoverer) createVG(vgname string, devices []string) error {
+	force := false
+	forceCreateVG := os.Getenv(localtype.EnvForceCreateVG)
+	if forceCreateVG == "true" {
+		force = true
+	}
+
 	var pvs []*lvm.PhysicalVolume
 	for _, dev := range devices {
-		pv, err := lvm.CreatePhysicalVolume(dev)
+		pv, err := lvm.CreatePhysicalVolume(dev, force)
 		if err != nil {
 			log.Errorf("create physical volume %s error: %s", dev, err.Error())
 			return err
 		}
 		pvs = append(pvs, pv)
 	}
-	_, err := lvm.CreateVolumeGroup(vgname, pvs, nil)
+	_, err := lvm.CreateVolumeGroup(vgname, pvs, nil, force)
 	if err != nil {
 		log.Errorf("create volume volume %s error: %s", vgname, err.Error())
 		return err

@@ -72,7 +72,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	}
 
 	if len(lvmPVCs)+len(mpPVCs)+len(devicePVCs) == 0 {
-		msg := fmt.Sprintf("unexpected schedulering request for all pvcs are bounded")
+		msg := "unexpected schedulering request for all pvcs are bounded"
 		log.Info(msg)
 		return nil, fmt.Errorf(msg)
 	}
@@ -118,8 +118,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	var targetAllocateUnits []cache.AllocatedUnit
 	log.Debugf("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
 	for _, unit := range allocatedUnits {
-		var newUnit cache.AllocatedUnit
-		newUnit = unit
+		newUnit := unit
 		ctx.ClusterNodeCache.BindingInfo[newUnit.PVCName] = &newUnit
 		if unit.PVCName == utils.PVCName(pvc) {
 			targetAllocateUnits = append(targetAllocateUnits, unit)

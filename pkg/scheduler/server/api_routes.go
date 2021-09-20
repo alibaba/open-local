@@ -55,7 +55,6 @@ func SchedulingExpandWrap(ctx *algorithm.SchedulingContext) httprouter.Handle {
 		}
 		pvcSize := utils.GetPVCRequested(pvc)
 		log.Infof("successfully reserve %d(%d MiB) storage for pvc %s/%s", pvcSize, pvcSize/1024/1024, pvc.Namespace, pvc.Name)
-		return
 	}
 }
 

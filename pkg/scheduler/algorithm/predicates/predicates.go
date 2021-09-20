@@ -141,7 +141,7 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 			//return fits, failReasons, nil
 		}
 	}
-	return len(failedReasons) == 0 && fits == true, failedReasons, nil
+	return len(failedReasons) == 0 && fits, failedReasons, nil
 }
 
 func (p Predicate) needSkip(args schedulerapi.ExtenderArgs) bool {

@@ -27,17 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type findmntResponse struct {
-	FileSystems []fileSystem `json:"filesystems"`
-}
-
-type fileSystem struct {
-	Target      string `json:"target"`
-	Propagation string `json:"propagation"`
-	FsType      string `json:"fstype"`
-	Options     string `json:"options"`
-}
-
 // Mounter is responsible for formatting and mounting volumes
 type Mounter interface {
 	// If the folder doesn't exist, it will call 'mkdir -p'
@@ -283,6 +272,7 @@ func (m *mounter) IsMounted(target string) (bool, error) {
 	outStr := strings.TrimSpace(string(out))
 	if err != nil {
 		if outStr == "" {
+			log.Warningf("check if target %s is mounted failed, error is %s, cmd is %v %v", target, err.Error(), findmntCmd, findmntArgs)
 			return false, nil
 		}
 		return false, fmt.Errorf("checking mounted failed: %v cmd: %q output: %q",
@@ -291,6 +281,7 @@ func (m *mounter) IsMounted(target string) (bool, error) {
 	if strings.Contains(outStr, target) {
 		return true, nil
 	}
+	log.Warningf("target %s is not mounted, cmd is %v %v", target, findmntCmd, findmntArgs)
 	return false, nil
 }
 

@@ -172,7 +172,7 @@ func (e *ExtenderServer) InitRouter() {
 		metrics.VolumeGroupTotal,
 		metrics.MountPointTotal,
 		metrics.DeviceTotal,
-		metrics.VolumeGroupUsedByLSS,
+		metrics.VolumeGroupUsedByLocal,
 		metrics.MountPointAvailable,
 		metrics.DeviceAvailable,
 		metrics.DeviceBind,

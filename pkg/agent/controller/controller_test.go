@@ -19,7 +19,6 @@ package controller
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/alibaba/open-local/pkg/agent/common"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -28,10 +27,6 @@ import (
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-)
-
-var (
-	noResyncPeriodFunc = func() time.Duration { return 0 }
 )
 
 func TestNewAgent(t *testing.T) {

@@ -52,8 +52,6 @@ func (option *extenderOptions) ParseWeight() (weights *pkg.NodeAntiAffinityWeigh
 	weights = pkg.NewNodeAntiAffinityWeight()
 	if len(option.EnabledNodeAntiAffinity) > 0 {
 		// example format
-		raw := strings.TrimSpace(option.EnabledNodeAntiAffinity) // trim left and right
-		raw = strings.ReplaceAll(raw, " ", "")                   // trim inner space
 		sec := strings.Split(option.EnabledNodeAntiAffinity, ",")
 		for _, e := range sec {
 			var vt pkg.VolumeType

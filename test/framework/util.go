@@ -171,7 +171,7 @@ func MakePV(name string, nodeName string, volumeType pkg.VolumeType) *corev1.Per
 	}
 	volumeAttributes := make(map[string]string)
 
-	var scName = ""
+	var scName string
 	switch volumeType {
 	case pkg.VolumeTypeLVM:
 		scName = DefaultLVMSC.Name

@@ -109,11 +109,11 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	trace := utiltrace.New(fmt.Sprintf("[onPVAdd]trace pv %s", pv.Name))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
-	// check if PV is a LSS PV
+	// check if PV is a Local PV
 	// if it is, check what type it is
 	containReadonlySnapshot := false
-	isLSSPV, pvType := utils.IsLSSPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isLSSPV == false {
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	if !isOpenLocalPV {
 		return
 	}
 	if pv.Status.Phase == corev1.VolumePending {
@@ -199,8 +199,8 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 	log.Infof("[onPVDelete]pv %s is handling", pv.Name)
 
 	containReadonlySnapshot := false
-	isLSSPV, pvType := utils.IsLSSPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isLSSPV == false {
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	if !isOpenLocalPV {
 		return
 	}
 	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
@@ -277,8 +277,8 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		return
 	}
 	containReadonlySnapshot := false
-	isLSSPV, pvType := utils.IsLSSPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
-	if isLSSPV == false {
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	if !isOpenLocalPV {
 		return
 	}
 	// handle according to different type
@@ -397,15 +397,13 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 	// if a pvcs is pending, remove the selected node in a goroutine
 	// so that to avoid ErrVolumeBindConflict(means the selected-node(on pvc)
 	// does not match the newly selected node by scheduler
-	allPending := true
 	for _, p := range pvcs {
 		if p.Status.Phase != corev1.ClaimPending {
-			allPending = false
 			return
 		}
 	}
 	log.Infof("handing pod %s whose pvcs are all pending", utils.PodName(pod))
-	if allPending && utils.PodPvcAllowReschedule(pvcs, nil) {
+	if utils.PodPvcAllowReschedule(pvcs, nil) {
 		for _, pvc := range pvcs {
 			contains := utils.PvcContainsSelectedNode(pvc)
 			if contains {

@@ -33,3 +33,25 @@ parameters:
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: {{ .Values.storageclass.mountpoint_hdd.name }}
+provisioner: {{ .Values.driver }}
+parameters:
+    volumeType: MountPoint
+    mediaType: hdd
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: {{ .Values.storageclass.mountpoint_ssd.name }}
+provisioner: {{ .Values.driver }}
+parameters:
+    volumeType: MountPoint
+    mediaType: ssd
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

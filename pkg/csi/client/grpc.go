@@ -79,13 +79,20 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	log.Debugf("New Connecting to %s", address)
 	dialOptions := []grpc.DialOption{
 		grpc.WithInsecure(),
-		grpc.WithBackoffMaxDelay(time.Second),
+		// grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithUnaryInterceptor(logGRPC),
 	}
+	// if strings.HasPrefix(address, "/") {
+	// 	dialOptions = append(dialOptions, grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+	// 		return net.DialTimeout("unix", addr, timeout)
+	// 	}))
+	// }
 	if strings.HasPrefix(address, "/") {
-		dialOptions = append(dialOptions, grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", addr, timeout)
-		}))
+		dialOptions = append(
+			dialOptions,
+			grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}))
 	}
 	conn, err := grpc.Dial(address, dialOptions...)
 

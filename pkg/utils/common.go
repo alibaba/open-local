@@ -142,7 +142,7 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 	for _, pv := range localPVs {
 		vgNameFromPV := GetVGNameFromCsiPV(&pv)
 		if vgNameFromPV == vgName {
-			v, _ := pv.Spec.Capacity[corev1.ResourceStorage]
+			v := pv.Spec.Capacity[corev1.ResourceStorage]
 			requested += v.Value()
 			log.Debugf("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
 		} else {
@@ -179,10 +179,7 @@ func StringsContains(array []string, val string) (index int) {
 	return
 }
 func IsEmpty(r string) bool {
-	if len(r) == 0 {
-		return true
-	}
-	return false
+	return len(r) == 0
 }
 
 func HttpResponse(w http.ResponseWriter, code int, msg []byte) {
@@ -203,7 +200,6 @@ func HttpJSON(w http.ResponseWriter, code int, result interface{}) {
 	if err != nil {
 		log.Warningf("noted http write failure met: %s", err.Error())
 	}
-	return
 }
 
 func SliceEquals(src interface{}, dst interface{}) bool {
@@ -350,16 +346,16 @@ func IsLocalPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interf
 	if sc == nil {
 		return false, ""
 	}
-	if ContainsProvisioner(sc.Provisioner) == false {
+	if !ContainsProvisioner(sc.Provisioner) {
 		return false, ""
 	}
-	if IsLSSSnapshotPVC(claim) && containReadonlySnapshot == false {
+	if IsLocalSnapshotPVC(claim) && !containReadonlySnapshot {
 		return false, ""
 	}
-	return true, LSSPVType(sc)
+	return true, LocalPVType(sc)
 }
 
-func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c corev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+func IsOpenLocalPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c corev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
 	var isSnapshot, isSnapshotReadOnly bool = false, false
 
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
@@ -371,11 +367,11 @@ func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c core
 		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
 			isSnapshotReadOnly = true
 		}
-		if isSnapshot == true && isSnapshotReadOnly == false {
-			log.Errorf("[IsLSSPV]only support ro snapshot pv!")
+		if isSnapshot && !isSnapshotReadOnly {
+			log.Errorf("[IsOpenLocalPV]only support ro snapshot pv!")
 			return false, ""
 		}
-		if isSnapshot == true && containReadonlySnapshot == false {
+		if isSnapshot && !containReadonlySnapshot {
 			return false, ""
 		}
 		// check open-local type
@@ -388,21 +384,8 @@ func IsLSSPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c core
 	return false, localtype.VolumeTypeUnknown
 }
 
-func IsLSSSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	// step 1: check if is snapshot pvc
-	if IsSnapshotPVC(claim) == false {
-		return false
-	}
-	// step 2:
-	// Annotations["yoda.io/readonly"] must be true
-	// ro, exist := claim.Annotations[lsstype.AnnoSnapshotReadonly]
-	// if exist == false {
-	// 	return false
-	// }
-	// if ro != "true" {
-	// 	return false
-	// }
-	return true
+func IsLocalSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
+	return IsSnapshotPVC(claim)
 }
 
 func IsSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
@@ -416,7 +399,7 @@ func IsSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
 func ContainsSnapshotPVC(claims []*corev1.PersistentVolumeClaim) (contain bool) {
 	contain = false
 	for _, claim := range claims {
-		if IsSnapshotPVC(claim) == true {
+		if IsSnapshotPVC(claim) {
 			contain = true
 			break
 		}
@@ -424,7 +407,7 @@ func ContainsSnapshotPVC(claims []*corev1.PersistentVolumeClaim) (contain bool) 
 	return
 }
 
-func LSSPVType(sc *storagev1.StorageClass) localtype.VolumeType {
+func LocalPVType(sc *storagev1.StorageClass) localtype.VolumeType {
 	if t, ok := sc.Parameters[localtype.VolumeTypeKey]; ok {
 		switch localtype.VolumeType(t) {
 		case localtype.VolumeTypeMountPoint, localtype.VolumeTypeDevice, localtype.VolumeTypeLVM, localtype.VolumeTypeQuota:

@@ -5,6 +5,7 @@ English | [简体中文](./README-zh_CN.md)
 `Open-Local` is a **local disk management system** composed of multiple components. With `Open-Local`, **using local storage in Kubernetes will be as simple as centralized storage**.
 
 ## Features
+
 - Local storage pool management
 - Dynamic volume provisioning
 - Extended scheduler
@@ -13,8 +14,11 @@ English | [简体中文](./README-zh_CN.md)
 - Volume metrics
 
 ## Overall Architecture
+
 ![](docs/imgs/architecture.png)
+
 `Open-Local`contains three types of components:
+
 - Scheduler extender: as an extended component of Kubernetes Scheduler, adding local storage scheduling algorithm
 - CSI plugins: providing the ability to create/delete volume, expand volume and take snapshots of the volume
 - Agent: running on each node in the K8s cluster, and report local storage device information for Scheduler extender
@@ -28,9 +32,11 @@ English | [简体中文](./README-zh_CN.md)
 - AntStack Plus Products
 
 ## User guide
+
 More details [here](docs/user-guide.md)
 
 ## Contact
+
 Join us from DingTalk: Group No.34118035
 
 ## License

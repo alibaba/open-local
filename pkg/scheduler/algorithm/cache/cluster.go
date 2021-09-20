@@ -145,7 +145,7 @@ func (c *ClusterNodeCache) assumeMountPointAllocatedUnit(unit AllocatedUnit, nod
 	nodeCache.AllocatedNum += 1
 
 	if v, ok := nodeCache.MountPoints[ResourceName(unit.MountPoint)]; ok {
-		if v.IsAllocated == true {
+		if v.IsAllocated {
 			return nil, fmt.Errorf("disk resource %s was already allocated", v.Name)
 		}
 	}
@@ -189,7 +189,7 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 	nodeCache.AllocatedNum += 1
 
 	if v, ok := nodeCache.Devices[ResourceName(unit.MountPoint)]; ok {
-		if v.IsAllocated == true {
+		if v.IsAllocated {
 			return nil, fmt.Errorf("disk resource %s was already allocated", v.Name)
 		}
 	}
@@ -209,7 +209,7 @@ func (c *ClusterNodeCache) UpdateMetrics() {
 	for nodeName := range c.Nodes {
 		for vgname, info := range c.Nodes[nodeName].VGs {
 			metrics.VolumeGroupTotal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Capacity))
-			metrics.VolumeGroupUsedByLSS.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Requested))
+			metrics.VolumeGroupUsedByLocal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Requested))
 		}
 		for mpname, info := range c.Nodes[nodeName].MountPoints {
 			metrics.MountPointTotal.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
@@ -264,7 +264,7 @@ func (c *ClusterNodeCache) ClearMetrics() {
 	metrics.MountPointAvailable.Reset()
 	metrics.MountPointBind.Reset()
 	metrics.MountPointTotal.Reset()
-	metrics.VolumeGroupUsedByLSS.Reset()
+	metrics.VolumeGroupUsedByLocal.Reset()
 	metrics.VolumeGroupTotal.Reset()
 	metrics.LocalPV.Reset()
 }

@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-mountpoint
+  labels:
+    app: nginx-mountpoint
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: nginx-mountpoint
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nginx-mountpoint
+spec:
+  selector:
+    matchLabels:
+      app: nginx-mountpoint
+  podManagementPolicy: Parallel
+  serviceName: "nginx-mountpoint"
+  replicas: 1
+  volumeClaimTemplates:
+  - metadata:
+      name: html
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: open-local-mountpoint-hdd
+      resources:
+        requests:
+          storage: 5Gi
+  template:
+    metadata:
+      labels:
+        app: nginx-mountpoint
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: "/data"
+          name: html
+        command:
+        - sh
+        - "-c"
+        - |
+            while true; do
+              echo "huizhi testing";
+              echo "yes ">>/data/yes.txt;
+              sleep 120s
+            done;

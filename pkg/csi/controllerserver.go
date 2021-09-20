@@ -33,7 +33,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/docker/go-units"
-	"github.com/golang/protobuf/ptypes"
+	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
@@ -201,7 +201,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 				return nil, status.Errorf(codes.InvalidArgument, "get snapshot class failed: %s", err.Error())
 			}
 			ro, exist := class.Parameters[localtype.ParamSnapshotReadonly]
-			if exist == false || ro != "true" {
+			if !exist || ro != "true" {
 				log.Errorf("CreateVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
 				return nil, status.Errorf(codes.Unimplemented, "CreateVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
 			}
@@ -358,7 +358,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 		}
 	}
 
-	response := &csilib.CreateVolumeResponse{}
+	var response *csilib.CreateVolumeResponse
 	if nodeSelected == "" {
 		response = &csi.CreateVolumeResponse{
 			Volume: &csi.Volume{
@@ -428,8 +428,8 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 				isSnapshotReadOnly = true
 			}
 		}
-		if isSnapshot == true {
-			if isSnapshotReadOnly == true {
+		if isSnapshot {
+			if isSnapshotReadOnly {
 				log.Infof("DeleteVolume: volume %s is ro snapshot volume, skip delete lv...", volumeID)
 				// break switch
 				break
@@ -707,10 +707,9 @@ func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotReq
 		return nil, status.Errorf(codes.Internal, "newCreateSnapshotResponse: get pv %s error: %s", req.GetSourceVolumeId(), err.Error())
 	}
 
-	ts, err := ptypes.TimestampProto(time.Now())
-	if err != nil {
-		log.Errorf("newCreateSnapshotResponse: get time stamp failed: %s", err.Error())
-		return nil, status.Errorf(codes.Internal, "newCreateSnapshotResponse: get time stamp failed: %s", err.Error())
+	ts := &timestamppb.Timestamp{
+		Seconds: time.Now().Unix(),
+		Nanos:   int32(time.Now().Nanosecond()),
 	}
 
 	return &csi.CreateSnapshotResponse{
@@ -734,10 +733,6 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	return conn, err
 }
 
-func getVolumes(client kubernetes.Interface) (*v1.PersistentVolumeList, error) {
-	return client.CoreV1().PersistentVolumes().List(context.Background(), metav1.ListOptions{})
-}
-
 func getNodeName(client kubernetes.Interface, pvcName string, pvcNameSpace string) (nodeName string, err error) {
 	pvc, err := client.CoreV1().PersistentVolumeClaims(pvcNameSpace).Get(context.Background(), pvcName, metav1.GetOptions{})
 
@@ -746,7 +741,7 @@ func getNodeName(client kubernetes.Interface, pvcName string, pvcNameSpace strin
 	}
 
 	nodeName, exist := pvc.Annotations[NodeSchedueTag]
-	if exist == false {
+	if !exist {
 		return "", fmt.Errorf("no annotation %s found in pvc %s/%s", NodeSchedueTag, pvcNameSpace, pvcName)
 	}
 
@@ -765,10 +760,6 @@ func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName
 	}
 	// Step 2: get snapshot content api
 	return snapclient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentName, prefix, "snapcontent", 1), metav1.GetOptions{})
-}
-
-func getVolumeSnapshot(snapclient snapshot.Interface, snapshotName string, snapshotNamespace string) (*snapshotapi.VolumeSnapshot, error) {
-	return snapclient.SnapshotV1beta1().VolumeSnapshots(snapshotNamespace).Get(context.TODO(), snapshotName, metav1.GetOptions{})
 }
 
 func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64, err error) {

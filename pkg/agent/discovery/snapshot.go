@@ -29,13 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type SnapshotLV struct {
-	lvName       string
-	originLvName string
-	size         uint64
-	usage        float64
-}
-
 func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	// Step 0: get prefix of snapshot lv
 	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
@@ -77,8 +70,6 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 
 	// force update status of nls
 	d.Discover()
-
-	return
 }
 
 func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64) {

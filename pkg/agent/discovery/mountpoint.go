@@ -55,7 +55,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 		filePath := filepath.Join(d.MountPath, file.Name())
 
 		// Validate that this path is an actual mountpoint
-		if _, isMntPnt := mountPointMap[filePath]; isMntPnt == false {
+		if _, isMntPnt := mountPointMap[filePath]; !isMntPnt {
 			log.Warningf("Path %q is not an actual mountpoint", filePath)
 			continue
 		}

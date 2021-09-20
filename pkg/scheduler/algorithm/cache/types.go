@@ -26,14 +26,14 @@ import (
 )
 
 type NodeInfo struct {
-	NodeName string `json:"nodeName,string"`
+	NodeName string
 	// VGs is the volume group
-	VGs         map[ResourceName]SharedResource    `json:"vgs,omitempty"`
-	MountPoints map[ResourceName]ExclusiveResource `json:"mps,omitempty"`
+	VGs         map[ResourceName]SharedResource
+	MountPoints map[ResourceName]ExclusiveResource
 	// Devices only contains the whitelist raw devices
-	Devices      map[ResourceName]ExclusiveResource `json:"devices,omitempty"`
-	AllocatedNum int64                              `json:"num,number"`
-	LocalPVs     map[string]corev1.PersistentVolume `json:"pvs,omitempty"`
+	Devices      map[ResourceName]ExclusiveResource
+	AllocatedNum int64
+	LocalPVs     map[string]corev1.PersistentVolume
 }
 
 type NodeCache struct {
@@ -50,18 +50,18 @@ const (
 )
 
 type ExclusiveResource struct {
-	Name      string              `json:"name,string"`
-	Device    string              `json:"device,string"`
-	Capacity  int64               `json:"cap,number"`
-	MediaType localtype.MediaType `json:"type,string"`
+	Name      string
+	Device    string
+	Capacity  int64
+	MediaType localtype.MediaType
 	// "IsAllocated = true" means the disk is used by PV
-	IsAllocated bool `json:"isAllocated,boolean"`
+	IsAllocated bool
 }
 
 type SharedResource struct {
-	Name      string `json:"name,string"`
-	Capacity  int64  `json:"cap,number"`
-	Requested int64  `json:"req,number"`
+	Name      string
+	Capacity  int64
+	Requested int64
 }
 
 type AllocatedUnit struct {
@@ -128,7 +128,6 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 		p.PodPvcInfo[podName] = info
 		log.Debugf("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	}
-	return
 }
 
 // DeletePod deletes pod and all its pvcs for cache
@@ -142,7 +141,6 @@ func (p *PodPvcMapping) DeletePod(podName string, pvcs []*corev1.PersistentVolum
 		delete(p.PvcPod, pvcName)
 		log.Debugf("[DeletePod]deleted pvc %s from cache", pvcName)
 	}
-	return
 }
 
 // PutPvc adds or updates the pod and pvc mapping
@@ -158,7 +156,6 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 	f := utils.PvcContainsSelectedNode(pvc)
 	info[pvcName] = f
 	log.Debugf("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
-	return
 }
 
 // DeletePvc deletes pvc key from change
@@ -166,7 +163,6 @@ func (p *PodPvcMapping) DeletePvc(pvc *corev1.PersistentVolumeClaim) {
 	pvcName := utils.PVCName(pvc)
 	delete(p.PvcPod, pvcName)
 	log.Debugf("[DeletePvc]deleted pvc %s from cache", pvcName)
-	return
 }
 
 // IsPodPvcReady defines whether a pvc and its related pvcs are ready(with selected node)

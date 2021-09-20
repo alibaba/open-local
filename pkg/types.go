@@ -50,19 +50,19 @@ const (
 	LogTrace    = "Trace"
 
 	KubernetesNodeIdentityKey = "kubernetes.io/hostname"
-	//TODO(yuzhi.wx) need to confirm with jubao
-	VolumeTypeKey    = "volumeType"
-	VolumeFSTypeKey  = "fsType"
-	VolumeMediaType  = "mediaType"
-	VolumeFSTypeExt4 = "ext4"
-	VolumeFSTypeExt3 = "ext3"
-	VolumeFSTypeXFS  = "xfs"
+	VolumeTypeKey             = "volumeType"
+	VolumeFSTypeKey           = "fsType"
+	VolumeMediaType           = "mediaType"
+	VolumeFSTypeExt4          = "ext4"
+	VolumeFSTypeExt3          = "ext3"
+	VolumeFSTypeXFS           = "xfs"
 
 	PVCName      = "csi.storage.k8s.io/pvc/name"
 	PVCNameSpace = "csi.storage.k8s.io/pvc/namespace"
 	VGName       = "vgName"
 	MPName       = "MountPoint"
 	DeviceName   = "Device"
+
 	// VolumeType MUST BE case sensitive
 	VolumeTypeMountPoint VolumeType = "MountPoint"
 	VolumeTypeLVM        VolumeType = "LVM"
@@ -78,6 +78,7 @@ const (
 	AnnSelectedNode                      = "volume.kubernetes.io/selected-node"
 	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
 	EnvExpandSnapInterval                = "Expand_Snapshot_Interval"
+	EnvForceCreateVG                     = "Force_Create_VG"
 	TagSnapshot                          = "SnapshotName"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300

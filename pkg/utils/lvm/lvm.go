@@ -495,7 +495,8 @@ func VGScan(name string) error {
 func CreateVolumeGroup(
 	name string,
 	pvs []*PhysicalVolume,
-	tags []string) (*VolumeGroup, error) {
+	tags []string,
+	force bool) (*VolumeGroup, error) {
 	var args []string
 	if err := ValidateVolumeGroupName(name); err != nil {
 		return nil, err
@@ -511,6 +512,10 @@ func CreateVolumeGroup(
 	args = append(args, name)
 	for _, pv := range pvs {
 		args = append(args, pv.dev)
+	}
+
+	if force {
+		args = append(args, "--force")
 	}
 	if err := run("vgcreate", nil, args...); err != nil {
 		log.Errorf("CreateVolumeGroup error: %s", err.Error())
@@ -626,8 +631,14 @@ func ListVolumeGroupUUIDs() ([]string, error) {
 }
 
 // CreatePhysicalVolume creates a physical volume of the given device.
-func CreatePhysicalVolume(dev string) (*PhysicalVolume, error) {
-	if err := run("pvcreate", nil, dev); err != nil {
+func CreatePhysicalVolume(dev string, force bool) (*PhysicalVolume, error) {
+	var err error
+	if force {
+		err = run("pvcreate", nil, dev, "--force")
+	} else {
+		err = run("pvcreate", nil, dev)
+	}
+	if err != nil {
 		log.Errorf("CreatePhysicalVolume error: %s", err.Error())
 		return nil, fmt.Errorf("lvm: CreatePhysicalVolume: %s", err.Error())
 	}

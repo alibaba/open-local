@@ -3,19 +3,19 @@ kind: NodeLocalStorageInitConfig
 metadata:
   name: {{ .Values.name }}
 spec:
-# globalConfig为全局默认节点配置，
-# 在agent初始化创建NodeLocalStorage资源时会填充到其Spec中
+# globalConfig is the default global node configuration
+# when the agent creates the NodeLocalStorage resource, the value will be filled in spec of the NodeLocalStorage
   globalConfig:
-#   listConfig为存储设备的白黑名单，支持正则表达式
+    # listConfig is the white and black list of storage devices(vgs and mountPoints) and supports regular expressions
     listConfig:
       vgs:
         include:
         - {{ .Values.name }}-pool-[0-9]+
       mountPoints:
         include:
-        - /mnt/open-local/disk-[0-9]+
+        - /mnt/{{ .Values.name }}/disk-[0-9]+
     resourceToBeInited:
       vgs:
       - devices:
-        - /dev/sdb
+        - {{ .Values.agent.device }}
         name: {{ .Values.name }}-pool-0

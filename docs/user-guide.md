@@ -4,9 +4,17 @@ This is the user guide for Open-Local.
 
 ## Requirements
 
+- Linux distributions based on Red Hat and Debian
 - Kubernetes v1.18+
-- helm v3.0+
+- Helm v3.0+
 - [lvm2](https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux))
+- At least one block device
+
+## Configuring
+
+To create a Volume Group by Open Local automatically, edit {{ .Values.agent.device }} in helm/values.yaml to change the name of the block device before deploying Open-Local in Kubernetes. It is recommended that **each node** provide a block device for Open-Local.
+
+The name of the block device can be /dev/sdb, /dev/vdc, /dev/sdd2, etc.
 
 ## Deploying Open-Local
 
@@ -47,10 +55,19 @@ NAME       STATE       PHASE     AGENTUPDATEAT   SCHEDULERUPDATEAT   SCHEDULERUP
 minikube   DiskReady   Running   30s             0s
 ```
 
-Modify the requested spec.resourceToBeInited.vgs of the custom resource to create a VG with block device `/dev/vdb` on related node.
+Use following command to check if volume group is created and managed successfully by Open-Local:
 
 ```bash
-# kubectl patch nls minikube --type='json' -p='[{\"op\": \"add\", \"path\": \"/spec/resourceToBeInited/vgs/0\", \"value\": {\"devices\": [\"/dev/vdb\"], \"name\": \"open-local-pool-0\" } }]'
+# kubectl get nodelocalstorage -ojson minikube|jq .status.filteredStorageInfo
+{
+  "updateStatusInfo": {
+    "lastUpdateTime": "2021-09-23T15:37:21Z",
+    "updateStatus": "accepted"
+  },
+  "volumeGroups": [
+    "open-local-pool-0"
+  ]
+}
 ```
 
 ## Dynamic volume provisioning

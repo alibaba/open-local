@@ -37,10 +37,8 @@ spec:
         - agent
         - "--nodename=$(KUBE_NODE_NAME)"
         - "--path.sysfs=/host_sys"
-        - "--path.mount={{ .Values.agent.localvolume_base_path }}"
-        - "--regexp={{ .Values.agent.regexp }}"
+        - "--path.mount=/mnt/{{ .Values.name }}/"
         - "--initconfig={{ .Values.name }}"
-        - "--interval=30"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -73,7 +71,7 @@ spec:
           readOnly: true
           mountPropagation: "HostToContainer"
           mountPath: "/host_sys"
-        - mountPath: {{ .Values.agent.localvolume_base_path }}
+        - mountPath: /mnt/{{ .Values.name }}/
           name: localvolume
           mountPropagation: "Bidirectional"
       - name: driver-registrar
@@ -146,7 +144,7 @@ spec:
         - mountPath: /dev
           mountPropagation: "HostToContainer"
           name: host-dev
-        - mountPath: {{ .Values.agent.localvolume_base_path }}
+        - mountPath: /mnt/{{ .Values.name }}/
           mountPropagation: "Bidirectional"
           name: localvolume
         - mountPath: /var/log
@@ -160,7 +158,7 @@ spec:
           path: "/sys"
       - name: localvolume
         hostPath:
-          path: {{ .Values.agent.localvolume_base_path }}
+          path: /mnt/{{ .Values.name }}/
           type: DirectoryOrCreate
       - name: plugin-dir
         hostPath:

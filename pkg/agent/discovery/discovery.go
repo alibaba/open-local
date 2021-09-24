@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/agent/common"
 	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -33,10 +34,12 @@ import (
 	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/mount"
 )
 
@@ -50,6 +53,7 @@ type Discoverer struct {
 	// K8sMounter used to verify mountpoints
 	K8sMounter mount.Interface
 	mutex      sync.RWMutex
+	recorder   record.EventRecorder
 }
 
 type ReservedVGInfo struct {
@@ -64,7 +68,7 @@ const (
 )
 
 // NewDiscoverer return Discoverer
-func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interface, lssclientset clientset.Interface, snapclient snapshot.Interface) *Discoverer {
+func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interface, lssclientset clientset.Interface, snapclient snapshot.Interface, recorder record.EventRecorder) *Discoverer {
 	return &Discoverer{
 		Configuration:  config,
 		localclientset: lssclientset,
@@ -72,6 +76,7 @@ func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interf
 		snapclient:     snapclient,
 		K8sMounter:     mount.New("" /* default mount path */),
 		mutex:          sync.RWMutex{},
+		recorder:       recorder,
 	}
 }
 
@@ -208,7 +213,9 @@ func (d *Discoverer) InitResource() {
 		if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
 			err := d.createVG(vg.Name, vg.Devices)
 			if err != nil {
-				log.Errorf("create vg %s failed: %s", vg.Name, err.Error())
+				msg := fmt.Sprintf("create vg %s failed: %s", vg.Name, err.Error())
+				log.Error(msg)
+				d.recorder.Event(nls, corev1.EventTypeWarning, localtype.EventCreateVGFailed, msg)
 			}
 		}
 	}

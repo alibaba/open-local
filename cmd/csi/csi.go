@@ -21,7 +21,6 @@ import (
 	"github.com/alibaba/open-local/pkg/om"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 var (
@@ -41,12 +40,7 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
-}
-
-func (option *csiOption) addFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&option.Endpoint, "endpoint", csi.DefaultEndpoint, "the endpointof CSI")
-	fs.StringVar(&option.NodeID, "nodeID", "", "the id of node")
-	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")
+	Cmd.DisableAutoGenTag = true
 }
 
 // Start will start agent

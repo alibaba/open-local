@@ -22,20 +22,14 @@ images:
     tag: v3.0.3
 agent:
   name: open-local-agent
-  # 挂载盘目录
-  localvolume_base_path: /mnt/open-local/
-  # 正则表达式，用来发现块设备
-  # 下方表达式将Yoda会发现诸如sda、vdb等命名方式的块设备
-  regexp: ^(s|v|xv)d[a-z]+$
-  # 要初始化的VG名称
-  vgname: local-pool
-  # 要初始化的块设备
-  device: /dev/sdb
+  # This block device will be used to create as a Volume Group in every node
+  # Open-Local does nothing if the device has been formatted or mountted
+  device: /dev/vdb
 extender:
   name: open-local-scheduler-extender
-  # 调度算法: binpack 或 spread
+  # scheduling strategy: binpack/spread
   strategy: binpack
-  # 端口号
+  # scheduler extender http port
   port: 23000
 storageclass:
   lvm:

@@ -27,6 +27,7 @@ import (
 
 	"github.com/alibaba/open-local/cmd/agent"
 	"github.com/alibaba/open-local/cmd/csi"
+	"github.com/alibaba/open-local/cmd/doc"
 	"github.com/alibaba/open-local/cmd/scheduler"
 	"github.com/alibaba/open-local/cmd/version"
 	localtype "github.com/alibaba/open-local/pkg"
@@ -41,7 +42,6 @@ var (
 )
 
 func main() {
-	addCommands()
 	log.Infof("Version: %s, Commit: %s", VERSION, COMMITID)
 	if err := MainCmd.Execute(); err != nil {
 		fmt.Printf("open-local start error: %+v\n", err)
@@ -55,12 +55,14 @@ func addCommands() {
 		scheduler.Cmd,
 		csi.Cmd,
 		version.Cmd,
+		doc.Cmd.Cmd,
 	)
 }
 
 func init() {
 	flag.Parse()
 	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
+	MainCmd.DisableAutoGenTag = true
 	logLevel := os.Getenv(localtype.EnvLogLevel)
 	switch logLevel {
 	case localtype.LogPanic:
@@ -80,4 +82,5 @@ func init() {
 	default:
 		log.SetLevel(log.InfoLevel)
 	}
+	addCommands()
 }

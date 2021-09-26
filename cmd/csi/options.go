@@ -14,17 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package agent
+package csi
 
-type agentOption struct {
-	Master       string
-	Kubeconfig   string
-	NodeName     string
-	SysPath      string
-	MountPath    string
-	Interval     int
-	LVNamePrefix string
-	Config       string
-	RegExp       string
-	InitConfig   string
+import (
+	"github.com/alibaba/open-local/pkg/csi"
+	"github.com/spf13/pflag"
+)
+
+type csiOption struct {
+	Endpoint string
+	NodeID   string
+	Driver   string
+	RootDir  string
+}
+
+func (option *csiOption) addFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&option.Endpoint, "endpoint", csi.DefaultEndpoint, "the endpointof CSI")
+	fs.StringVar(&option.NodeID, "nodeID", "", "the id of node")
+	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")
 }

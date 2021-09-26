@@ -33,11 +33,12 @@ import (
 )
 
 var (
-	opt = extenderOptions{}
+	opt = extenderOption{}
 )
 
 func init() {
 	opt.AddFlags(Cmd.Flags())
+	Cmd.DisableAutoGenTag = true
 }
 
 var Cmd = &cobra.Command{
@@ -52,7 +53,7 @@ var Cmd = &cobra.Command{
 	},
 }
 
-func Run(opt *extenderOptions) error {
+func Run(opt *extenderOption) error {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 

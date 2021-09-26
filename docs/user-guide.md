@@ -84,7 +84,7 @@ open-local-lvm          local.csi.aliyun.com        Delete          WaitForFirst
 Create a Pod that uses Open-Local volumes by running this command:
 
 ```bash
-# kubectl apply -f ./example/lvm/sts-lvm.yaml
+# kubectl apply -f ./example/lvm/sts-nginx.yaml
 ```
 
 Check status of Pod/PVC/PV
@@ -168,7 +168,7 @@ snapcontent-815def28-8979-408e-86de-1e408033de65   true         1863          De
 Create a Pod that uses volume pre-populated with data from snapshots:
 
 ```bash
-# kubectl apply -f example/lvm/sts-lvm-snap.yaml
+# kubectl apply -f example/lvm/sts-nginx-snap.yaml
 service/nginx-lvm-snap created
 statefulset.apps/nginx-lvm-snap created
 # kubectl get po -l app=nginx-lvm-snap

@@ -41,10 +41,12 @@ func (ns *nodeServer) mountLvm(ctx context.Context, req *csi.NodePublishVolumeRe
 	if _, ok := req.VolumeContext[LvmTypeTag]; ok {
 		lvmType = req.VolumeContext[LvmTypeTag]
 	}
-	fsType := DefaultFs
-	if _, ok := req.VolumeContext[FsTypeTag]; ok {
-		fsType = req.VolumeContext[FsTypeTag]
+
+	fsType := req.GetVolumeCapability().GetMount().FsType
+	if len(fsType) == 0 {
+		fsType = DefaultFs
 	}
+
 	nodeAffinity := DefaultNodeAffinity
 	if _, ok := req.VolumeContext[NodeAffinity]; ok {
 		nodeAffinity = req.VolumeContext[NodeAffinity]

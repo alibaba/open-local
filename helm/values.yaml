@@ -34,6 +34,8 @@ extender:
 storageclass:
   lvm:
     name: open-local-lvm
+  lvm_xfs:
+    name: open-local-lvm-xfs
   device_ssd:
     name: open-local-device-ssd
   device_hdd:

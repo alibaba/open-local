@@ -21,18 +21,23 @@ import (
 	"strconv"
 	"time"
 
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	"github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-
-	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/discovery"
 )
+
+var controllerAgentName string = "open-local-agent"
 
 // NewAgent returns a new open-local agent
 func NewAgent(
@@ -41,12 +46,16 @@ func NewAgent(
 	lssclientset clientset.Interface,
 	snapclientset snapshot.Interface) *Agent {
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
+
 	controller := &Agent{
 		Configuration: config,
 		kubeclientset: kubeclientset,
 		lssclientset:  lssclientset,
 		snapclientset: snapclientset,
-		recorder:      nil,
+		recorder:      recorder,
 	}
 
 	return controller
@@ -60,7 +69,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 
 	// Start the informer factories to begin populating the informer caches
-	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.lssclientset, c.snapclientset)
+	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.lssclientset, c.snapclientset, c.recorder)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 	go wait.Until(discoverer.InitResource, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 

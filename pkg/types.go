@@ -121,6 +121,9 @@ const (
 	Lvm2PVFreeTag = "LVM2_PV_FREE"
 	Lvm2PVTagsTag = "LVM2_PV_TAGS"
 
+	// EVENT
+	EventCreateVGFailed = "CreateVGFailed"
+
 	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 )
 

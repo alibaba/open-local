@@ -40,7 +40,6 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
-	Cmd.DisableAutoGenTag = true
 }
 
 // Start will start agent

@@ -45,7 +45,6 @@ func init() {
 			return Cmd.runGenDoc(args)
 		},
 	}
-	Cmd.Cmd.DisableAutoGenTag = true
 	Cmd.addFlags()
 }
 

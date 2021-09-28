@@ -38,6 +38,11 @@ develop:
 image:
 	docker build . -t ${IMAGE_NAME}:${VERSION} -f ./Dockerfile
 
+# build image for arm64
+.PHONY: image-arm64
+image-arm64:
+	docker build . -t ${IMAGE_NAME}:${VERSION}-arm64 -f ./Dockerfile.arm64
+
 # generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
 	GO111MODULE=off ./hack/update-codegen.sh

@@ -5,7 +5,18 @@ metadata:
 provisioner: {{ .Values.driver }}
 parameters:
   volumeType: "LVM"
-  fsType: ext4
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageclass.lvm_xfs.name }}
+provisioner: {{ .Values.driver }}
+parameters:
+  volumeType: "LVM"
+  csi.storage.k8s.io/fstype: xfs
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

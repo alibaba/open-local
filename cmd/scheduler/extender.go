@@ -38,7 +38,6 @@ var (
 
 func init() {
 	opt.AddFlags(Cmd.Flags())
-	Cmd.DisableAutoGenTag = true
 }
 
 var Cmd = &cobra.Command{

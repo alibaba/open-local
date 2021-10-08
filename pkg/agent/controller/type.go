@@ -33,7 +33,7 @@ type Agent struct {
 	// lssclientset is a clientset for our own API group
 	lssclientset  clientset.Interface
 	snapclientset snapshot.Interface
-	// recorder is an event recorder for recording Event resources to the
+	// eventRecorder is an event eventRecorder for recording Event resources to the
 	// Kubernetes API.
-	recorder record.EventRecorder
+	eventRecorder record.EventRecorder
 }

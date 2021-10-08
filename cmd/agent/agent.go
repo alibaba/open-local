@@ -27,8 +27,12 @@ import (
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 )
 
 var (
@@ -80,7 +84,11 @@ func Start(opt *agentOption) error {
 		return fmt.Errorf("Error LoadAgentConfigs: %s", err.Error())
 	}
 
-	agent := controller.NewAgent(config, kubeClient, lssClient, snapClient)
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "open-local-agent"})
+
+	agent := controller.NewAgent(config, kubeClient, lssClient, snapClient, eventRecorder)
 
 	log.Info("starting open-local agent")
 	if err = agent.Run(stopCh); err != nil {

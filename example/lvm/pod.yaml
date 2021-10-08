@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: file-server
+spec:
+  containers:
+   - name: file-server
+     image: filebrowser/filebrowser:latest
+     volumeMounts:
+       - mountPath: /srv
+         name: webroot
+  volumes:
+   - name: webroot
+     persistentVolumeClaim:
+       claimName: file-server-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-server-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: open-local-lvm

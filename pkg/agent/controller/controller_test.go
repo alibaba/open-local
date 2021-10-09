@@ -27,6 +27,7 @@ import (
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/record"
 )
 
 func TestNewAgent(t *testing.T) {
@@ -35,11 +36,13 @@ func TestNewAgent(t *testing.T) {
 		kubeclientset kubernetes.Interface
 		lssclientset  clientset.Interface
 		snapclientset volumesnapshot.Interface
+		recorder      record.EventRecorder
 	}
 
 	lssclient := lssfake.NewSimpleClientset()
 	kubeclient := k8sfake.NewSimpleClientset()
 	snapclient := volumesnapshotfake.NewSimpleClientset()
+	recorder := record.FakeRecorder{}
 	tmpargs := args{
 		config: &common.Configuration{
 			Nodename:         "test-node",
@@ -52,6 +55,7 @@ func TestNewAgent(t *testing.T) {
 		kubeclientset: kubeclient,
 		lssclientset:  lssclient,
 		snapclientset: snapclient,
+		recorder:      &recorder,
 	}
 
 	tests := []struct {
@@ -67,13 +71,13 @@ func TestNewAgent(t *testing.T) {
 				kubeclientset: kubeclient,
 				lssclientset:  lssclient,
 				snapclientset: snapclient,
-				recorder:      nil,
+				eventRecorder: &recorder,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.lssclientset, tt.args.snapclientset); !reflect.DeepEqual(got, tt.want) {
+			if got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.lssclientset, tt.args.snapclientset, tt.args.recorder); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewAgent() = %v, want %v", got, tt.want)
 			}
 		})

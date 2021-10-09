@@ -27,13 +27,20 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
-      - name: Docker meta
-        id: meta
+      - name: Docker amd64 meta
+        id: meta-amd64
         uses: docker/metadata-action@v3
         with:
           images: thebeatles1994/open-local
           tags: |
             type=ref,event=tag
+      - name: Docker arm64 meta
+        id: meta-arm64
+        uses: docker/metadata-action@v3
+        with:
+          images: thebeatles1994/open-local
+          tags: |
+            type=ref,event=tag,suffix=-arm64
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
@@ -47,8 +54,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-amd64.outputs.tags }}
+          labels: ${{ steps.meta-amd64.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Build and push arm64
@@ -58,7 +65,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}-arm64
-          labels: ${{ steps.meta.outputs.labels }}-arm64
+          tags: ${{ steps.meta-arm64.outputs.tags }}-arm64
+          labels: ${{ steps.meta-arm64.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache

@@ -213,7 +213,7 @@ func (d *Discoverer) InitResource() {
 		if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
 			err := d.createVG(vg.Name, vg.Devices)
 			if err != nil {
-				msg := fmt.Sprintf("create vg %s failed: %s", vg.Name, err.Error())
+				msg := fmt.Sprintf("create vg %s with device %v failed: %s", vg.Name, vg.Devices, err.Error())
 				log.Error(msg)
 				d.recorder.Event(nls, corev1.EventTypeWarning, localtype.EventCreateVGFailed, msg)
 			}

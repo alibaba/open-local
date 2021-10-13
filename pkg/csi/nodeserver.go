@@ -115,6 +115,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		volumeType = req.VolumeContext[VolumeTypeTag]
 	}
 
+	volCap := req.GetVolumeCapability()
 	switch volumeType {
 	case LvmVolumeType:
 		err := ns.mountLvm(ctx, req)
@@ -129,11 +130,21 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			return nil, err
 		}
 	case DeviceVolumeType:
-		err := ns.mountDeviceVolume(ctx, req)
-		if err != nil {
-			log.Errorf("NodePublishVolume: mount device volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
-			return nil, err
+		switch volCap.GetAccessType().(type) {
+		case *csi.VolumeCapability_Block:
+			err := ns.mountDeviceVolumeBlock(ctx, req)
+			if err != nil {
+				log.Errorf("NodePublishVolume(Block): mount device volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
+				return nil, err
+			}
+		case *csi.VolumeCapability_Mount:
+			err := ns.mountDeviceVolumeFS(ctx, req)
+			if err != nil {
+				log.Errorf("NodePublishVolume(FileSystem): mount device volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
+				return nil, err
+			}
 		}
+
 	default:
 		log.Errorf("NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
 		return nil, status.Error(codes.Internal, "NodePublishVolume: volumeType is not support "+volumeType)

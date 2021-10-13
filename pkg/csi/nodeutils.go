@@ -13,6 +13,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -194,7 +195,7 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 	return nil
 }
 
-func (ns *nodeServer) mountDeviceVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	sourceDevice := ""
 	targetPath := req.TargetPath
 	if value, ok := req.VolumeContext[DeviceVolumeType]; ok {
@@ -226,6 +227,60 @@ func (ns *nodeServer) mountDeviceVolume(ctx context.Context, req *csi.NodePublis
 	if err := diskMounter.FormatAndMount(sourceDevice, targetPath, fsType, options); err != nil {
 		log.Errorf("mountDeviceVolume: Volume: %s, Device: %s, FormatAndMount error: %s", req.VolumeId, sourceDevice, err.Error())
 		return status.Error(codes.Internal, err.Error())
+	}
+
+	return nil
+}
+
+func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+	// Step 1: get targetPath and sourceDevice
+	targetPath := req.GetTargetPath()
+	sourceDevice, exists := req.VolumeContext[DeviceVolumeType]
+	if !exists {
+		return status.Error(codes.InvalidArgument, "Device path not provided")
+	}
+	log.Infof("mountDeviceVolumeBlock: targetPath %s, sourceDevice %s", targetPath, sourceDevice)
+
+	// Step 2: check if sourceDevice is block device
+	var isBlock bool
+	var err error
+	if isBlock, err = IsBlockDevice(sourceDevice); err != nil {
+		if removeErr := os.Remove(targetPath); removeErr != nil {
+			return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+		}
+		return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: check block device %s failed: %s", sourceDevice, err)
+	}
+	if !isBlock {
+		return status.Errorf(codes.InvalidArgument, "mountDeviceVolumeBlock: %s is not block device", sourceDevice)
+	}
+
+	// Step 3: Checking if the target file is already mounted with a device.
+	mounted, err := ns.mounter.IsMounted(targetPath)
+	if err != nil {
+		return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: check if %s is mountpoint failed: %s", targetPath, err)
+	}
+
+	// Step 4: mount device
+	mountOptions := []string{"bind"}
+	// if req.GetReadonly() {
+	// 	mountOptions = append(mountOptions, "ro")
+	// }
+	if !mounted {
+		log.Infof("mountDeviceVolumeBlock: mounting %s at %s", sourceDevice, targetPath)
+		if err := ns.mounter.EnsureBlock(targetPath); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+			}
+			return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: ensure block %s failed: %s", targetPath, err.Error())
+		}
+		if err := ns.mounter.MountBlock(sourceDevice, targetPath, mountOptions...); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+			}
+			return status.Errorf(codes.Internal, "mountDeviceVolumeBlock: Could not mount block %s at %s: %s", sourceDevice, targetPath, err)
+		}
+	} else {
+		log.Infof("mountDeviceVolumeBlock: Target path %s is already mounted", targetPath)
 	}
 
 	return nil
@@ -296,4 +351,15 @@ func getPVNumber(vgName string) int {
 		}
 	}
 	return pvCount
+}
+
+// IsBlockDevice checks if the given path is a block device
+func IsBlockDevice(fullPath string) (bool, error) {
+	var st unix.Stat_t
+	err := unix.Stat(fullPath, &st)
+	if err != nil {
+		return false, err
+	}
+
+	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
 }

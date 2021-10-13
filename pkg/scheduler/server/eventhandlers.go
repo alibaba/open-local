@@ -330,6 +330,7 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
+
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)
 }
 

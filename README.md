@@ -16,6 +16,7 @@ English | [简体中文](./README-zh_CN.md)
 - Volume expansion
 - Volume snapshot
 - Volume metrics
+- Raw block volume
 
 ## Overall Architecture
 

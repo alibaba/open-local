@@ -27,6 +27,7 @@ spec:
   - metadata:
       name: html
     spec:
+      volumeMode: Block
       accessModes:
         - ReadWriteOnce
       storageClassName: open-local-device-hdd
@@ -46,8 +47,8 @@ spec:
       - name: nginx
         image: nginx
         imagePullPolicy: IfNotPresent
-        volumeMounts:
-        - mountPath: "/data"
+        volumeDevices:
+        - devicePath: "/dev/sdd"
           name: html
         command:
         - sh

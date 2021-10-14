@@ -50,7 +50,7 @@ func Start(opt *csiOption) error {
 	go om.StorageOM()
 
 	// go func(endPoint string) {
-	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint)
+	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.GrpcConnectionTimeout)
 	driver.Run()
 	// }(opt.Endpoint)
 

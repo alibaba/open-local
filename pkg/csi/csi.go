@@ -22,7 +22,7 @@ import (
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
-func NewDriver(driverName, nodeID, endpoint string) *CSIPlugin {
+func NewDriver(driverName, nodeID, endpoint string, grpcConnectionTimeout int) *CSIPlugin {
 	plugin := &CSIPlugin{}
 	plugin.endpoint = endpoint
 
@@ -38,7 +38,7 @@ func NewDriver(driverName, nodeID, endpoint string) *CSIPlugin {
 
 	plugin.idServer = newIdentityServer(csiDriver)
 	plugin.nodeServer = newNodeServer(csiDriver, driverName, nodeID)
-	plugin.controllerServer = newControllerServer(csiDriver)
+	plugin.controllerServer = newControllerServer(csiDriver, grpcConnectionTimeout)
 
 	return plugin
 }

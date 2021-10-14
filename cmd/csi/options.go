@@ -22,14 +22,15 @@ import (
 )
 
 type csiOption struct {
-	Endpoint string
-	NodeID   string
-	Driver   string
-	RootDir  string
+	Endpoint              string
+	NodeID                string
+	Driver                string
+	GrpcConnectionTimeout int
 }
 
 func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Endpoint, "endpoint", csi.DefaultEndpoint, "the endpointof CSI")
 	fs.StringVar(&option.NodeID, "nodeID", "", "the id of node")
 	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")
+	fs.IntVar(&option.GrpcConnectionTimeout, "grpc-connection-timeout", csi.DefaultConnectTimeout, "grpc connection timeout(second)")
 }

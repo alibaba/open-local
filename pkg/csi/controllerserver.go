@@ -73,7 +73,7 @@ const (
 	// StripingType striping type
 	StripingType = "striping"
 	// connection timeout
-	connectTimeout = 3 * time.Second
+	DefaultConnectTimeout = 3
 
 	// TopologyNodeKey define host name of node
 	TopologyNodeKey = "kubernetes.io/hostname"
@@ -83,14 +83,15 @@ const (
 
 type controllerServer struct {
 	*csicommon.DefaultControllerServer
-	client     kubernetes.Interface
-	snapclient snapshot.Interface
-	driverName string
+	client                kubernetes.Interface
+	snapclient            snapshot.Interface
+	driverName            string
+	grpcConnectionTimeout time.Duration
 }
 
 var supportVolumeTypes = []string{LvmVolumeType, MountPointType, DeviceVolumeType}
 
-func newControllerServer(d *csicommon.CSIDriver) *controllerServer {
+func newControllerServer(d *csicommon.CSIDriver, grpcConnectionTimeout int) *controllerServer {
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
 		log.Fatalf("Error building kubeconfig: %s", err.Error())
@@ -108,6 +109,7 @@ func newControllerServer(d *csicommon.CSIDriver) *controllerServer {
 		DefaultControllerServer: csicommon.NewDefaultControllerServer(d),
 		client:                  kubeClient,
 		snapclient:              snapClient,
+		grpcConnectionTimeout:   time.Duration(grpcConnectionTimeout * int(time.Second)),
 	}
 }
 
@@ -729,7 +731,7 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 		log.Errorf("CreateVolume: Get node %s address with error: %s", nodeSelected, err.Error())
 		return nil, err
 	}
-	conn, err := client.NewGrpcConnection(addr, connectTimeout)
+	conn, err := client.NewGrpcConnection(addr, cs.grpcConnectionTimeout)
 	return conn, err
 }
 

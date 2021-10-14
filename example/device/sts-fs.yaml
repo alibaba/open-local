@@ -48,7 +48,7 @@ spec:
         image: nginx
         imagePullPolicy: IfNotPresent
         volumeMounts:
-        - mountPath: "/data/yes.txt"
+        - mountPath: "/data"
           name: html
         command:
         - sh

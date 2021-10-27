@@ -4,7 +4,7 @@
 
 > 开发机为Mac，使用minikube
 
-- 本地需装有[minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/)，驱动选择virtualbox。
+- 本地需装有[minikube](https://minikube.sigs.k8s.io/docs/start/)，驱动选择virtualbox。
 
 ### 构建&测试
 

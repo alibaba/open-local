@@ -32,7 +32,7 @@
 
 ## 开发
 
-详见[文档](docs/develop.md)
+详见[文档](docs/develop/develop_zh_CN.md)
 
 ```bash
 mkdir -p $GOPATH/src/github.com/oecp/

@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/alibaba/open-local/branch/main/graphs/badge.svg)](https://codecov.io/gh/alibaba/open-local)
 ![workflow build](https://github.com/alibaba/open-local/actions/workflows/build.yml/badge.svg)
 
-English | [简体中文](./README-zh_CN.md)
+English | [简体中文](./README_zh_CN.md)
 
 `Open-Local` is a **local disk management system** composed of multiple components. With `Open-Local`, **using local storage in Kubernetes will be as simple as centralized storage**.
 
@@ -38,7 +38,7 @@ English | [简体中文](./README-zh_CN.md)
 
 ## User guide
 
-More details [here](docs/user-guide.md)
+More details [here](docs/user-guide/user-guide.md)
 
 ## Contact
 

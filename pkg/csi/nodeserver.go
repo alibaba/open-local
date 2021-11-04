@@ -33,7 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/kubernetes/pkg/util/resizefs"
+	mountutils "k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
 )
@@ -303,7 +303,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 		log.Infof("NodeExpandVolume:: volumeId: %s, devicePath: %s", volumeID, devicePath)
 
 		// use resizer to expand volume filesystem
-		resizer := resizefs.NewResizeFs(&k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()})
+		resizer := mountutils.NewResizeFs(utilexec.New())
 		ok, err := resizer.Resize(devicePath, targetPath)
 		if err != nil {
 			log.Errorf("NodeExpandVolume:: Lvm Resize Error, volumeId: %s, devicePath: %s, volumePath: %s, err: %s", volumeID, devicePath, targetPath, err.Error())

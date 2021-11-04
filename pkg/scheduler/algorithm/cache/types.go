@@ -50,18 +50,18 @@ const (
 )
 
 type ExclusiveResource struct {
-	Name      string
-	Device    string
-	Capacity  int64
-	MediaType localtype.MediaType
+	Name      string              `json:"name"`
+	Device    string              `json:"device"`
+	Capacity  int64               `json:"capacity,string"`
+	MediaType localtype.MediaType `json:"mediaType"`
 	// "IsAllocated = true" means the disk is used by PV
-	IsAllocated bool
+	IsAllocated bool `json:"isAllocated,string"`
 }
 
 type SharedResource struct {
-	Name      string
-	Capacity  int64
-	Requested int64
+	Name      string `json:"name"`
+	Capacity  int64  `json:"capacity,string"`
+	Requested int64  `json:"requested,string"`
 }
 
 type AllocatedUnit struct {

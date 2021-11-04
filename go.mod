@@ -3,7 +3,7 @@ module github.com/alibaba/open-local
 go 1.16
 
 require (
-	github.com/container-storage-interface/spec v1.3.0
+	github.com/container-storage-interface/spec v1.2.0
 	github.com/docker/go-units v0.4.0
 	github.com/golang/protobuf v1.5.0
 	github.com/google/credstore v0.0.0-20181218150457-e184c60ef875 // indirect

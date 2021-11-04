@@ -1,9 +1,9 @@
 module github.com/alibaba/open-local
 
-go 1.15
+go 1.16
 
 require (
-	github.com/container-storage-interface/spec v1.2.0
+	github.com/container-storage-interface/spec v1.3.0
 	github.com/docker/go-units v0.4.0
 	github.com/golang/protobuf v1.5.0
 	github.com/google/credstore v0.0.0-20181218150457-e184c60ef875 // indirect
@@ -36,8 +36,8 @@ require (
 	k8s.io/code-generator v0.20.5
 	k8s.io/kube-scheduler v0.20.5
 	k8s.io/kubernetes v1.20.5
-	k8s.io/mount-utils v0.0.0
-	k8s.io/sample-controller v0.0.0-20191004105128-02bcf064a96b
+	k8s.io/mount-utils v0.21.0-beta.0
+	k8s.io/sample-controller v0.20.5
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
 

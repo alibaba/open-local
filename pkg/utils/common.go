@@ -322,7 +322,7 @@ func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.In
 	}
 	vgName, ok := sc.Parameters["vgName"]
 	if !ok {
-		log.Infof("storage class %s has no parameter %q set", sc.Name, "vgName")
+		log.Debugf("storage class %s has no parameter %q set", sc.Name, "vgName")
 		return ""
 	}
 	return vgName
@@ -335,7 +335,7 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers
 	}
 	mediaType, ok := sc.Parameters["mediaType"]
 	if !ok {
-		log.Infof("storage class %s has no parameter %q set", sc.Name, "mediaType")
+		log.Debugf("storage class %s has no parameter %q set", sc.Name, "mediaType")
 		return ""
 	}
 	return localtype.MediaType(mediaType)

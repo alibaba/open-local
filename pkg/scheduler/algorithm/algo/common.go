@@ -239,7 +239,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 	}
 	units = append(units, rstUnits...)
 
-	log.Infof("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
+	log.Debugf("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
 	return true, units, nil
 }
 
@@ -443,7 +443,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	}
 	units = append(units, rstUnits...)
 
-	log.Infof("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
+	log.Debugf("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
 	return true, units, nil
 }
 

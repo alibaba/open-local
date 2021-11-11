@@ -22,6 +22,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
@@ -50,9 +51,8 @@ var (
 
 func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.ExtenderFilterResult, error) {
 	pod := args.Pod
-
-	if p.needSkip(args) {
-		log.Infof("skip pod %s/%s scheduling", pod.Namespace, pod.Name)
+	if utils.NeedSkip(args) {
+		log.Infof("predicate: skip pod %s/%s scheduling", pod.Namespace, pod.Name)
 		return &schedulerapi.ExtenderFilterResult{
 			Nodes:       args.Nodes,
 			NodeNames:   args.NodeNames,
@@ -60,6 +60,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			Error:       "",
 		}, nil
 	}
+
 	nodeNames := []string{}
 
 	if args.NodeNames != nil {

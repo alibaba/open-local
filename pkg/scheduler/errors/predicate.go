@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/alibaba/open-local/pkg"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // A generic interface for getting
@@ -84,13 +85,19 @@ type InsufficientLVMError struct {
 }
 
 func (e *InsufficientLVMError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
-		e.resource, e.requested, e.used, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	used := resource.NewQuantity(e.used, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
+		e.resource, requested.String(), used.String(), capacity.String())
 }
 
 func (e *InsufficientLVMError) Error() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
-		e.resource, e.requested, e.used, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	used := resource.NewQuantity(e.used, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
+		e.resource, requested.String(), used.String(), capacity.String())
 }
 func NewInsufficientLVMError(requested, used, capacity int64) *InsufficientLVMError {
 	return &InsufficientLVMError{
@@ -109,13 +116,19 @@ type InsufficientDeviceError struct {
 }
 
 func (e InsufficientDeviceError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
-		e.resource, e.requested, e.used, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	used := resource.NewQuantity(e.used, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
+		e.resource, requested.String(), used.String(), capacity.String())
 }
 
 func (e *InsufficientDeviceError) Error() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, used %d, capacity %d",
-		e.resource, e.requested, e.used, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	used := resource.NewQuantity(e.used, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
+		e.resource, requested.String(), used.String(), capacity.String())
 }
 func NewInsufficientDeviceError(requested, used, capacity int64) *InsufficientDeviceError {
 	return &InsufficientDeviceError{
@@ -135,13 +148,19 @@ type InsufficientMountPointError struct {
 }
 
 func (e InsufficientMountPointError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, requested %d, available %d, capacity %d(all media type)",
-		e.resource, e.mediaType, e.requested, e.available, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	available := resource.NewQuantity(e.available, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s(%s) storage, requested %s, available %s, capacity %s(all media type)",
+		e.resource, e.mediaType, requested.String(), available.String(), capacity.String())
 }
 
 func (e *InsufficientMountPointError) Error() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, requested %d, available %d, capacity %d(all media type)",
-		e.resource, e.mediaType, e.requested, e.available, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	available := resource.NewQuantity(e.available, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s(%s) storage, requested %s, available %s, capacity %s(all media type)",
+		e.resource, e.mediaType, requested.String(), available.String(), capacity.String())
 }
 func NewInsufficientMountPointError(requested, available, capacity int64, mediaType pkg.MediaType) *InsufficientMountPointError {
 	return &InsufficientMountPointError{
@@ -161,13 +180,19 @@ type InsufficientExclusiveResourceError struct {
 }
 
 func (e InsufficientExclusiveResourceError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, available %d, capacity %d",
-		e.resource, e.requested, e.available, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	available := resource.NewQuantity(e.available, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, available %s, capacity %s",
+		e.resource, requested.String(), available.String(), capacity.String())
 }
 
 func (e *InsufficientExclusiveResourceError) Error() string {
-	return fmt.Sprintf("Insufficient %s storage, requested %d, available %d, capacity %d",
-		e.resource, e.requested, e.available, e.capacity)
+	requested := resource.NewQuantity(e.requested, resource.BinarySI)
+	available := resource.NewQuantity(e.available, resource.BinarySI)
+	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, requested %s, available %s, capacity %s",
+		e.resource, requested.String(), available.String(), capacity.String())
 }
 func NewInsufficientExclusiveResourceError(resource pkg.VolumeType, requested, available, capacity int64) *InsufficientExclusiveResourceError {
 	return &InsufficientExclusiveResourceError{

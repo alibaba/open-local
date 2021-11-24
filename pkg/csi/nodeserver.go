@@ -118,36 +118,38 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	volCap := req.GetVolumeCapability()
 	switch volumeType {
 	case LvmVolumeType:
-		err := ns.mountLvm(ctx, req)
-		if err != nil {
-			log.Errorf("NodePublishVolume: mount lvm volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
-			return nil, err
+		switch volCap.GetAccessType().(type) {
+		case *csi.VolumeCapability_Block:
+			err := ns.mountLvmBlock(ctx, req)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmBlock): mount lvm volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+			}
+		case *csi.VolumeCapability_Mount:
+			err := ns.mountLvmFS(ctx, req)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmFS): mount lvm volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+			}
 		}
 	case MountPointType:
 		err := ns.mountMountPointVolume(ctx, req)
 		if err != nil {
-			log.Errorf("NodePublishVolume: mount mountpoint volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "NodePublishVolume: mount mountpoint volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
 		}
 	case DeviceVolumeType:
 		switch volCap.GetAccessType().(type) {
 		case *csi.VolumeCapability_Block:
 			err := ns.mountDeviceVolumeBlock(ctx, req)
 			if err != nil {
-				log.Errorf("NodePublishVolume(Block): mount device volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
-				return nil, err
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(Block): mount device volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
 			}
 		case *csi.VolumeCapability_Mount:
 			err := ns.mountDeviceVolumeFS(ctx, req)
 			if err != nil {
-				log.Errorf("NodePublishVolume(FileSystem): mount device volume %s with path %s with error: %v", req.VolumeId, targetPath, err)
-				return nil, err
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(FileSystem): mount device volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
 			}
 		}
-
 	default:
-		log.Errorf("NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
-		return nil, status.Error(codes.Internal, "NodePublishVolume: volumeType is not support "+volumeType)
+		return nil, status.Errorf(codes.Internal, "NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
 	}
 	log.Infof("NodePublishVolume: Successful mount local volume %s to %s", req.VolumeId, targetPath)
 	return &csi.NodePublishVolumeResponse{}, nil

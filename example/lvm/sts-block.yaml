@@ -1,27 +1,27 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-device
+  name: nginx-lvm-block
   labels:
-    app: nginx-device
+    app: nginx-lvm-block
 spec:
   ports:
   - port: 80
     name: web
   clusterIP: None
   selector:
-    app: nginx-device
+    app: nginx-lvm-block
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: nginx-device
+  name: nginx-lvm-block
 spec:
   selector:
     matchLabels:
-      app: nginx-device
+      app: nginx-lvm-block
   podManagementPolicy: Parallel
-  serviceName: "nginx-device"
+  serviceName: "nginx-lvm-block"
   replicas: 1
   volumeClaimTemplates:
   - metadata:
@@ -37,7 +37,7 @@ spec:
   template:
     metadata:
       labels:
-        app: nginx-device
+        app: nginx-lvm-block
     spec:
       tolerations:
         - key: node-role.kubernetes.io/master

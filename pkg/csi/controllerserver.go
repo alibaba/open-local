@@ -45,6 +45,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	utiltrace "k8s.io/utils/trace"
 )
 
 const (
@@ -118,6 +119,9 @@ var createdVolumeMap = map[string]*csi.Volume{}
 
 // CreateVolume csi interface
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.CreateVolumeRequest) (*csilib.CreateVolumeResponse, error) {
+	volumeID := req.GetName()
+	trace := utiltrace.New(fmt.Sprintf("Trace CreateVolume volume %s", volumeID))
+	defer trace.LogIfLong(100 * time.Millisecond)
 	// Step 1: check
 	if err := cs.Driver.ValidateControllerServiceRequest(csilib.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
 		log.Errorf("CreateVolume: Invalid create local volume req: %v", req)
@@ -135,8 +139,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 		log.Infof("CreateVolume: local volume already be created, pvName: %s, VolumeId: %s", req.Name, value.VolumeId)
 		return &csi.CreateVolumeResponse{Volume: value}, nil
 	}
+	trace.Step("Step 1: Validate Request done")
 	// Step 2: get necessary info
-	volumeID := req.GetName()
 	pvcName, pvcNameSpace, volumeType, nodeSelected, storageSelected := "", "", "", "", ""
 	var err error
 	parameters := req.GetParameters()
@@ -164,7 +168,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 	if value, ok := parameters[StorageSchedueTag]; ok {
 		storageSelected = value
 	}
-	log.Infof("Starting to Create %s volume %s with: pvcName(%s), pvcNameSpace(%s), nodeSelected(%s), storageSelected(%s)", volumeType, volumeID, pvcName, pvcNameSpace, nodeSelected, storageSelected)
+	trace.Step("Step 2: Get Parameters done")
+	log.Infof("CreateVolume: Starting to Create %s volume %s with: pvcName(%s), pvcNameSpace(%s), nodeSelected(%s), storageSelected(%s)", volumeType, volumeID, pvcName, pvcNameSpace, nodeSelected, storageSelected)
 
 	// Step 3: Storage schedule
 	isSnapshot := false
@@ -187,7 +192,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 				return nil, status.Error(codes.InvalidArgument, "CreateVolume: error retrieving snapshot from the volumeContentSource")
 			}
 			snapshotID := sourceSnapshot.GetSnapshotId()
-			log.Infof("CreateVolume: snapshotID is %s", snapshotID)
+			log.Infof("CreateVolume: snapshotID of volume %s is %s", volumeID, snapshotID)
 			// get src volume ID
 			snapContent, err := getVolumeSnapshotContent(cs.snapclient, snapshotID)
 			if err != nil {
@@ -195,7 +200,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 				return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: get snapshot content failed: %s", err.Error())
 			}
 			srcVolumeID := *snapContent.Spec.Source.VolumeHandle
-			log.Infof("CreateVolume: srcVolumeID is %s", srcVolumeID)
+			log.Infof("CreateVolume: srcVolumeID of snapshot %s(volumeID %s) is %s", volumeID, snapshotID, srcVolumeID)
 			// check if is readonly snapshot
 			class, err := getVolumeSnapshotClass(cs.snapclient, *snapContent.Spec.VolumeSnapshotClassName)
 			if err != nil {
@@ -231,7 +236,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 				log.Errorf("CreateVolume: lvm all scheduled volume %s with error: %s", volumeID, err.Error())
 				return nil, status.Error(codes.InvalidArgument, "Parse lvm all schedule info error "+err.Error())
 			}
-			log.Infof("CreateVolume: lvm scheduled with %s, %s", nodeSelected, storageSelected)
+			log.Infof("CreateVolume: lvm scheduled volume %s with %s, %s", volumeID, nodeSelected, storageSelected)
 		} else if nodeSelected != "" {
 			paraList, err = lvmPartScheduled(nodeSelected, pvcName, pvcNameSpace, parameters)
 			if err != nil {
@@ -241,7 +246,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			if value, ok := paraList[VgNameTag]; ok && value != "" {
 				storageSelected = value
 			}
-			log.Infof("CreateVolume: lvm part scheduled with %s, %s", nodeSelected, storageSelected)
+			log.Infof("CreateVolume: lvm part scheduled volume %s with %s, %s", volumeID, nodeSelected, storageSelected)
 		} else {
 			nodeID := ""
 			nodeID, paraList, err = lvmNoScheduled(parameters)
@@ -253,7 +258,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			if value, ok := paraList[VgNameTag]; ok && value != "" {
 				storageSelected = value
 			}
-			log.Infof("CreateVolume: lvm no scheduled with %s, %s", nodeSelected, storageSelected)
+			log.Infof("CreateVolume: lvm no scheduled volume %s with %s, %s", volumeID, nodeSelected, storageSelected)
 		}
 
 		// if vgName configed in storageclass, use it first;
@@ -345,6 +350,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 		log.Errorf("CreateVolume: Create with no support volume type %s", volumeType)
 		return nil, status.Error(codes.InvalidArgument, "Create with no support type "+volumeType)
 	}
+	trace.Step("Step 3: Storage Schedule done")
 	// Append necessary parameters
 	for key, value := range paraList {
 		parameters[key] = value
@@ -400,6 +406,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 
 	createdVolumeMap[req.Name] = response.Volume
 	log.Infof("Success create Volume: %s, Size: %d", volumeID, req.GetCapacityRange().GetRequiredBytes())
+	trace.Step(fmt.Sprintf("Step 4: create volume %s done", volumeID))
 	return response, nil
 }
 

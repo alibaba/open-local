@@ -67,9 +67,6 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 			log.Infof("[ExpandSnapshotLVIfNeeded]expand snapshot lv %s successfully", lv.Name())
 		}
 	}
-
-	// force update status of nls
-	d.Discover()
 }
 
 func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64) {

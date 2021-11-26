@@ -1,5 +1,8 @@
 # Open-Local - 云原生本地磁盘管理系统
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/alibaba/open-local)](https://goreportcard.com/report/github.com/alibaba/open-local)
+![workflow build](https://github.com/alibaba/open-local/actions/workflows/build.yml/badge.svg)
+
 [English](./README.md) | 简体中文
 
 `Open-Local`是由多个组件构成的**本地磁盘管理系统**，目标是解决当前 Kubernetes 本地存储能力缺失问题。通过`Open-Local`，**使用本地存储会像集中式存储一样简单**。
@@ -30,19 +33,9 @@
 - CSI: 按照 [CSI(Container Storage Interface)](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/) 标准实现本地磁盘管理能力
 - Agent: 运行在集群中的每个节点，通过上报集群中本地存储设备信息以供 Scheduler-Extender 决策调度
 
-## 开发
+## 用户手册
 
-详见[文档](docs/develop/develop_zh_CN.md)
-
-```bash
-mkdir -p $GOPATH/src/github.com/oecp/
-cd $GOPATH/src/github.com/oecp/
-git clone https://github.com/alibaba/open-local.git
-# build binary
-make
-# build image
-make image
-```
+详见[文档](docs/user-guide/user-guide_zh_CN.md)
 
 ## 许可证
 

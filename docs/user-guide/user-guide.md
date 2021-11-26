@@ -205,3 +205,48 @@ Events:
   Normal  Provisioning           2m37s (x2 over 2m37s)  local.csi.aliyun.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  External provisioner is provisioning volume for claim "default/html-nginx-lvm-snap-0"
   Normal  ProvisioningSucceeded  2m37s (x2 over 2m37s)  local.csi.aliyun.com_minikube_c4e4e0b8-4bac-41f7-88e4-149dba5bc058  Successfully provisioned volume local-1c69455d-c50b-422d-a5c0-2eb5c7d0d21b
 ```
+
+## Raw block volume
+
+Open-Local also supports that the created storage volume will appear in the container as a block device (in this example, the block device is in the container /dev/sdd path):
+
+```bash
+# kubectl apply -f ./example/lvm/sts-block.yaml
+```
+
+Check status of Pod/PVC/PV:
+
+```bash
+# kubectl get pod
+NAME                READY   STATUS    RESTARTS   AGE
+nginx-lvm-block-0   1/1     Running   0          25s
+# kubectl get pvc
+NAME                     STATUS   VOLUME                                       CAPACITY   ACCESS MODES   STORAGECLASS     AGE
+html-nginx-lvm-block-0   Bound    local-b048c19a-fe0b-455d-9f25-b23fdef03d8c   5Gi        RWO            open-local-lvm   36s
+# kubectl get pv
+NAME                                         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                            STORAGECLASS     REASON   AGE
+local-b048c19a-fe0b-455d-9f25-b23fdef03d8c   5Gi        RWO            Delete           Bound    default/html-nginx-lvm-block-0   open-local-lvm            53s
+# kubectl describe pvc html-nginx-lvm-block-0
+Name:          html-nginx-lvm-block-0
+Namespace:     default
+StorageClass:  open-local-lvm
+Status:        Bound
+Volume:        local-b048c19a-fe0b-455d-9f25-b23fdef03d8c
+Labels:        app=nginx-lvm-block
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: local.csi.aliyun.com
+               volume.kubernetes.io/selected-node: izrj96fgmgzcvhtz2vkrgez
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      5Gi
+Access Modes:  RWO
+VolumeMode:    Block
+Mounted By:    nginx-lvm-block-0
+Events:
+  Type    Reason                 Age                From                                                                               Message
+  ----    ------                 ----               ----                                                                               -------
+  Normal  WaitForFirstConsumer   72s                persistentvolume-controller                                                        waiting for first consumer to be created before binding
+  Normal  Provisioning           72s                local.csi.aliyun.com_iZrj96fgmgzcvhtz2vkrgeZ_f2b69212-7103-4f9a-a6c4-179f37036ef0  External provisioner is provisioning volume for claim "default/html-nginx-lvm-block-0"
+  Normal  ExternalProvisioning   72s (x2 over 72s)  persistentvolume-controller                                                        waiting for a volume to be created, either by external provisioner "local.csi.aliyun.com" or manually created by system administrator
+  Normal  ProvisioningSucceeded  72s                local.csi.aliyun.com_iZrj96fgmgzcvhtz2vkrgeZ_f2b69212-7103-4f9a-a6c4-179f37036ef0  Successfully provisioned volume local-b048c19a-fe0b-455d-9f25-b23fdef03d8c
+```

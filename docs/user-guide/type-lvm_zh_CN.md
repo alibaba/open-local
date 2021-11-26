@@ -5,6 +5,7 @@
   - [PV动态供应](#pv动态供应)
   - [存储卷扩容](#存储卷扩容)
   - [存储卷快照](#存储卷快照)
+  - [原生块设备](#原生块设备)
 
 ## 共享池配置
 
@@ -173,3 +174,48 @@ Events:
 ```
 
 注意：若存储卷已经创建了快照资源，则该存储卷无法进行扩容操作！
+
+## 原生块设备
+
+Open-Local 同样支持创建的存储卷将以块设备形式出现在容器中（本例中块设备在容器 /dev/sdd 路径）:
+
+```bash
+# kubectl apply -f ./example/lvm/sts-block.yaml
+```
+
+检查 Pod/PVC/PV 状态:
+
+```bash
+# kubectl get pod
+NAME                READY   STATUS    RESTARTS   AGE
+nginx-lvm-block-0   1/1     Running   0          25s
+# kubectl get pvc
+NAME                     STATUS   VOLUME                                       CAPACITY   ACCESS MODES   STORAGECLASS     AGE
+html-nginx-lvm-block-0   Bound    local-b048c19a-fe0b-455d-9f25-b23fdef03d8c   5Gi        RWO            open-local-lvm   36s
+# kubectl get pv
+NAME                                         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                            STORAGECLASS     REASON   AGE
+local-b048c19a-fe0b-455d-9f25-b23fdef03d8c   5Gi        RWO            Delete           Bound    default/html-nginx-lvm-block-0   open-local-lvm            53s
+# kubectl describe pvc html-nginx-lvm-block-0
+Name:          html-nginx-lvm-block-0
+Namespace:     default
+StorageClass:  open-local-lvm
+Status:        Bound
+Volume:        local-b048c19a-fe0b-455d-9f25-b23fdef03d8c
+Labels:        app=nginx-lvm-block
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: local.csi.aliyun.com
+               volume.kubernetes.io/selected-node: izrj96fgmgzcvhtz2vkrgez
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      5Gi
+Access Modes:  RWO
+VolumeMode:    Block
+Mounted By:    nginx-lvm-block-0
+Events:
+  Type    Reason                 Age                From                                                                               Message
+  ----    ------                 ----               ----                                                                               -------
+  Normal  WaitForFirstConsumer   72s                persistentvolume-controller                                                        waiting for first consumer to be created before binding
+  Normal  Provisioning           72s                local.csi.aliyun.com_iZrj96fgmgzcvhtz2vkrgeZ_f2b69212-7103-4f9a-a6c4-179f37036ef0  External provisioner is provisioning volume for claim "default/html-nginx-lvm-block-0"
+  Normal  ExternalProvisioning   72s (x2 over 72s)  persistentvolume-controller                                                        waiting for a volume to be created, either by external provisioner "local.csi.aliyun.com" or manually created by system administrator
+  Normal  ProvisioningSucceeded  72s                local.csi.aliyun.com_iZrj96fgmgzcvhtz2vkrgeZ_f2b69212-7103-4f9a-a6c4-179f37036ef0  Successfully provisioned volume local-b048c19a-fe0b-455d-9f25-b23fdef03d8c
+```

@@ -169,8 +169,18 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if !isMnt {
-		log.Infof("NodeUnpublishVolume: Target path %s not mounted for volume %s", targetPath, req.VolumeId)
-		return &csi.NodeUnpublishVolumeResponse{}, nil
+		_, err := os.Stat(targetPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Infof("NodeUnpublishVolume: Target path %s not exist", targetPath)
+				return &csi.NodeUnpublishVolumeResponse{}, nil
+			} else {
+				log.Errorf("NodeUnpublishVolume: Stat volume %s at path %s with error %s", req.VolumeId, targetPath, err.Error())
+				return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: Stat volume %s at path %s with error %s", req.VolumeId, targetPath, err.Error()))
+			}
+		}
+		log.Errorf("NodeUnpublishVolume: volume %s at path %s still existed", req.VolumeId, targetPath)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: volume %s at path %s still existed", req.VolumeId, targetPath))
 	}
 
 	err = ns.mounter.Unmount(req.GetTargetPath())

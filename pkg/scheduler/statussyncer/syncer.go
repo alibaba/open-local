@@ -51,17 +51,20 @@ func NewStatusSyncer(recorder record.EventRecorder, c clientset.Interface, ctx *
 	}
 }
 
-func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalStorage) {
-	if need, err := syncer.isUpdateNeeded(nls); !need {
+func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalStorage) error {
+	need, err := syncer.isUpdateNeeded(nls)
+	if err != nil {
+		return fmt.Errorf("[OnUpdateInitialized]check nls %s need update failed: %s", nls.Name, err.Error())
+	}
+	if !need {
 		log.Debugf("update status skipped")
-		if err == nil && nls.Status.FilteredStorageInfo.UpdateStatus.Status == nodelocalstorage.UpdateStatusFailed {
-			e := syncer.CleanStatus(nls)
-			if e != nil {
-				log.Errorf("CleanStatus failed: %s", e)
-			}
+		return nil
+	}
+	if err == nil && nls.Status.FilteredStorageInfo.UpdateStatus.Status == nodelocalstorage.UpdateStatusFailed {
+		e := syncer.CleanStatus(nls)
+		if e != nil {
+			return fmt.Errorf("[OnUpdateInitialized]CleanStatus failed: %s", e.Error())
 		}
-
-		return
 	}
 
 	nlsCopy := nls.DeepCopy()
@@ -73,10 +76,14 @@ func (syncer *StatusSyncer) OnUpdateInitialized(nls *nodelocalstorage.NodeLocalS
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 
 	// only update status
-	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+	log.Infof("[OnUpdateInitialized]update nls %s", nlsCopy.Name)
+	_, err = syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Debugf("[OnUpdateInitialized]nls %s resourceVersion: %v", nlsCopy.Name, nlsCopy.ResourceVersion)
+		return fmt.Errorf("[OnUpdateInitialized]local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 	}
+
+	return nil
 }
 
 // isUpdateNeeded will check whether .status.filteredStorageInfo of nls need update
@@ -181,9 +188,10 @@ func (syncer *StatusSyncer) UpdateFailedStatus(nls *nodelocalstorage.NodeLocalSt
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = reason
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Status = nodelocalstorage.UpdateStatusFailed
 	// only update status
+	log.Infof("[UpdateFailedStatus]update nls %s", nlsCopy.Name)
 	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Errorf("[UpdateFailedStatus]local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err
 	}
 	return nil
@@ -195,9 +203,10 @@ func (syncer *StatusSyncer) CleanStatus(nls *nodelocalstorage.NodeLocalStorage) 
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 	nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = metav1.Now()
 	// only update status
+	log.Infof("[CleanStatus]update nls %s", nlsCopy.Name)
 	_, err := syncer.client.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		log.Errorf("local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
+		log.Errorf("[CleanStatus]local storage CRD update Status FilteredStorageInfo error: %s", err.Error())
 		return err
 	}
 	return nil

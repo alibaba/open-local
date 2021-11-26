@@ -191,6 +191,7 @@ func (d *Discoverer) Discover() {
 		}
 
 		// only update status
+		log.Infof("update nls %s", nlsCopy.Name)
 		_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
 		if err != nil {
 			log.Errorf("local storage CRD updateStatus error: %s", err.Error())

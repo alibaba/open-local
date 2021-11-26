@@ -39,9 +39,6 @@ const (
 )
 
 func (e *ExtenderServer) onNodeLocalStorageAdd(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	local, ok := obj.(*nodelocalstorage.NodeLocalStorage)
 	if !ok {
 		log.Errorf("cannot convert to *NodeLocalStorage: %v", obj)
@@ -53,6 +50,8 @@ func (e *ExtenderServer) onNodeLocalStorageAdd(obj interface{}) {
 
 	trace.Step("Computing add node cache")
 	nodeName := local.Name
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	if v := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName); v == nil {
 		// Create a new node cache
 		log.Debugf("[onNodeLocalStorageAdd]Created new node cache for %s", nodeName)
@@ -64,8 +63,6 @@ func (e *ExtenderServer) onNodeLocalStorageAdd(obj interface{}) {
 }
 
 func (e *ExtenderServer) onNodeLocalStorageUpdate(oldObj, newObj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
 	local, ok := newObj.(*nodelocalstorage.NodeLocalStorage)
 	if !ok {
 		log.Errorf("cannot convert newObj to *NodeLocalStorage: %v", newObj)
@@ -79,8 +76,13 @@ func (e *ExtenderServer) onNodeLocalStorageUpdate(oldObj, newObj interface{}) {
 	log.Debugf("get update on node local cache %s", local.Name)
 
 	// trigger an status update according to spec
-	e.syncer.OnUpdateInitialized(local)
+	if err := e.syncer.OnUpdateInitialized(local); err != nil {
+		log.Errorf("[onNodeLocalStorageUpdate]update status of nls %s failed: %s", local.Name, err.Error())
+		return
+	}
 
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	nodeName := local.Name
 	if v := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName); v == nil {
 		// Create a new node cache
@@ -96,9 +98,6 @@ func (e *ExtenderServer) onNodeLocalStorageUpdate(oldObj, newObj interface{}) {
 }
 
 func (e *ExtenderServer) onPVAdd(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	pv, ok := obj.(*corev1.PersistentVolume)
 	if !ok {
 		log.Errorf("cannot convert to *v1.PersistentVolume: %v", obj)
@@ -120,6 +119,8 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 		log.Infof("pv %s is in %s status, skipped", pv.Name, pv.Status.Phase)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	// get node name
 	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
 	if node == "" {
@@ -178,9 +179,6 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 }
 
 func (e *ExtenderServer) onPVDelete(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	var pv *corev1.PersistentVolume
 	switch t := obj.(type) {
 	case *corev1.PersistentVolume:
@@ -209,6 +207,8 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 		return
 	}
 
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(node)
 	if nc == nil {
 		log.Warningf("no node cache %s found", node)
@@ -248,9 +248,6 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
 func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	var old *corev1.PersistentVolume
 	var pv *corev1.PersistentVolume
 	switch t := newObj.(type) {
@@ -271,6 +268,8 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		log.Infof("pv %s is not a local pv, skipped", pv.Name)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(node)
 	if nc == nil {
 		log.Warningf("no node cache %s found", node)
@@ -310,9 +309,6 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 }
 
 func (e *ExtenderServer) onPodAdd(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		log.Errorf("cannot convert to *v1.Pod: %v", obj)
@@ -330,14 +326,12 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
-
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)
 }
 
 func (e *ExtenderServer) onPodDelete(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	var pod *corev1.Pod
 	switch t := obj.(type) {
 	case *corev1.Pod:
@@ -364,6 +358,8 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.DeletePod(podName, pvcs)
 }
 
@@ -434,20 +430,17 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 }
 
 func (e *ExtenderServer) onPvcAdd(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
 	pvc, ok := obj.(*corev1.PersistentVolumeClaim)
 	if !ok {
 		log.Errorf("cannot convert to *v1.PersistentVolumeClaim: %v", obj)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPvc(pvc)
 }
 
 func (e *ExtenderServer) onPvcDelete(obj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	var pvc *corev1.PersistentVolumeClaim
 	switch t := obj.(type) {
 	case *corev1.PersistentVolumeClaim:
@@ -463,14 +456,13 @@ func (e *ExtenderServer) onPvcDelete(obj interface{}) {
 		log.Errorf("cannot convert to *v1.PersistentVolumeClaim: %v", t)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.DeletePvc(pvc)
 
 }
 
 func (e *ExtenderServer) onPvcUpdate(_, newObj interface{}) {
-	e.Ctx.CtxLock.Lock()
-	defer e.Ctx.CtxLock.Unlock()
-
 	//var old *corev1.PersistentVolumeClaim
 	var pvc *corev1.PersistentVolumeClaim
 	switch t := newObj.(type) {
@@ -481,5 +473,7 @@ func (e *ExtenderServer) onPvcUpdate(_, newObj interface{}) {
 		log.Errorf("cannot convert to *v1.PersistentVolumeClaim: %v", t)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPvc(pvc)
 }

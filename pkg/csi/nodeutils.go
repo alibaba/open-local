@@ -1,7 +1,6 @@
 package csi
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -16,73 +15,81 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
 )
 
-// include normal lvm & aep lvm type
-func (ns *nodeServer) mountLvm(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
-	targetPath := req.TargetPath
+func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRequest) (string, error) {
 	// parse vgname, consider invalid if empty
 	vgName := ""
 	if _, ok := req.VolumeContext[VgNameTag]; ok {
 		vgName = req.VolumeContext[VgNameTag]
 	}
 	if vgName == "" {
-		log.Errorf("NodePublishVolume: request with empty vgName in volume: %s", req.VolumeId)
-		return status.Error(codes.Internal, "error with input vgName is empty")
+		log.Errorf("createLV: request with empty vgName in volume: %s", req.VolumeId)
+		return "", status.Error(codes.Internal, "error with input vgName is empty")
 	}
 
-	// parse lvm type and fstype
+	// parse lvm type
 	lvmType := LinearType
 	if _, ok := req.VolumeContext[LvmTypeTag]; ok {
 		lvmType = req.VolumeContext[LvmTypeTag]
 	}
 
-	fsType := req.GetVolumeCapability().GetMount().FsType
-	if len(fsType) == 0 {
-		fsType = DefaultFs
-	}
+	log.Infof("createLV: vg %s, volume %s, LVM Type %s", vgName, req.GetVolumeId(), lvmType)
 
-	nodeAffinity := DefaultNodeAffinity
-	if _, ok := req.VolumeContext[NodeAffinity]; ok {
-		nodeAffinity = req.VolumeContext[NodeAffinity]
-	}
-	log.Infof("NodePublishVolume: Starting to mount lvm at path: %s, with vg: %s, with volume: %s, LVM Type: %s, NodeAffinty: %s", targetPath, vgName, req.GetVolumeId(), lvmType, nodeAffinity)
-
-	// Create LVM if not exist
-	//volumeNewCreated := false
 	volumeID := req.GetVolumeId()
 	var isSnapshot bool
-	var isSnapshotReadOnly bool = false
 	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
 		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
 			// if volume is ro snapshot, then mount snapshot lv
-			log.Infof("NodePublishVolume: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
-			isSnapshotReadOnly = true
+			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
 			volumeID = req.VolumeContext[localtype.ParamSnapshotName]
 		} else {
-			return status.Errorf(codes.Unimplemented, "NodePublishVolume: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
+			return "", status.Errorf(codes.Unimplemented, "createLV: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
 		}
 	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
 	if _, err := os.Stat(devicePath); os.IsNotExist(err) {
-		//volumeNewCreated = true
 		err := ns.createVolume(ctx, volumeID, vgName, lvmType)
 		if err != nil {
-			log.Errorf("NodePublishVolume: create volume %s with error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
+			log.Errorf("createLV: create volume %s with error: %s", volumeID, err.Error())
+			return "", status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	return devicePath, nil
+}
+
+// include normal lvm & aep lvm type
+func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+	// target path
+	targetPath := req.TargetPath
+	// fs type
+	fsType := req.GetVolumeCapability().GetMount().FsType
+	if len(fsType) == 0 {
+		fsType = DefaultFs
+	}
+	// device path
+	devicePath, err := ns.createLV(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	var isSnapshotReadOnly bool = false
+	if _, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
+		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
+			// if volume is ro snapshot, then mount snapshot lv
+			isSnapshotReadOnly = true
+		} else {
+			return status.Errorf(codes.Unimplemented, "mountLvmFS: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
 		}
 	}
 
 	// Check targetPath
 	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(targetPath, 0750); err != nil {
-			log.Errorf("NodePublishVolume: volume %s mkdir target path %s with error: %s", volumeID, targetPath, err.Error())
+			log.Errorf("mountLvmFS: mkdir target path %s with error: %s", targetPath, err.Error())
 			return status.Error(codes.Internal, err.Error())
 		}
 	}
@@ -100,54 +107,64 @@ func (ns *nodeServer) mountLvm(ctx context.Context, req *csi.NodePublishVolumeRe
 
 		diskMounter := &k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()}
 		if err := diskMounter.FormatAndMount(devicePath, targetPath, fsType, options); err != nil {
-			log.Errorf("NodeStageVolume: Volume: %s, Device: %s, FormatAndMount error: %s", req.VolumeId, devicePath, err.Error())
+			log.Errorf("mountLvmFS: Volume: %s, Device: %s, FormatAndMount error: %s", req.VolumeId, devicePath, err.Error())
 			return status.Error(codes.Internal, err.Error())
 		}
-		log.Infof("NodePublishVolume:: mount successful devicePath: %s, targetPath: %s, options: %v", devicePath, targetPath, options)
+		log.Infof("mountLvmFS:: mount successful devicePath: %s, targetPath: %s, options: %v", devicePath, targetPath, options)
 	}
-	// upgrade PV with NodeAffinity
-	if nodeAffinity == "true" && !isSnapshot {
-		oldPv, err := ns.client.CoreV1().PersistentVolumes().Get(context.Background(), volumeID, metav1.GetOptions{})
-		if err != nil {
-			log.Errorf("NodePublishVolume: Get Persistent Volume(%s) Error: %s", volumeID, err.Error())
-			return status.Error(codes.Internal, err.Error())
-		}
-		if oldPv.Spec.NodeAffinity == nil {
-			oldData, err := json.Marshal(oldPv)
-			if err != nil {
-				log.Errorf("NodePublishVolume: Marshal Persistent Volume(%s) Error: %s", volumeID, err.Error())
-				return status.Error(codes.Internal, err.Error())
-			}
-			pvClone := oldPv.DeepCopy()
+	return nil
+}
 
-			// construct new persistent volume data
-			values := []string{ns.nodeID}
-			nSR := v1.NodeSelectorRequirement{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: values}
-			matchExpress := []v1.NodeSelectorRequirement{nSR}
-			nodeSelectorTerm := v1.NodeSelectorTerm{MatchExpressions: matchExpress}
-			nodeSelectorTerms := []v1.NodeSelectorTerm{nodeSelectorTerm}
-			required := v1.NodeSelector{NodeSelectorTerms: nodeSelectorTerms}
-			pvClone.Spec.NodeAffinity = &v1.VolumeNodeAffinity{Required: &required}
-			newData, err := json.Marshal(pvClone)
-			if err != nil {
-				log.Errorf("NodePublishVolume: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
-				return status.Error(codes.Internal, err.Error())
-			}
-			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, pvClone)
-			if err != nil {
-				log.Errorf("NodePublishVolume: CreateTwoWayMergePatch Volume(%s) Error: %s", volumeID, err.Error())
-				return status.Error(codes.Internal, err.Error())
-			}
-
-			// Upgrade PersistentVolume with NodeAffinity
-			_, err = ns.client.CoreV1().PersistentVolumes().Patch(context.Background(), volumeID, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-			if err != nil {
-				log.Errorf("NodePublishVolume: Patch Volume(%s) Error: %s", volumeID, err.Error())
-				return status.Error(codes.Internal, err.Error())
-			}
-			log.Infof("NodePublishVolume: upgrade Persistent Volume(%s) with nodeAffinity: %s", volumeID, ns.nodeID)
-		}
+func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+	// target path
+	targetPath := req.TargetPath
+	// device path
+	devicePath, err := ns.createLV(ctx, req)
+	if err != nil {
+		return err
 	}
+
+	// check if devicePath is block device
+	var isBlock bool
+	if isBlock, err = IsBlockDevice(devicePath); err != nil {
+		if removeErr := os.Remove(targetPath); removeErr != nil {
+			return status.Errorf(codes.Internal, "mountLvmBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+		}
+		return status.Errorf(codes.Internal, "mountLvmBlock: check block device %s failed: %s", devicePath, err)
+	}
+	if !isBlock {
+		return status.Errorf(codes.InvalidArgument, "mountLvmBlock: %s is not block device", devicePath)
+	}
+
+	// checking if the target file is already mounted with a device.
+	mounted, err := ns.mounter.IsMounted(targetPath)
+	if err != nil {
+		return status.Errorf(codes.Internal, "mountLvmBlock: check if %s is mountpoint failed: %s", targetPath, err)
+	}
+
+	// mount device
+	mountOptions := []string{"bind"}
+	// if req.GetReadonly() {
+	// 	mountOptions = append(mountOptions, "ro")
+	// }
+	if !mounted {
+		log.Infof("mountLvmBlock: mounting %s at %s", devicePath, targetPath)
+		if err := ns.mounter.EnsureBlock(targetPath); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				return status.Errorf(codes.Internal, "mountLvmBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+			}
+			return status.Errorf(codes.Internal, "mountLvmBlock: ensure block %s failed: %s", targetPath, err.Error())
+		}
+		if err := ns.mounter.MountBlock(devicePath, targetPath, mountOptions...); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				return status.Errorf(codes.Internal, "mountLvmBlock: Could not remove mount target %q: %v", targetPath, removeErr)
+			}
+			return status.Errorf(codes.Internal, "mountLvmBlock: Could not mount block %s at %s: %s", devicePath, targetPath, err)
+		}
+	} else {
+		log.Infof("mountLvmBlock: Target path %s is already mounted", targetPath)
+	}
+
 	return nil
 }
 

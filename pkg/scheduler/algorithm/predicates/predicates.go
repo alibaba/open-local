@@ -22,6 +22,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
+	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
@@ -51,8 +52,8 @@ var (
 func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.ExtenderFilterResult, error) {
 	pod := args.Pod
 
-	if p.needSkip(args) {
-		log.Infof("skip pod %s/%s scheduling", pod.Namespace, pod.Name)
+	if utils.NeedSkip(args) {
+		log.Infof("predicate: skip pod %s/%s scheduling", pod.Namespace, pod.Name)
 		return &schedulerapi.ExtenderFilterResult{
 			Nodes:       args.Nodes,
 			NodeNames:   args.NodeNames,
@@ -142,25 +143,6 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 		}
 	}
 	return len(failedReasons) == 0 && fits, failedReasons, nil
-}
-
-func (p Predicate) needSkip(args schedulerapi.ExtenderArgs) bool {
-	pod := args.Pod
-	// no volume, skipped
-	if len(pod.Spec.Volumes) <= 0 {
-		log.Infof("skip pod %s/%s scheduling, reason: no volume", pod.Namespace, pod.Name)
-		return true
-	}
-	// no volume contains PVC
-	for _, v := range pod.Spec.Volumes {
-		if v.PersistentVolumeClaim != nil {
-			return false
-		}
-	}
-	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
-
-	return true
-
 }
 
 const (

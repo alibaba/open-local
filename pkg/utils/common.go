@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
+	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	k8svol "k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
@@ -645,4 +646,23 @@ func GetMetrics(path string) (*csilib.NodeGetVolumeStatsResponse, error) {
 			},
 		},
 	}, nil
+}
+
+func NeedSkip(args schedulerapi.ExtenderArgs) bool {
+	pod := args.Pod
+	// no volume, skipped
+	if len(pod.Spec.Volumes) <= 0 {
+		log.Infof("skip pod %s/%s scheduling, reason: no volume", pod.Namespace, pod.Name)
+		return true
+	}
+	// no volume contains PVC
+	for _, v := range pod.Spec.Volumes {
+		if v.PersistentVolumeClaim != nil {
+			return false
+		}
+	}
+	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
+
+	return true
+
 }

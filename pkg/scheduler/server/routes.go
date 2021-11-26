@@ -18,22 +18,21 @@ package server
 
 import (
 	"bytes"
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/bind"
-	"github.com/alibaba/open-local/pkg/scheduler/algorithm/preemptions"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/julienschmidt/httprouter"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/preemptions"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
 	"github.com/alibaba/open-local/pkg/version"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/julienschmidt/httprouter"
 	"github.com/peter-wangxu/simple-golang-tools/pkg/httputil"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -66,6 +65,7 @@ func PredicateRoute(predicate predicates.Predicate) httprouter.Handle {
 		var extenderArgs schedulerapi.ExtenderArgs
 		var extenderFilterResult *schedulerapi.ExtenderFilterResult
 
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		if err := json.NewDecoder(body).Decode(&extenderArgs); err != nil {
 			extenderFilterResult = &schedulerapi.ExtenderFilterResult{
 				Nodes:       nil,
@@ -101,7 +101,7 @@ func PrioritizeRoute(prioritize priorities.Prioritize) httprouter.Handle {
 
 		var extenderArgs schedulerapi.ExtenderArgs
 		var hostPriorityList *schedulerapi.HostPriorityList
-
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		if err := json.NewDecoder(body).Decode(&extenderArgs); err != nil {
 			panic(err)
 		}
@@ -135,7 +135,7 @@ func BindRoute(bind bind.Bind) httprouter.Handle {
 
 		var extenderBindingArgs schedulerapi.ExtenderBindingArgs
 		var extenderBindingResult *schedulerapi.ExtenderBindingResult
-
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		if err := json.NewDecoder(body).Decode(&extenderBindingArgs); err != nil {
 			extenderBindingResult = &schedulerapi.ExtenderBindingResult{
 				Error: err.Error(),
@@ -167,7 +167,7 @@ func PreemptionRoute(preemption preemptions.Preemption) httprouter.Handle {
 
 		var extenderPreemptionArgs schedulerapi.ExtenderPreemptionArgs
 		var extenderPreemptionResult *schedulerapi.ExtenderPreemptionResult
-
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		if err := json.NewDecoder(body).Decode(&extenderPreemptionArgs); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)

@@ -184,7 +184,7 @@ func (e *ExtenderServer) InitRouter() {
 	// Setting up the extender http server
 	router := httprouter.New()
 	AddVersion(router)
-	AddMetrics(router)
+	AddMetrics(router, e.Ctx)
 	AddGetNodeCache(router, e.Ctx)
 	AddPredicate(router, *predicates.NewPredicate(e.Ctx))
 	AddPrioritize(router, *priorities.NewPrioritize(e.Ctx))

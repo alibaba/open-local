@@ -22,7 +22,6 @@ import (
 
 	"github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"github.com/alibaba/open-local/pkg/metrics"
 	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -63,7 +62,6 @@ func (c *ClusterNodeCache) AddNodeCache(nodeLocal *nodelocalstorage.NodeLocalSto
 	}
 	nc := NewNodeCacheFromStorage(nodeLocal)
 	c.Nodes[nodeLocal.Name] = nc
-	c.UpdateMetrics()
 	return nc
 }
 
@@ -76,8 +74,6 @@ func (c *ClusterNodeCache) UpdateNodeCache(nodeLocal *nodelocalstorage.NodeLocal
 	}
 	updatedCache := cachedNode.UpdateNodeInfo(nodeLocal)
 	c.Nodes[nodeLocal.Name] = updatedCache
-	c.ClearMetrics()
-	c.UpdateMetrics()
 	return updatedCache
 }
 
@@ -99,12 +95,10 @@ func (c *ClusterNodeCache) SetNodeCache(nodeCache *NodeCache) *NodeCache {
 	defer c.mu.Unlock()
 	if _, ok := c.Nodes[nodeCache.NodeName]; ok {
 		c.Nodes[nodeCache.NodeName] = nodeCache
-		c.UpdateMetrics()
 		log.Debugf("node cache update")
 		return nodeCache
 	}
 	c.Nodes[nodeCache.NodeName] = nodeCache
-	c.UpdateMetrics()
 	return nodeCache
 }
 
@@ -203,68 +197,4 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 	log.Debugf("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
-}
-
-func (c *ClusterNodeCache) UpdateMetrics() {
-	for nodeName := range c.Nodes {
-		for vgname, info := range c.Nodes[nodeName].VGs {
-			metrics.VolumeGroupTotal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Capacity))
-			metrics.VolumeGroupUsedByLocal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Requested))
-		}
-		for mpname, info := range c.Nodes[nodeName].MountPoints {
-			metrics.MountPointTotal.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
-			metrics.MountPointAvailable.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
-			if info.IsAllocated {
-				metrics.MountPointBind.WithLabelValues(nodeName, string(mpname)).Set(1)
-			} else {
-				metrics.MountPointBind.WithLabelValues(nodeName, string(mpname)).Set(0)
-			}
-		}
-		for devicename, info := range c.Nodes[nodeName].Devices {
-			metrics.DeviceAvailable.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
-			metrics.DeviceTotal.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
-			if info.IsAllocated {
-				metrics.DeviceBind.WithLabelValues(nodeName, string(devicename)).Set(1)
-			} else {
-				metrics.DeviceBind.WithLabelValues(nodeName, string(devicename)).Set(0)
-			}
-		}
-		var pvType, storageName string
-		for pvname, pv := range c.Nodes[nodeName].LocalPVs {
-			switch pv.Spec.CSI.VolumeAttributes[pkg.VolumeTypeKey] {
-			case string(pkg.VolumeTypeLVM):
-				pvType = string(pkg.VolumeTypeLVM)
-				storageName = pv.Spec.CSI.VolumeAttributes[pkg.VGName]
-			case string(pkg.VolumeTypeMountPoint):
-				pvType = string(pkg.VolumeTypeMountPoint)
-				storageName = pv.Spec.CSI.VolumeAttributes[pkg.MPName]
-			case string(pkg.VolumeTypeDevice):
-				pvType = string(pkg.VolumeTypeDevice)
-				storageName = pv.Spec.CSI.VolumeAttributes[pkg.DeviceName]
-			}
-			metrics.LocalPV.WithLabelValues(
-				nodeName,
-				pvname,
-				pvType,
-				pv.Spec.CSI.VolumeAttributes[pkg.PVCName],
-				pv.Spec.CSI.VolumeAttributes[pkg.PVCNameSpace],
-				string(pv.Status.Phase),
-				storageName).Set(float64(utils.GetPVStorageSize(&pv)))
-
-		}
-		metrics.AllocatedNum.WithLabelValues(nodeName).Set(float64(c.Nodes[nodeName].AllocatedNum))
-	}
-}
-
-func (c *ClusterNodeCache) ClearMetrics() {
-	metrics.AllocatedNum.Reset()
-	metrics.DeviceAvailable.Reset()
-	metrics.DeviceBind.Reset()
-	metrics.DeviceTotal.Reset()
-	metrics.MountPointAvailable.Reset()
-	metrics.MountPointBind.Reset()
-	metrics.MountPointTotal.Reset()
-	metrics.VolumeGroupUsedByLocal.Reset()
-	metrics.VolumeGroupTotal.Reset()
-	metrics.LocalPV.Reset()
 }

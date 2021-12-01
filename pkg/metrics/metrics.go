@@ -17,6 +17,9 @@ limitations under the License.
 package metrics
 
 import (
+	"github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -111,3 +114,67 @@ var (
 		[]string{"nodename", "pv_name", "pv_type", "pvc_name", "pvc_ns", "status", "storage_name"},
 	)
 )
+
+func UpdateMetrics(c *cache.ClusterNodeCache) {
+	// metrics reset
+	AllocatedNum.Reset()
+	DeviceAvailable.Reset()
+	DeviceBind.Reset()
+	DeviceTotal.Reset()
+	MountPointAvailable.Reset()
+	MountPointBind.Reset()
+	MountPointTotal.Reset()
+	VolumeGroupUsedByLocal.Reset()
+	VolumeGroupTotal.Reset()
+	LocalPV.Reset()
+
+	// metrics update
+	for nodeName := range c.Nodes {
+		for vgname, info := range c.Nodes[nodeName].VGs {
+			VolumeGroupTotal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Capacity))
+			VolumeGroupUsedByLocal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Requested))
+		}
+		for mpname, info := range c.Nodes[nodeName].MountPoints {
+			MountPointTotal.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
+			MountPointAvailable.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
+			if info.IsAllocated {
+				MountPointBind.WithLabelValues(nodeName, string(mpname)).Set(1)
+			} else {
+				MountPointBind.WithLabelValues(nodeName, string(mpname)).Set(0)
+			}
+		}
+		for devicename, info := range c.Nodes[nodeName].Devices {
+			DeviceAvailable.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
+			DeviceTotal.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
+			if info.IsAllocated {
+				DeviceBind.WithLabelValues(nodeName, string(devicename)).Set(1)
+			} else {
+				DeviceBind.WithLabelValues(nodeName, string(devicename)).Set(0)
+			}
+		}
+		var pvType, storageName string
+		for pvname, pv := range c.Nodes[nodeName].LocalPVs {
+			switch pv.Spec.CSI.VolumeAttributes[pkg.VolumeTypeKey] {
+			case string(pkg.VolumeTypeLVM):
+				pvType = string(pkg.VolumeTypeLVM)
+				storageName = pv.Spec.CSI.VolumeAttributes[pkg.VGName]
+			case string(pkg.VolumeTypeMountPoint):
+				pvType = string(pkg.VolumeTypeMountPoint)
+				storageName = pv.Spec.CSI.VolumeAttributes[pkg.MPName]
+			case string(pkg.VolumeTypeDevice):
+				pvType = string(pkg.VolumeTypeDevice)
+				storageName = pv.Spec.CSI.VolumeAttributes[pkg.DeviceName]
+			}
+			LocalPV.WithLabelValues(
+				nodeName,
+				pvname,
+				pvType,
+				pv.Spec.CSI.VolumeAttributes[pkg.PVCName],
+				pv.Spec.CSI.VolumeAttributes[pkg.PVCNameSpace],
+				string(pv.Status.Phase),
+				storageName).Set(float64(utils.GetPVStorageSize(&pv)))
+
+		}
+		AllocatedNum.WithLabelValues(nodeName).Set(float64(c.Nodes[nodeName].AllocatedNum))
+	}
+}

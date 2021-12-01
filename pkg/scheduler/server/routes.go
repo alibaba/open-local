@@ -23,6 +23,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/alibaba/open-local/pkg/metrics"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/bind"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/preemptions"
@@ -197,9 +199,14 @@ func AddVersion(router *httprouter.Router) {
 	router.GET(versionPath, DebugLogging(VersionRoute, versionPath))
 }
 
-func AddMetrics(router *httprouter.Router) {
+func AddMetrics(router *httprouter.Router, ctx *algorithm.SchedulingContext) {
 	// cannot use promhttp.Handler() (type http.Handler) as type httprouter.Handle
-	router.Handler(http.MethodGet, metricsPath, promhttp.Handler())
+	// router.Handler(http.MethodGet, metricsPath, promhttp.Handler())
+	handler := func(writer http.ResponseWriter, request *http.Request) {
+		metrics.UpdateMetrics(ctx.ClusterNodeCache)
+		promhttp.Handler().ServeHTTP(writer, request)
+	}
+	router.HandlerFunc(http.MethodGet, metricsPath, handler)
 }
 
 func DebugLogging(h httprouter.Handle, path string) httprouter.Handle {

@@ -41,7 +41,7 @@ func GetBlockInfo(sysPath, blockName string) (Device, error) {
 		return device, err
 	}
 	if data == "1" {
-		media = string(localtype.MediaTypeHHD)
+		media = string(localtype.MediaTypeHDD)
 	} else {
 		media = string(localtype.MediaTypeSSD)
 	}
@@ -102,7 +102,7 @@ func GetPartitionsInfo(sysPath, blockName string) ([]Device, error) {
 				return nil, err
 			}
 			if data == "1" {
-				media = string(localtype.MediaTypeHHD)
+				media = string(localtype.MediaTypeHDD)
 			} else {
 				media = string(localtype.MediaTypeSSD)
 			}

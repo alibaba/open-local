@@ -310,7 +310,7 @@ func TestUpdateCR(t *testing.T) {
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
@@ -490,7 +490,7 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
@@ -502,7 +502,7 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
@@ -565,25 +565,25 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     200 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdd",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
@@ -639,19 +639,19 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 				DeviceInfos: []lssv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     100 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdb",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     200 * LocalGi,
 						ReadOnly:  false,
 					},
 					{
 						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHHD),
+						MediaType: string(localtype.MediaTypeHDD),
 						Total:     150 * LocalGi,
 						ReadOnly:  false,
 					},

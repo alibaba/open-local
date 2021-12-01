@@ -70,14 +70,14 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 		vg, ok := cacheVGsMap[cache.ResourceName(vgName)]
 		if !ok {
-			return false, units, errors.NewNotSuchVGError(vgName)
+			return false, units, errors.NewNoSuchVGError(vgName, node.GetName())
 		}
 
 		freeSize := vg.Capacity - vg.Requested
 		log.Debugf("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vgName, freeSize, pvc.Name, requestedSize)
 
 		if freeSize < requestedSize {
-			return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity)
+			return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity, vg.Name, node.GetName())
 		}
 		tmp := cacheVGsMap[cache.ResourceName(vgName)]
 		tmp.Requested += requestedSize
@@ -119,7 +119,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 			if freeSize < requestedSize {
 				if i == len(cacheVGsSlice)-1 {
-					return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity)
+					return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity, vg.Name, node.GetName())
 				}
 				continue
 			}
@@ -206,7 +206,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 
 	// process pvcsWithTypeSSD first.
 	if freeMPSSDCount < requestedSSDCount {
-		return false, units, errors.NewInsufficientMountPointError(
+		return false, units, errors.NewInsufficientMountPointCountError(
 			requestedSSDCount,
 			freeMPSSDCount,
 			totalCount,
@@ -224,11 +224,11 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 	// process pvcsWithTypeHDD second.
 	if freeMPHDDCount < requestedHDDCount {
 		log.Infof("there is no enough mount point volume on node %s, want(cnt) %d, actual(cnt) %d, type hdd", node.Name, requestedHDDCount, freeMPHDDCount)
-		return false, units, errors.NewInsufficientMountPointError(
+		return false, units, errors.NewInsufficientMountPointCountError(
 			requestedHDDCount,
 			freeMPHDDCount,
 			totalCount,
-			localtype.MediaTypeHHD)
+			localtype.MediaTypeHDD)
 	}
 	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeMountPoint, freeMPHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {
@@ -248,7 +248,7 @@ func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, ctx *al
 	for _, pvc := range pvcs {
 		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers); mediaType == localtype.MediaTypeSSD {
 			pvcsWithTypeSSD = append(pvcsWithTypeSSD, pvc)
-		} else if mediaType == localtype.MediaTypeHHD {
+		} else if mediaType == localtype.MediaTypeHDD {
 			pvcsWithTypeHDD = append(pvcsWithTypeHDD, pvc)
 		} else if mediaType == "" {
 			log.Infof("empty mediaType in storageClass! pvc: %s/%s", pvc.Namespace, pvc.Name)
@@ -269,7 +269,7 @@ func GetFreeMP(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeMPSSD, 
 	for _, mp := range nodeCache.MountPoints {
 		if mp.MediaType == localtype.MediaTypeSSD && !mp.IsAllocated {
 			freeMPSSD = append(freeMPSSD, mp)
-		} else if mp.MediaType == localtype.MediaTypeHHD && !mp.IsAllocated {
+		} else if mp.MediaType == localtype.MediaTypeHDD && !mp.IsAllocated {
 			freeMPHDD = append(freeMPHDD, mp)
 		}
 	}
@@ -296,12 +296,6 @@ func CheckExclusiveResourceMeetsPVCSize(resource localtype.VolumeType, ers []cac
 		return ers[i].Capacity < ers[j].Capacity
 	})
 
-	var totalCount int64
-	if resource == localtype.VolumeTypeDevice {
-		totalCount, err = GetCacheDeviceCount(node, ctx)
-	} else if resource == localtype.VolumeTypeMountPoint {
-		totalCount, err = GetCacheMPCount(node, ctx)
-	}
 	if err != nil {
 		return false, units, err
 	}
@@ -309,20 +303,23 @@ func CheckExclusiveResourceMeetsPVCSize(resource localtype.VolumeType, ers []cac
 	pvcsCount := int64(len(pvcs))
 
 	i := 0
+	var maxSize int64 = 0
 	for j, er := range ers {
 		if pvcsCount == 0 {
 			break
 		}
 		pvc := pvcs[i]
 		requestedSize := utils.GetPVCRequested(pvc)
-		log.Debugf("%s: %s capacity=%d, requestedSize=%d", string(er.MediaType), er.Name, er.Capacity, requestedSize)
+		if requestedSize > int64(maxSize) {
+			maxSize = requestedSize
+		}
+		log.Debugf("[CheckExclusiveResourceMeetsPVCSize]%s(%s) capacity=%d, pvc requestedSize=%d", er.Name, string(er.MediaType), er.Capacity, requestedSize)
 		if er.Capacity < requestedSize {
 			if j == int(disksCount)-1 {
 				return false, units, errors.NewInsufficientExclusiveResourceError(
 					resource,
-					pvcsCount,
-					disksCount,
-					totalCount)
+					requestedSize,
+					maxSize)
 			}
 			continue
 		}
@@ -373,7 +370,7 @@ func GetFreeDevice(node *corev1.Node, ctx *algorithm.SchedulingContext) (freeDev
 	for _, device := range nodeCache.Devices {
 		if device.MediaType == localtype.MediaTypeSSD && !device.IsAllocated {
 			freeDeviceSSD = append(freeDeviceSSD, device)
-		} else if device.MediaType == localtype.MediaTypeHHD && !device.IsAllocated {
+		} else if device.MediaType == localtype.MediaTypeHDD && !device.IsAllocated {
 			freeDeviceHDD = append(freeDeviceHDD, device)
 		}
 	}
@@ -411,11 +408,12 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 
 	// process pvcsWithTypeSSD first.
 	if freeDeviceSSDCount < requestedSSDCount {
-		return false, units, errors.NewInsufficientExclusiveResourceError(
-			localtype.VolumeTypeDevice,
+		return false, units, errors.NewInsufficientDeviceCountError(
 			requestedSSDCount,
 			freeDeviceSSDCount,
-			totalCount)
+			totalCount,
+			localtype.MediaTypeSSD,
+		)
 	}
 	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceSSD, pvcsWithTypeSSD, node, ctx)
 	if err != nil {
@@ -428,11 +426,11 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 
 	// process pvcsWithTypeHDD second.
 	if freeDeviceHDDCount < requestedHDDCount {
-		return false, units, errors.NewInsufficientExclusiveResourceError(
-			localtype.VolumeTypeDevice,
-			requestedSSDCount,
-			freeDeviceSSDCount,
-			totalCount)
+		return false, units, errors.NewInsufficientDeviceCountError(
+			requestedHDDCount,
+			freeDeviceHDDCount,
+			totalCount,
+			localtype.MediaTypeHDD)
 	}
 	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {

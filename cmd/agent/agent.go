@@ -23,11 +23,13 @@ import (
 	"github.com/alibaba/open-local/pkg/agent/controller"
 	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	"github.com/alibaba/open-local/pkg/signals"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -84,6 +86,7 @@ func Start(opt *agentOption) error {
 		return fmt.Errorf("Error LoadAgentConfigs: %s", err.Error())
 	}
 
+	utilruntime.Must(localscheme.AddToScheme(scheme.Scheme))
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "open-local-agent"})

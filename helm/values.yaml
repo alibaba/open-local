@@ -6,19 +6,19 @@ images:
     image: thebeatles1994/open-local
     tag: v0.3.0
   registrar:
-    image: k8s.gcr.io/sig-storage/csi-node-driver-registrar
+    image: thebeatles1994/csi-node-driver-registrar
     tag: v2.3.0
   provisioner:
-    image: k8s.gcr.io/sig-storage/csi-provisioner
+    image: thebeatles1994/csi-provisioner
     tag: v2.2.2
   resizer:
-    image: k8s.gcr.io/sig-storage/csi-resizer
+    image: thebeatles1994/csi-resizer
     tag: v1.3.0
   snapshotter:
-    image: k8s.gcr.io/sig-storage/csi-snapshotter
+    image: thebeatles1994/csi-snapshotter
     tag: v3.0.3
   snapshot_controller:
-    image: k8s.gcr.io/sig-storage/snapshot-controller
+    image: thebeatles1994/snapshot-controller
     tag: v3.0.3
 agent:
   name: open-local-agent
@@ -28,7 +28,7 @@ agent:
 extender:
   name: open-local-scheduler-extender
   # scheduling strategy: binpack/spread
-  strategy: binpack
+  strategy: spread
   # scheduler extender http port
   port: 23000
 storageclass:

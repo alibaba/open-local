@@ -211,7 +211,9 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 			requestedSSDCount,
 			freeMPSSDCount,
 			totalCount,
-			localtype.MediaTypeSSD)
+			localtype.MediaTypeSSD,
+			node.GetName(),
+		)
 	}
 	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeMountPoint, freeMPSSD, pvcsWithTypeSSD, node, ctx)
 	if err != nil {
@@ -229,7 +231,9 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 			requestedHDDCount,
 			freeMPHDDCount,
 			totalCount,
-			localtype.MediaTypeHDD)
+			localtype.MediaTypeHDD,
+			node.GetName(),
+		)
 	}
 	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeMountPoint, freeMPHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {
@@ -414,6 +418,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 			freeDeviceSSDCount,
 			totalCount,
 			localtype.MediaTypeSSD,
+			node.GetName(),
 		)
 	}
 	fits, rstUnits, err := CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceSSD, pvcsWithTypeSSD, node, ctx)
@@ -431,7 +436,9 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 			requestedHDDCount,
 			freeDeviceHDDCount,
 			totalCount,
-			localtype.MediaTypeHDD)
+			localtype.MediaTypeHDD,
+			node.GetName(),
+		)
 	}
 	fits, rstUnits, err = CheckExclusiveResourceMeetsPVCSize(localtype.VolumeTypeDevice, freeDeviceHDD, pvcsWithTypeHDD, node, ctx)
 	if err != nil {

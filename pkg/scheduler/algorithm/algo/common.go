@@ -28,6 +28,7 @@ import (
 	"github.com/alibaba/open-local/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const MinScore int = 0
@@ -517,18 +518,20 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 	for _, pvc := range pvcsWithVG {
 		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers)
 		if _, ok := cacheVGsMap[cache.ResourceName(vgName)]; !ok {
-			return false, units, fmt.Errorf("no vg named %q on node %q", vgName, node.Name)
+			return false, units, fmt.Errorf("no vg named %s on node %s", vgName, node.Name)
 		}
 
 		requestedSize := utils.GetPVCRequested(pvc)
 		freeSize := cacheVGsMap[cache.ResourceName(vgName)].Capacity - cacheVGsMap[cache.ResourceName(vgName)].Requested
+		quanFree := resource.NewQuantity(freeSize, resource.BinarySI)
+		quanReq := resource.NewQuantity(requestedSize, resource.BinarySI)
 		if freeSize < requestedSize {
 			if pod == nil {
-				return false, units, fmt.Errorf("not enough lv storage on %s/%s, requested size %d,  free size %d",
-					node.Name, vgName, requestedSize, freeSize)
+				return false, units, fmt.Errorf("not enough lv storage on %s/%s, requested size %s,  free size %s",
+					node.Name, vgName, quanReq.String(), quanFree.String())
 			}
-			return false, units, fmt.Errorf("not enough lv storage on %s/%s for pod %s/%s, requested size %d,  free size %d",
-				node.Name, vgName, pod.Namespace, pod.Name, requestedSize, freeSize)
+			return false, units, fmt.Errorf("not enough lv storage on %s/%s for pod %s/%s, requested size %s,  free size %s",
+				node.Name, vgName, pod.Namespace, pod.Name, quanReq.String(), quanFree.String())
 		}
 		tmp := cacheVGsMap[cache.ResourceName(vgName)]
 		tmp.Requested += requestedSize
@@ -584,15 +587,17 @@ func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.No
 	})
 	for i, vg := range cacheVGsSlice {
 		freeSize := vg.Capacity - vg.Requested
+		quanFree := resource.NewQuantity(freeSize, resource.BinarySI)
+		quanReq := resource.NewQuantity(requestedSize, resource.BinarySI)
 		if freeSize < requestedSize {
 			if i == len(cacheVGsSlice)-1 {
 				if pod == nil {
-					return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s, requested size %d, max free size[VG: %s] %d, strategiy %s",
-						node.Name, requestedSize, vg.Name, freeSize, localtype.SchedulerStrategy)
+					return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s, requested size %s, max free size[VG: %s] %s, strategiy %s. you need to expand the vg",
+						node.Name, quanReq.String(), vg.Name, quanFree.String(), localtype.SchedulerStrategy)
 
 				}
-				return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s for pod %s/%s, requested size %d, max free size[VG: %s] %d, strategiy %s",
-					node.Name, pod.Namespace, pod.Name, requestedSize, vg.Name, freeSize, localtype.SchedulerStrategy)
+				return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s for pod %s/%s, requested size %s, max free size[VG: %s] %s, strategiy %s. you need to expand the vg",
+					node.Name, pod.Namespace, pod.Name, quanReq.String(), vg.Name, quanFree.String(), localtype.SchedulerStrategy)
 			}
 			continue
 		}
@@ -631,13 +636,15 @@ func Spread(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Nod
 	})
 	// the free size of cacheVGsSlice[0] is largest
 	freeSize := cacheVGsSlice[0].Capacity - cacheVGsSlice[0].Requested
+	quanFree := resource.NewQuantity(freeSize, resource.BinarySI)
+	quanReq := resource.NewQuantity(requestedSize, resource.BinarySI)
 	if freeSize < requestedSize {
 		if pod == nil {
-			return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s, requested size %d,  free size %d, strategiy %s",
-				node.Name, cacheVGsSlice[0].Name, requestedSize, freeSize, localtype.SchedulerStrategy)
+			return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s, requested size %s,  free size %s, strategiy %s. you need to expand the vg",
+				node.Name, cacheVGsSlice[0].Name, quanReq.String(), quanFree.String(), localtype.SchedulerStrategy)
 		}
-		return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s for pod %s/%s, requested size %d,  free size %d, strategiy %s",
-			node.Name, cacheVGsSlice[0].Name, pod.Namespace, pod.Name, requestedSize, freeSize, localtype.SchedulerStrategy)
+		return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s for pod %s/%s, requested size %s,  free size %s, strategiy %s. you need to expand the vg",
+			node.Name, cacheVGsSlice[0].Name, pod.Namespace, pod.Name, quanReq.String(), quanFree.String(), localtype.SchedulerStrategy)
 	}
 	cacheVGsSlice[0].Requested += requestedSize
 	u := cache.AllocatedUnit{

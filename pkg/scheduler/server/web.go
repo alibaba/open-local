@@ -27,6 +27,7 @@ import (
 
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
+	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/metrics"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
@@ -42,6 +43,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -105,6 +107,7 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	informersSyncd = append(informersSyncd, snapStorageClassInformer.HasSynced)
 
 	// setup syncer
+	utilruntime.Must(localscheme.AddToScheme(scheme.Scheme))
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(log.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})

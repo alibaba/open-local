@@ -121,25 +121,27 @@ type InsufficientDeviceCountError struct {
 	total          int64
 	resource       pkg.VolumeType
 	mediaType      pkg.MediaType
+	nodeName       string
 }
 
 func (e InsufficientDeviceCountError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available device count is %d, node device total is %d",
-		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
+	return fmt.Sprintf("Insufficient %s(%s) storage on node %s, pod requested pvc count is %d, node available device count is %d, node device total is %d",
+		e.resource, e.mediaType, e.nodeName, e.requestedCount, e.availableCount, e.total)
 }
 
 func (e *InsufficientDeviceCountError) Error() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available device count is %d, node device total is %d",
-		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
+	return fmt.Sprintf("Insufficient %s(%s) storage on node %s, pod requested pvc count is %d, node available device count is %d, node device total is %d",
+		e.resource, e.mediaType, e.nodeName, e.requestedCount, e.availableCount, e.total)
 }
 
-func NewInsufficientDeviceCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType) *InsufficientDeviceCountError {
+func NewInsufficientDeviceCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType, nodeName string) *InsufficientDeviceCountError {
 	return &InsufficientDeviceCountError{
 		resource:       pkg.VolumeTypeDevice,
 		requestedCount: requestedCount,
 		availableCount: availableCount,
 		total:          total,
 		mediaType:      mediaType,
+		nodeName:       nodeName,
 	}
 }
 
@@ -149,24 +151,26 @@ type InsufficientMountPointCountError struct {
 	total          int64
 	resource       pkg.VolumeType
 	mediaType      pkg.MediaType
+	nodeName       string
 }
 
 func (e InsufficientMountPointCountError) GetReason() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
-		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
+	return fmt.Sprintf("Insufficient %s(%s) storage on node %s, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
+		e.resource, e.mediaType, e.nodeName, e.requestedCount, e.availableCount, e.total)
 }
 
 func (e *InsufficientMountPointCountError) Error() string {
-	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
-		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
+	return fmt.Sprintf("Insufficient %s(%s) storage on node %s, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
+		e.resource, e.mediaType, e.nodeName, e.requestedCount, e.availableCount, e.total)
 }
-func NewInsufficientMountPointCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType) *InsufficientMountPointCountError {
+func NewInsufficientMountPointCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType, nodeName string) *InsufficientMountPointCountError {
 	return &InsufficientMountPointCountError{
 		resource:       pkg.VolumeTypeMountPoint,
 		requestedCount: requestedCount,
 		availableCount: availableCount,
 		total:          total,
 		mediaType:      mediaType,
+		nodeName:       nodeName,
 	}
 }
 

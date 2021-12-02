@@ -153,7 +153,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 	}
 	if volumeType == "" {
 		log.Errorf("CreateVolume: Create volume %s with error volumeType %v", volumeID, parameters)
-		return nil, status.Error(codes.InvalidArgument, "Local driver only support LVM/MountPoint/Device/PmemDirect/PmemQuotaPath volume type, no "+volumeType)
+		return nil, status.Errorf(codes.InvalidArgument, "Local driver only support LVM/MountPoint/Device volume type, no type %s", volumeType)
 	}
 	if value, ok := parameters[PvcNameTag]; ok {
 		pvcName = value
@@ -234,14 +234,22 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			paraList, err = lvmScheduled(storageSelected, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: lvm all scheduled volume %s with error: %s", volumeID, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse lvm all schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse lvm all schedule info error: %s", err.Error())
 			}
 			log.Infof("CreateVolume: lvm scheduled volume %s with %s, %s", volumeID, nodeSelected, storageSelected)
 		} else if nodeSelected != "" {
 			paraList, err = lvmPartScheduled(nodeSelected, pvcName, pvcNameSpace, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: lvm part scheduled volume %s with error: %s", volumeID, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse lvm part schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse lvm part schedule info error: %s", err.Error())
 			}
 			if value, ok := paraList[VgNameTag]; ok && value != "" {
 				storageSelected = value
@@ -252,7 +260,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			nodeID, paraList, err = lvmNoScheduled(parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: lvm No scheduled volume %s with error: %s", volumeID, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse lvm schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse lvm schedule info error: %s", err.Error())
 			}
 			nodeSelected = nodeID
 			if value, ok := paraList[VgNameTag]; ok && value != "" {
@@ -303,20 +315,32 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			paraList, err = mountpointScheduled(storageSelected, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: create mountpoint volume %s/%s at node %s error: %s", storageSelected, req.Name, nodeSelected, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "CreateVolume: Parse mountpoint all scheduled info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "CreateVolume: Parse mountpoint all scheduled info error: %s", err.Error())
 			}
 		} else if nodeSelected != "" {
 			paraList, err = mountpointPartScheduled(nodeSelected, pvcName, pvcNameSpace, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: part schedule mountpoint volume %s at node %s error: %s", req.Name, nodeSelected, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse mountpoint part schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse mountpoint part schedule info error: %s", err.Error())
 			}
 		} else {
 			nodeID := ""
 			nodeID, paraList, err = mountpointNoScheduled(parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: schedule mountpoint volume %s error: %s", req.Name, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse mountpoint schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse mountpoint schedule info error: %s", err.Error())
 			}
 			nodeSelected = nodeID
 		}
@@ -328,20 +352,32 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 			paraList, err = deviceScheduled(storageSelected, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: create device volume %s/%s at node %s error: %s", storageSelected, req.Name, nodeSelected, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse Device all scheduled info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse Device all scheduled info error: %s", err.Error())
 			}
 		} else if nodeSelected != "" {
 			paraList, err = devicePartScheduled(nodeSelected, pvcName, pvcNameSpace, parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: part schedule device volume %s at node %s error: %s", req.Name, nodeSelected, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse Device part schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse Device part schedule info error: %s", err.Error())
 			}
 		} else {
 			nodeID := ""
 			nodeID, paraList, err = deviceNoScheduled(parameters)
 			if err != nil {
 				log.Errorf("CreateVolume: schedule device volume %s error: %s", req.Name, err.Error())
-				return nil, status.Error(codes.InvalidArgument, "Parse Device schedule info error "+err.Error())
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "Parse Device schedule info error: %s", err.Error())
 			}
 			nodeSelected = nodeID
 		}
@@ -524,7 +560,7 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 		log.Infof("DeleteVolume: successful delete Device volume(%s)...", volumeID)
 	default:
 		log.Errorf("DeleteVolume: volumeType %s not supported %s", volumeType, volumeID)
-		return nil, status.Error(codes.InvalidArgument, "Local driver only support LVM volume type, no "+volumeType)
+		return nil, status.Errorf(codes.InvalidArgument, "Local driver only support LVM volume type, no type %s", volumeType)
 	}
 	delete(createdVolumeMap, req.VolumeId)
 	log.Infof("DeleteVolume: successful delete local volume %s", volumeID)

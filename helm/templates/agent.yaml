@@ -132,11 +132,11 @@ spec:
           value: "true"
         resources:
           limits:
-            cpu: 800m
-            memory: 400Mi
+            cpu: 500m
+            memory: 512Mi
           requests:
             cpu: 50m
-            memory: 100Mi
+            memory: 128Mi
         volumeMounts:
         - name: pods-mount-dir
           mountPath: /var/lib/kubelet

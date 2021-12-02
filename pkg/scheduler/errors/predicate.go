@@ -35,23 +35,25 @@ type PredicateError interface {
 	Error() string
 }
 
-// NotSuchVGError means no named vg `name`
-type NotSuchVGError struct {
+// NoSuchVGError means no named vg `name`
+type NoSuchVGError struct {
 	resource pkg.VolumeType
-	name     string
+	vgName   string
+	nodeName string
 }
 
-func (e *NotSuchVGError) GetReason() string {
-	return fmt.Sprintf("not %s named %s", e.resource, e.name)
+func (e *NoSuchVGError) GetReason() string {
+	return fmt.Sprintf("no vg(%s) named %s in node %s", e.resource, e.vgName, e.nodeName)
 }
 
-func (e *NotSuchVGError) Error() string {
-	return fmt.Sprintf("not %s named %s", e.resource, e.name)
+func (e *NoSuchVGError) Error() string {
+	return fmt.Sprintf("no vg(%s) named %s in node %s", e.resource, e.vgName, e.nodeName)
 }
 
-func NewNotSuchVGError(name string) *NotSuchVGError {
-	return &NotSuchVGError{
-		name:     name,
+func NewNoSuchVGError(vgName string, nodeName string) *NoSuchVGError {
+	return &NoSuchVGError{
+		vgName:   vgName,
+		nodeName: nodeName,
 		resource: pkg.VolumeTypeLVM,
 	}
 }
@@ -63,11 +65,11 @@ type NoAvailableVGError struct {
 }
 
 func (e *NoAvailableVGError) GetReason() string {
-	return fmt.Sprintf("no %s storage configured", e.resource)
+	return fmt.Sprintf("no %s storage configured on node %s. you can run commands \"kubectl get nls --template={{.spec}} -o template %s\" and \"vgscan\" and \"lsblk\" on this node to get more details", e.resource, e.nodeName, e.nodeName)
 }
 
 func (e *NoAvailableVGError) Error() string {
-	return fmt.Sprintf("not %s on node %s", e.resource, e.nodeName)
+	return fmt.Sprintf("no %s storage configured on node %s", e.resource, e.nodeName)
 }
 
 func NewNoAvailableVGError(nodeName string) *NoAvailableVGError {
@@ -81,6 +83,8 @@ type InsufficientLVMError struct {
 	requested int64
 	used      int64
 	capacity  int64
+	nodeName  string
+	vgName    string
 	resource  pkg.VolumeType
 }
 
@@ -88,117 +92,108 @@ func (e *InsufficientLVMError) GetReason() string {
 	requested := resource.NewQuantity(e.requested, resource.BinarySI)
 	used := resource.NewQuantity(e.used, resource.BinarySI)
 	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
-		e.resource, requested.String(), used.String(), capacity.String())
+	return fmt.Sprintf("Insufficient %s storage on node %s, vg is %s, pvc requested %s, vg used %s, vg capacity %s",
+		e.resource, e.nodeName, e.vgName, requested.String(), used.String(), capacity.String())
 }
 
 func (e *InsufficientLVMError) Error() string {
 	requested := resource.NewQuantity(e.requested, resource.BinarySI)
 	used := resource.NewQuantity(e.used, resource.BinarySI)
 	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
-		e.resource, requested.String(), used.String(), capacity.String())
+	return fmt.Sprintf("Insufficient %s storage on node %s, vg is %s, pvc requested %s, vg used %s, vg capacity %s",
+		e.resource, e.nodeName, e.vgName, requested.String(), used.String(), capacity.String())
 }
-func NewInsufficientLVMError(requested, used, capacity int64) *InsufficientLVMError {
+
+func NewInsufficientLVMError(requested, used, capacity int64, vgName string, nodeName string) *InsufficientLVMError {
 	return &InsufficientLVMError{
 		resource:  pkg.VolumeTypeLVM,
 		requested: requested,
 		used:      used,
 		capacity:  capacity,
+		vgName:    vgName,
+		nodeName:  nodeName,
 	}
 }
 
-type InsufficientDeviceError struct {
-	requested int64
-	used      int64
-	capacity  int64
-	resource  pkg.VolumeType
+type InsufficientDeviceCountError struct {
+	requestedCount int64
+	availableCount int64
+	total          int64
+	resource       pkg.VolumeType
+	mediaType      pkg.MediaType
 }
 
-func (e InsufficientDeviceError) GetReason() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	used := resource.NewQuantity(e.used, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
-		e.resource, requested.String(), used.String(), capacity.String())
+func (e InsufficientDeviceCountError) GetReason() string {
+	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available device count is %d, node device total is %d",
+		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
 }
 
-func (e *InsufficientDeviceError) Error() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	used := resource.NewQuantity(e.used, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, used %s, capacity %s",
-		e.resource, requested.String(), used.String(), capacity.String())
+func (e *InsufficientDeviceCountError) Error() string {
+	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available device count is %d, node device total is %d",
+		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
 }
-func NewInsufficientDeviceError(requested, used, capacity int64) *InsufficientDeviceError {
-	return &InsufficientDeviceError{
-		resource:  pkg.VolumeTypeDevice,
-		requested: requested,
-		used:      used,
-		capacity:  capacity,
+
+func NewInsufficientDeviceCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType) *InsufficientDeviceCountError {
+	return &InsufficientDeviceCountError{
+		resource:       pkg.VolumeTypeDevice,
+		requestedCount: requestedCount,
+		availableCount: availableCount,
+		total:          total,
+		mediaType:      mediaType,
 	}
 }
 
-type InsufficientMountPointError struct {
-	requested int64
-	available int64
-	capacity  int64
-	resource  pkg.VolumeType
-	mediaType pkg.MediaType
+type InsufficientMountPointCountError struct {
+	requestedCount int64
+	availableCount int64
+	total          int64
+	resource       pkg.VolumeType
+	mediaType      pkg.MediaType
 }
 
-func (e InsufficientMountPointError) GetReason() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	available := resource.NewQuantity(e.available, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s(%s) storage, requested %s, available %s, capacity %s(all media type)",
-		e.resource, e.mediaType, requested.String(), available.String(), capacity.String())
+func (e InsufficientMountPointCountError) GetReason() string {
+	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
+		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
 }
 
-func (e *InsufficientMountPointError) Error() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	available := resource.NewQuantity(e.available, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s(%s) storage, requested %s, available %s, capacity %s(all media type)",
-		e.resource, e.mediaType, requested.String(), available.String(), capacity.String())
+func (e *InsufficientMountPointCountError) Error() string {
+	return fmt.Sprintf("Insufficient %s(%s) storage, pod requested pvc count is %d, node available mp count is %d, node total mp is %d",
+		e.resource, e.mediaType, e.requestedCount, e.availableCount, e.total)
 }
-func NewInsufficientMountPointError(requested, available, capacity int64, mediaType pkg.MediaType) *InsufficientMountPointError {
-	return &InsufficientMountPointError{
-		resource:  pkg.VolumeTypeMountPoint,
-		requested: requested,
-		available: available,
-		capacity:  capacity,
-		mediaType: mediaType,
+func NewInsufficientMountPointCountError(requestedCount, availableCount, total int64, mediaType pkg.MediaType) *InsufficientMountPointCountError {
+	return &InsufficientMountPointCountError{
+		resource:       pkg.VolumeTypeMountPoint,
+		requestedCount: requestedCount,
+		availableCount: availableCount,
+		total:          total,
+		mediaType:      mediaType,
 	}
 }
 
 type InsufficientExclusiveResourceError struct {
-	requested int64
-	available int64
-	capacity  int64
-	resource  pkg.VolumeType
+	requestedSize int64
+	maxSize       int64
+	resource      pkg.VolumeType
+	nodeName      string
 }
 
 func (e InsufficientExclusiveResourceError) GetReason() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	available := resource.NewQuantity(e.available, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, available %s, capacity %s",
-		e.resource, requested.String(), available.String(), capacity.String())
+	requested := resource.NewQuantity(e.requestedSize, resource.BinarySI)
+	max := resource.NewQuantity(e.maxSize, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, pvc requested size is %s, max size of local devices on node %s is %s",
+		e.resource, requested.String(), e.nodeName, max.String())
 }
 
 func (e *InsufficientExclusiveResourceError) Error() string {
-	requested := resource.NewQuantity(e.requested, resource.BinarySI)
-	available := resource.NewQuantity(e.available, resource.BinarySI)
-	capacity := resource.NewQuantity(e.capacity, resource.BinarySI)
-	return fmt.Sprintf("Insufficient %s storage, requested %s, available %s, capacity %s",
-		e.resource, requested.String(), available.String(), capacity.String())
+	requested := resource.NewQuantity(e.requestedSize, resource.BinarySI)
+	max := resource.NewQuantity(e.maxSize, resource.BinarySI)
+	return fmt.Sprintf("Insufficient %s storage, pvc requested size is %s, max size of local devices on node %s is %s",
+		e.resource, requested.String(), e.nodeName, max.String())
 }
-func NewInsufficientExclusiveResourceError(resource pkg.VolumeType, requested, available, capacity int64) *InsufficientExclusiveResourceError {
+func NewInsufficientExclusiveResourceError(resource pkg.VolumeType, requested, max int64) *InsufficientExclusiveResourceError {
 	return &InsufficientExclusiveResourceError{
-		resource:  resource,
-		requested: requested,
-		available: available,
-		capacity:  capacity,
+		resource:      resource,
+		requestedSize: requested,
+		maxSize:       max,
 	}
 }

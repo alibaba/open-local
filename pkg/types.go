@@ -70,7 +70,7 @@ const (
 	VolumeTypeQuota      VolumeType = "Quota"
 	VolumeTypeUnknown    VolumeType = "Unknown"
 	MediaTypeSSD         MediaType  = "ssd"
-	MediaTypeHHD         MediaType  = "hdd"
+	MediaTypeHDD         MediaType  = "hdd"
 	MediaTypeUnspecified MediaType  = "Unspecified"
 
 	// This annotation is added to a PVC that has been triggered by scheduler to

@@ -180,14 +180,16 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 	}
 
 	notmounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(targetPath, 0750); err != nil {
-			log.Errorf("NodePublishVolume: volume %s mkdir target path %s with error: %s", req.VolumeId, targetPath, err.Error())
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(targetPath, 0750); err != nil {
+				log.Errorf("NodePublishVolume: volume %s mkdir target path %s with error: %s", req.VolumeId, targetPath, err.Error())
+				return status.Error(codes.Internal, err.Error())
+			}
+		} else {
+			log.Errorf("mountLocalVolume: check volume: %s mounted with error %v", req.VolumeId, err)
 			return status.Error(codes.Internal, err.Error())
 		}
-	} else {
-		log.Errorf("mountLocalVolume: check volume: %s mounted with error %v", req.VolumeId, err)
-		return status.Error(codes.Internal, err.Error())
 	}
 	if !notmounted {
 		log.Infof("NodePublishVolume: VolumeId: %s, Local Path %s is already mounted", req.VolumeId, targetPath)

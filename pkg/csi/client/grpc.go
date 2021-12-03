@@ -39,6 +39,7 @@ type Connection interface {
 	DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string) error
 	ExpandLvm(ctx context.Context, volGroup string, volumeID string, size uint64) error
 	CleanPath(ctx context.Context, path string) error
+	CleanDevice(ctx context.Context, device string) error
 	Close() error
 }
 
@@ -211,6 +212,20 @@ func (c *workerConnection) CleanPath(ctx context.Context, path string) error {
 		return err
 	}
 	log.Debugf("CleanPath with result: %v", response.GetCommandOutput())
+	return err
+}
+
+func (c *workerConnection) CleanDevice(ctx context.Context, device string) error {
+	client := lib.NewLVMClient(c.conn)
+	req := lib.CleanDeviceRequest{
+		Device: device,
+	}
+	response, err := client.CleanDevice(ctx, &req)
+	if err != nil {
+		log.Errorf("fail to clean device %s: %s", device, err.Error())
+		return err
+	}
+	log.Debugf("clean device %s successfully with result: %s", device, response.GetCommandOutput())
 	return err
 }
 

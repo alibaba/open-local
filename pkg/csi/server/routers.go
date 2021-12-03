@@ -17,6 +17,8 @@ limitations under the License.
 package server
 
 import (
+	"fmt"
+
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -166,6 +168,17 @@ func (s Server) CleanPath(ctx context.Context, in *lib.CleanPathRequest) (*lib.C
 	}
 	log.Debugf("CleanPath with result Successful")
 	return &lib.CleanPathReply{CommandOutput: "Successful remove path: " + in.Path}, nil
+}
+
+// CleanDevice wipefs
+func (s Server) CleanDevice(ctx context.Context, in *lib.CleanDeviceRequest) (*lib.CleanDeviceReply, error) {
+	out, err := CleanDevice(ctx, in.Device)
+	if err != nil {
+		log.Errorf("failed to clean device %s: %s", in.Device, err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to clean device %s: %v", in.Device, err)
+	}
+	log.Debugf("clean device %s successfully", in.Device)
+	return &lib.CleanDeviceReply{CommandOutput: fmt.Sprintf("clean device %s successfully with output: %s", in.Device, out)}, nil
 }
 
 // AddTagLV add tag

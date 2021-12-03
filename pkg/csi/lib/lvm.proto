@@ -235,6 +235,14 @@ message CleanPathReply {
   string command_output = 1;
 }
 
+message CleanDeviceRequest {
+  string device = 1;
+}
+
+message CleanDeviceReply {
+  string command_output = 1;
+}
+
 service LVM {
   rpc ListLV(ListLVRequest) returns (ListLVReply) {}
   rpc CreateLV(CreateLVRequest) returns (CreateLVReply) {}
@@ -252,4 +260,5 @@ service LVM {
   rpc CreateVG(CreateVGRequest) returns (CreateVGReply) {}
   rpc RemoveVG(CreateVGRequest) returns (RemoveVGReply) {}
   rpc CleanPath(CleanPathRequest) returns (CleanPathReply) {}
+  rpc CleanDevice(CleanDeviceRequest) returns (CleanDeviceReply) {}
 }

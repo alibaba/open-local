@@ -555,9 +555,52 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 				return nil, errors.New("DeleteVolume: Delete mountpoint Failed: " + err.Error())
 			}
 		}
-		log.Infof("DeleteVolume: successful delete MountPoint volume(%s)...", volumeID)
+		log.Infof("DeleteVolume: successful delete MountPoint volume(%s)", volumeID)
 	case DeviceVolumeType:
-		log.Infof("DeleteVolume: successful delete Device volume(%s)...", volumeID)
+		if pvObj.Spec.PersistentVolumeReclaimPolicy == v1.PersistentVolumeReclaimDelete {
+			if pvObj.Spec.NodeAffinity == nil {
+				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with nil nodeAffinity", volumeID)
+				return nil, errors.New("Get Spec for volume " + volumeID + ", with nil nodeAffinity")
+			}
+			if pvObj.Spec.NodeAffinity.Required == nil || len(pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
+				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with nil Required", volumeID)
+				return nil, errors.New("Get Spec for volume " + volumeID + ", with nil Required")
+			}
+			if len(pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions) == 0 {
+				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with nil MatchExpressions", volumeID)
+				return nil, errors.New("Get Spec for volume " + volumeID + ", with nil MatchExpressions")
+			}
+			key := pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
+			if key != TopologyNodeKey && key != TopologyYodaNodeKey {
+				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with key %s", volumeID, key)
+				return nil, errors.New("Get Spec for volume " + volumeID + ", with key" + key)
+			}
+			nodes := pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values
+			if len(nodes) == 0 {
+				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with empty nodes", volumeID)
+				return nil, errors.New("Device Pv is illegal, No node info")
+			}
+			nodeName := nodes[0]
+			conn, err := server.getNodeConn(nodeName)
+			if err != nil {
+				log.Errorf("DeleteVolume: New device %s Connection error: %s", req.GetVolumeId(), err.Error())
+				return nil, err
+			}
+			defer conn.Close()
+			device := ""
+			if value, ok := pvObj.Spec.CSI.VolumeAttributes[DeviceVolumeType]; ok {
+				device = value
+			}
+			if device == "" {
+				log.Errorf("DeleteVolume: Get Device Path for volume %s, with empty", volumeID)
+				return nil, errors.New("Device Path is empty")
+			}
+			if err := conn.CleanDevice(ctx, device); err != nil {
+				log.Errorf("DeleteVolume: Remove device for %s with error: %s", req.GetVolumeId(), err.Error())
+				return nil, errors.New("DeleteVolume: Delete device Failed: " + err.Error())
+			}
+		}
+		log.Infof("DeleteVolume: successful delete Device volume(%s)", volumeID)
 	default:
 		log.Errorf("DeleteVolume: volumeType %s not supported %s", volumeType, volumeID)
 		return nil, status.Errorf(codes.InvalidArgument, "Local driver only support LVM volume type, no type %s", volumeType)

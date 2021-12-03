@@ -31,6 +31,7 @@ type LVMClient interface {
 	CreateVG(ctx context.Context, in *CreateVGRequest, opts ...grpc.CallOption) (*CreateVGReply, error)
 	RemoveVG(ctx context.Context, in *CreateVGRequest, opts ...grpc.CallOption) (*RemoveVGReply, error)
 	CleanPath(ctx context.Context, in *CleanPathRequest, opts ...grpc.CallOption) (*CleanPathReply, error)
+	CleanDevice(ctx context.Context, in *CleanDeviceRequest, opts ...grpc.CallOption) (*CleanDeviceReply, error)
 }
 
 type lVMClient struct {
@@ -158,6 +159,15 @@ func (c *lVMClient) CleanPath(ctx context.Context, in *CleanPathRequest, opts ..
 	return out, nil
 }
 
+func (c *lVMClient) CleanDevice(ctx context.Context, in *CleanDeviceRequest, opts ...grpc.CallOption) (*CleanDeviceReply, error) {
+	out := new(CleanDeviceReply)
+	err := c.cc.Invoke(ctx, "/proto.LVM/CleanDevice", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LVMServer is the server API for LVM service.
 // All implementations must embed UnimplementedLVMServer
 // for forward compatibility
@@ -175,6 +185,7 @@ type LVMServer interface {
 	CreateVG(context.Context, *CreateVGRequest) (*CreateVGReply, error)
 	RemoveVG(context.Context, *CreateVGRequest) (*RemoveVGReply, error)
 	CleanPath(context.Context, *CleanPathRequest) (*CleanPathReply, error)
+	CleanDevice(context.Context, *CleanDeviceRequest) (*CleanDeviceReply, error)
 	mustEmbedUnimplementedLVMServer()
 }
 
@@ -220,6 +231,9 @@ func (UnimplementedLVMServer) RemoveVG(context.Context, *CreateVGRequest) (*Remo
 }
 func (UnimplementedLVMServer) CleanPath(context.Context, *CleanPathRequest) (*CleanPathReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CleanPath not implemented")
+}
+func (UnimplementedLVMServer) CleanDevice(context.Context, *CleanDeviceRequest) (*CleanDeviceReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CleanDevice not implemented")
 }
 func (UnimplementedLVMServer) mustEmbedUnimplementedLVMServer() {}
 
@@ -468,6 +482,24 @@ func _LVM_CleanPath_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LVM_CleanDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CleanDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LVMServer).CleanDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.LVM/CleanDevice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LVMServer).CleanDevice(ctx, req.(*CleanDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LVM_ServiceDesc is the grpc.ServiceDesc for LVM service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -526,6 +558,10 @@ var LVM_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CleanPath",
 			Handler:    _LVM_CleanPath_Handler,
+		},
+		{
+			MethodName: "CleanDevice",
+			Handler:    _LVM_CleanDevice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

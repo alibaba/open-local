@@ -320,6 +320,23 @@ func CleanPath(ctx context.Context, path string) error {
 	return errList[0]
 }
 
+func CleanDevice(ctx context.Context, device string) (string, error) {
+	if _, err := os.Stat(device); err != nil {
+		return "", err
+	}
+
+	args := make([]string, 0)
+	args = append(args, localtype.NsenterCmd)
+	args = append(args, "wipefs")
+	args = append(args, "-a")
+	args = append(args, device)
+
+	cmd := strings.Join(args, " ")
+	out, err := utils.Run(cmd)
+
+	return string(out), err
+}
+
 // AddTagLV add tag
 func AddTagLV(ctx context.Context, vg string, name string, tags []string) (string, error) {
 

@@ -315,7 +315,8 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 		return
 	}
 
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, true)
+	containReadonlySnapshot := true
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
@@ -349,7 +350,8 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 	}
 	podName := utils.PodName(pod)
 
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, true)
+	containReadonlySnapshot := true
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
@@ -380,7 +382,9 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 	if len(pod.Spec.NodeName) > 0 { // do not handle any scheduled pod
 		return
 	}
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, true)
+
+	containReadonlySnapshot := true
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return

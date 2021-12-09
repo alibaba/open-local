@@ -362,7 +362,7 @@ func IsOpenLocalPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, 
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
 		attributes := pv.Spec.CSI.VolumeAttributes
 		// check if is snapshot pv according to pvc
-		if value, exist := attributes[localtype.TagSnapshot]; exist && value != "" {
+		if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
 			isSnapshot = true
 		}
 		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {

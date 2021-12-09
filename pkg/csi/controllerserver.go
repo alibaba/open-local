@@ -619,8 +619,8 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		log.Error("CreateSnapshot: snapshot name not provided")
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot: snapshot name not provided")
 	}
-	volumeID := req.GetSourceVolumeId()
-	if len(volumeID) == 0 {
+	srcVolumeID := req.GetSourceVolumeId()
+	if len(srcVolumeID) == 0 {
 		log.Error("CreateSnapshot: snapshot volume source ID not provided")
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot: snapshot volume source ID not provided")
 	}
@@ -633,17 +633,17 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Step 3: get nodeName and vgName
-	nodeName, vgName, pv, err := getPvSpec(cs.client, volumeID, cs.driverName)
+	nodeName, vgName, srcPV, err := getPvSpec(cs.client, srcVolumeID, cs.driverName)
 	if err != nil {
-		log.Errorf("CreateSnapshot: get pv %s error: %s", volumeID, err.Error())
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get pv %s error: %s", volumeID, err.Error())
+		log.Errorf("CreateSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
 	}
 	log.Infof("CreateSnapshot: snapshot %s is in %s, whose vg is %s", snapshotName, nodeName, vgName)
 
 	// Step 4: update initialSize if initialSize is bigger than pv request size
-	pvSize, _ := pv.Spec.Capacity.Storage().AsInt64()
-	if pvSize < int64(initialSize) {
-		initialSize = uint64(pvSize)
+	srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
+	if srcPVSize < int64(initialSize) {
+		initialSize = uint64(srcPVSize)
 	}
 
 	// Step 5: get grpc client
@@ -661,7 +661,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
 	}
 	if lvmName == "" {
-		_, err := conn.CreateSnapshot(ctx, vgName, snapshotName, volumeID, initialSize)
+		_, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, initialSize)
 		if err != nil {
 			log.Errorf("CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
@@ -690,13 +690,13 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		log.Errorf("DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
 	}
-	volumeID := *snapContent.Spec.Source.VolumeHandle
+	srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 
 	// Step 3: get nodeName and vgName
-	nodeName, vgName, _, err := getPvSpec(cs.client, volumeID, cs.driverName)
+	nodeName, vgName, _, err := getPvSpec(cs.client, srcVolumeID, cs.driverName)
 	if err != nil {
-		log.Errorf("DeleteSnapshot: get pv %s error: %s", volumeID, err.Error())
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get pv %s error: %s", volumeID, err.Error())
+		log.Errorf("DeleteSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
 	}
 	log.Infof("DeleteSnapshot: snapshot %s is in %s, whose vg is %s", snapshotName, nodeName, vgName)
 

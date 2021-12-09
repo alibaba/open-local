@@ -22,7 +22,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/agent/common"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 )
 
 // Agent is the primary "node agent" for open-local that runs on each node

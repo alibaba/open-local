@@ -45,12 +45,12 @@ func (d *Discoverer) ExpandSnapshotLVIfNeeded() {
 	// Step 2: handle every snapshot lv(for)
 	for _, lv := range lvs {
 		// step 1: get threshold and increase size from snapshotClass
-		snapContent, err := d.snapclient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(lv.Name(), prefix, "snapcontent", 1), metav1.GetOptions{})
+		snapContent, err := d.snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(lv.Name(), prefix, "snapcontent", 1), metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("[ExpandSnapshotLVIfNeeded]get snapContent %s error: %s", lv.Name(), err.Error())
 			return
 		}
-		snapClass, err := d.snapclient.SnapshotV1beta1().VolumeSnapshotClasses().Get(context.TODO(), *snapContent.Spec.VolumeSnapshotClassName, metav1.GetOptions{})
+		snapClass, err := d.snapclient.SnapshotV1().VolumeSnapshotClasses().Get(context.TODO(), *snapContent.Spec.VolumeSnapshotClassName, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("[ExpandSnapshotLVIfNeeded]get snapClass %s error: %s", *snapContent.Spec.VolumeSnapshotClassName, err.Error())
 			return

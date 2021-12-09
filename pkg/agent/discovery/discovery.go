@@ -32,7 +32,7 @@ import (
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	units "github.com/docker/go-units"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"

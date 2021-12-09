@@ -16,10 +16,10 @@ images:
     tag: v1.3.0
   snapshotter:
     image: thebeatles1994/csi-snapshotter
-    tag: v3.0.3
+    tag: v4.2.1
   snapshot_controller:
     image: thebeatles1994/snapshot-controller
-    tag: v3.0.3
+    tag: v4.2.1
 agent:
   name: open-local-agent
   # This block device will be used to create as a Volume Group in every node

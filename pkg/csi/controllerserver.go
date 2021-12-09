@@ -35,8 +35,8 @@ import (
 	"github.com/docker/go-units"
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
-	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -837,7 +837,7 @@ func getNodeName(client kubernetes.Interface, pvcName string, pvcNameSpace strin
 }
 
 func getVolumeSnapshotClass(snapclient snapshot.Interface, className string) (*snapshotapi.VolumeSnapshotClass, error) {
-	return snapclient.SnapshotV1beta1().VolumeSnapshotClasses().Get(context.Background(), className, metav1.GetOptions{})
+	return snapclient.SnapshotV1().VolumeSnapshotClasses().Get(context.Background(), className, metav1.GetOptions{})
 }
 
 func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName string) (*snapshotapi.VolumeSnapshotContent, error) {
@@ -847,7 +847,7 @@ func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName
 		prefix = localtype.DefaultSnapshotPrefix
 	}
 	// Step 2: get snapshot content api
-	return snapclient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentName, prefix, "snapcontent", 1), metav1.GetOptions{})
+	return snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentName, prefix, "snapcontent", 1), metav1.GetOptions{})
 }
 
 func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64, err error) {

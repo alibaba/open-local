@@ -25,7 +25,7 @@ import (
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/discovery"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"

@@ -63,8 +63,6 @@ const (
 	PvcNsTag = "csi.storage.k8s.io/pvc/namespace"
 	// NodeSchedueTag in annotations
 	NodeSchedueTag = "volume.kubernetes.io/selected-node"
-	// StorageSchedueTag in annotations
-	StorageSchedueTag = "volume.kubernetes.io/selected-storage"
 	// LastAppliyAnnotationTag tag
 	LastAppliyAnnotationTag = "kubectl.kubernetes.io/last-applied-configuration"
 	// CsiProvisionerIdentity tag
@@ -78,8 +76,6 @@ const (
 
 	// TopologyNodeKey define host name of node
 	TopologyNodeKey = "kubernetes.io/hostname"
-	// TopologyYodaNodeKey define host name of node
-	TopologyYodaNodeKey = "topology.yodaplugin.csi.alibabacloud.com/hostname"
 )
 
 type controllerServer struct {
@@ -164,9 +160,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csilib.Create
 
 	if nodeSelected, err = getNodeName(cs.client, pvcName, pvcNameSpace); err != nil {
 		return nil, status.Errorf(codes.Internal, "get node name failed: %s", err.Error())
-	}
-	if value, ok := parameters[StorageSchedueTag]; ok {
-		storageSelected = value
 	}
 	trace.Step("Step 2: Get Parameters done")
 	log.Infof("CreateVolume: Starting to Create %s volume %s with: pvcName(%s), pvcNameSpace(%s), nodeSelected(%s), storageSelected(%s)", volumeType, volumeID, pvcName, pvcNameSpace, nodeSelected, storageSelected)
@@ -526,7 +519,7 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 				return nil, errors.New("Get Lvm Spec for volume " + volumeID + ", with nil MatchExpressions")
 			}
 			key := pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-			if key != TopologyNodeKey && key != TopologyYodaNodeKey {
+			if key != TopologyNodeKey {
 				log.Errorf("DeleteVolume: Get Lvm Spec for volume %s, with key %s", volumeID, key)
 				return nil, errors.New("Get Lvm Spec for volume " + volumeID + ", with key" + key)
 			}
@@ -571,7 +564,7 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 				return nil, errors.New("Get Spec for volume " + volumeID + ", with nil MatchExpressions")
 			}
 			key := pvObj.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-			if key != TopologyNodeKey && key != TopologyYodaNodeKey {
+			if key != TopologyNodeKey {
 				log.Errorf("DeleteVolume: Get Device Spec for volume %s, with key %s", volumeID, key)
 				return nil, errors.New("Get Spec for volume " + volumeID + ", with key" + key)
 			}
@@ -932,7 +925,7 @@ func getPvSpec(client kubernetes.Interface, volumeID, driverName string) (string
 		return "", "", pv, errors.New("Get Lvm Spec for volume " + volumeID + ", with nil MatchExpressions")
 	}
 	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-	if key != TopologyNodeKey && key != TopologyYodaNodeKey {
+	if key != TopologyNodeKey {
 		log.Errorf("Get Lvm Spec for volume %s, with key %s", volumeID, key)
 		return "", "", pv, errors.New("Get Lvm Spec for volume " + volumeID + ", with key" + key)
 	}

@@ -419,11 +419,11 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 						v := atomic.AddInt32(&e.currentWorkingRoutines, -1)
 						log.Infof("[end]current working go routine %d", v)
 					}()
-					oldNode := pvcCloned.Annotations[pkg.AnnSelectedNode]
-					delete(pvcCloned.Annotations, pkg.AnnSelectedNode)
+					oldNode := pvcCloned.Annotations[pkg.AnnoSelectedNode]
+					delete(pvcCloned.Annotations, pkg.AnnoSelectedNode)
 					_, err := e.kubeClient.CoreV1().PersistentVolumeClaims(pvcCloned.Namespace).Update(context.Background(), pvcCloned, v1.UpdateOptions{})
 					if err != nil {
-						log.Warningf("failed to remove %s from pvc %s: ", pkg.AnnSelectedNode, utils.PVCName(pvc))
+						log.Warningf("failed to remove %s from pvc %s: ", pkg.AnnoSelectedNode, utils.PVCName(pvc))
 						return
 					}
 					log.Infof("successfully removed selected-node %q from pvc %s", oldNode, utils.PVCName(pvc))

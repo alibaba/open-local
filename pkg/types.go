@@ -75,11 +75,10 @@ const (
 
 	// This annotation is added to a PVC that has been triggered by scheduler to
 	// be dynamically provisioned. Its value is the name of the selected node.
-	AnnSelectedNode                      = "volume.kubernetes.io/selected-node"
+	AnnoSelectedNode                     = "volume.kubernetes.io/selected-node"
 	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
 	EnvExpandSnapInterval                = "Expand_Snapshot_Interval"
 	EnvForceCreateVG                     = "Force_Create_VG"
-	TagSnapshot                          = "SnapshotName"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
 

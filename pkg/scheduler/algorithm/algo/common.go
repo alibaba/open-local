@@ -479,7 +479,7 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node,
 		}
 		log.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
 		// step 3: get src node name
-		srcNodeName := srcPVC.Annotations[localtype.AnnSelectedNode]
+		srcNodeName := srcPVC.Annotations[localtype.AnnoSelectedNode]
 		log.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
 		// step 4: check
 		if srcNodeName != nodeName {

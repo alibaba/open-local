@@ -471,7 +471,7 @@ func PvcContainsSelectedNode(pvc *corev1.PersistentVolumeClaim) bool {
 	if len(pvc.Annotations) <= 0 {
 		return false
 	}
-	if v, ok := pvc.Annotations[localtype.AnnSelectedNode]; ok {
+	if v, ok := pvc.Annotations[localtype.AnnoSelectedNode]; ok {
 		// according to
 		return len(v) > 0
 	}

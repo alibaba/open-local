@@ -51,8 +51,8 @@ func TestIsPodPvcReady(t *testing.T) {
 	pvc1 := framework.MakeDevicePVC("pod-1-pvc-1", "default", nil)
 	pvc2 := framework.MakeDevicePVC("pod-1-pvc-2", "default", nil)
 	nodeName := "testnode"
-	pvc1.Annotations[pkg.AnnSelectedNode] = nodeName
-	pvc2.Annotations[pkg.AnnSelectedNode] = nodeName
+	pvc1.Annotations[pkg.AnnoSelectedNode] = nodeName
+	pvc2.Annotations[pkg.AnnoSelectedNode] = nodeName
 	tests := []struct {
 		name    string
 		isReady bool

@@ -23,7 +23,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/agent/common"
@@ -52,7 +51,6 @@ type Discoverer struct {
 	snapclient     snapshot.Interface
 	// K8sMounter used to verify mountpoints
 	K8sMounter mount.Interface
-	mutex      sync.RWMutex
 	recorder   record.EventRecorder
 }
 
@@ -75,7 +73,6 @@ func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interf
 		kubeclientset:  kubeclientset,
 		snapclient:     snapclient,
 		K8sMounter:     mount.New("" /* default mount path */),
-		mutex:          sync.RWMutex{},
 		recorder:       recorder,
 	}
 }
@@ -129,8 +126,6 @@ func (d *Discoverer) newLocalStorageCRD() *lssv1alpha1.NodeLocalStorage {
 
 // Discover update local storage periodically
 func (d *Discoverer) Discover() {
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
 	// update configuration from NLSC
 	if err := d.updateConfigurationFromNLSC(); err != nil {
 		log.Errorf("update configuration from NLSC error: %s", err.Error())

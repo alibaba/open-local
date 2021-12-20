@@ -31,8 +31,10 @@ English | [简体中文](./README_zh_CN.md)
 
 `Open-Local` has been widely used in production environments, and currently used products include:
 
+- [ACK Distro](https://github.com/AliyunContainerService/ackdistro)
 - Alibaba Cloud ECP (Enterprise Container Platform)
 - Alibaba Cloud ADP (Cloud-Native Application Delivery Platform)
+- CNStack Products
 - AntStack Plus Products
 
 ## User guide

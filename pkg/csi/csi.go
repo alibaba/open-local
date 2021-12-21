@@ -22,7 +22,7 @@ import (
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
-func NewDriver(driverName, nodeID, endpoint string, grpcConnectionTimeout int) *CSIPlugin {
+func NewDriver(driverName, nodeID, endpoint, sysPath string, grpcConnectionTimeout int) *CSIPlugin {
 	plugin := &CSIPlugin{}
 	plugin.endpoint = endpoint
 
@@ -37,7 +37,7 @@ func NewDriver(driverName, nodeID, endpoint string, grpcConnectionTimeout int) *
 	plugin.driver.AddVolumeCapabilityAccessModes([]csilib.VolumeCapability_AccessMode_Mode{csilib.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER})
 
 	plugin.idServer = newIdentityServer(csiDriver)
-	plugin.nodeServer = newNodeServer(csiDriver, driverName, nodeID)
+	plugin.nodeServer = newNodeServer(csiDriver, driverName, nodeID, sysPath)
 	plugin.controllerServer = newControllerServer(csiDriver, grpcConnectionTimeout)
 
 	return plugin

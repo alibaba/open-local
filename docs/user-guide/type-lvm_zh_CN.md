@@ -6,6 +6,7 @@
   - [存储卷扩容](#存储卷扩容)
   - [存储卷快照](#存储卷快照)
   - [原生块设备](#原生块设备)
+  - [IO 限流](#io-限流)
 
 ## 共享池配置
 
@@ -41,11 +42,12 @@ minikube   DiskReady   Running   30s             0s
 Open-Local 默认包含如下存储类模板:
 
 ```bash
-NAME                    PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-open-local-device-hdd   local.csi.aliyun.com        Delete          WaitForFirstConsumer   false                  6h56m
-open-local-device-ssd   local.csi.aliyun.com        Delete          WaitForFirstConsumer   false                  6h56m
-open-local-lvm          local.csi.aliyun.com        Delete          WaitForFirstConsumer   true                   6h56m
-open-local-lvm-xfs      local.csi.aliyun.com        Delete          WaitForFirstConsumer   true                   6h56m
+NAME                           PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+open-local-device-hdd          local.csi.aliyun.com        Delete          WaitForFirstConsumer   false                  6h56m
+open-local-device-ssd          local.csi.aliyun.com        Delete          WaitForFirstConsumer   false                  6h56m
+open-local-lvm                 local.csi.aliyun.com        Delete          WaitForFirstConsumer   true                   6h56m
+open-local-lvm-xfs             local.csi.aliyun.com        Delete          WaitForFirstConsumer   true                   6h56m
+open-local-lvm-io-throttling   local.csi.aliyun.com        Delete          WaitForFirstConsumer   true                   6h56m
 ```
 
 创建一个Pod，该 Pod 使用名为 open-local-lvm 存储类模板。此时创建的存储卷的文件系统为 ext4，若用户指定 open-local-lvm-xfs 存储模板，则存储卷文件系统为 xfs。用户同样可以指定文件系统，见[存储类模板介绍](./../storageclass/param.md):
@@ -219,3 +221,71 @@ Events:
   Normal  ExternalProvisioning   72s (x2 over 72s)  persistentvolume-controller                                                        waiting for a volume to be created, either by external provisioner "local.csi.aliyun.com" or manually created by system administrator
   Normal  ProvisioningSucceeded  72s                local.csi.aliyun.com_iZrj96fgmgzcvhtz2vkrgeZ_f2b69212-7103-4f9a-a6c4-179f37036ef0  Successfully provisioned volume local-b048c19a-fe0b-455d-9f25-b23fdef03d8c
 ```
+
+## IO 限流
+
+Open-Local 支持为 PV 设置 IO 限流:
+
+```bash
+# kubectl apply -f ./example/lvm/sts-io-throttling.yaml
+```
+
+Pod 处于 Running 状态后，进入 Pod 容器中:
+
+```bash
+# kubectl exec -it test-io-throttling-0 sh
+```
+
+此时存储卷是以原生块设备挂载在 /dev/sdd 上，执行 fio 命令:
+
+```bash
+# fio -name=test -filename=/dev/sdd -ioengine=psync -direct=1 -iodepth=1 -thread -bs=16k -rw=readwrite -numjobs=32 -size=1G -runtime=60 -time_based -group_reporting
+```
+
+结果如下所示，可见读写吞吐量限制在 1024KiB/s 上下:
+
+```bash
+Jobs: 32 (f=32): [M(32)][100.0%][r=1024KiB/s,w=800KiB/s][r=64,w=50 IOPS][eta 00m:00s]
+test: (groupid=0, jobs=32): err= 0: pid=139: Fri Dec 24 11:20:53 2021
+   read: IOPS=64, BW=1024KiB/s (1049kB/s)(60.4MiB/60406msec)
+    clat (usec): min=327, max=507949, avg=352089.87, stdev=129528.82
+     lat (usec): min=328, max=507950, avg=352090.72, stdev=129528.81
+    clat percentiles (msec):
+     |  1.00th=[   65],  5.00th=[   95], 10.00th=[  186], 20.00th=[  203],
+     | 30.00th=[  296], 40.00th=[  376], 50.00th=[  393], 60.00th=[  401],
+     | 70.00th=[  405], 80.00th=[  485], 90.00th=[  502], 95.00th=[  502],
+     | 99.00th=[  502], 99.50th=[  502], 99.90th=[  506], 99.95th=[  506],
+     | 99.99th=[  510]
+   bw (  KiB/s): min=   31, max=  192, per=3.84%, avg=39.30, stdev=16.26, samples=3118
+   iops        : min=    1, max=   12, avg= 2.40, stdev= 1.04, samples=3118
+  write: IOPS=62, BW=993KiB/s (1017kB/s)(58.6MiB/60406msec)
+    clat (usec): min=426, max=511623, avg=150543.02, stdev=128591.65
+     lat (usec): min=428, max=511625, avg=150544.79, stdev=128591.67
+    clat percentiles (usec):
+     |  1.00th=[   469],  5.00th=[   586], 10.00th=[  1450], 20.00th=[ 14877],
+     | 30.00th=[ 93848], 40.00th=[104334], 50.00th=[109577], 60.00th=[123208],
+     | 70.00th=[204473], 80.00th=[295699], 90.00th=[320865], 95.00th=[404751],
+     | 99.00th=[417334], 99.50th=[501220], 99.90th=[509608], 99.95th=[509608],
+     | 99.99th=[509608]
+   bw (  KiB/s): min=   31, max=  224, per=4.83%, avg=47.97, stdev=27.13, samples=2496
+   iops        : min=    1, max=   14, avg= 2.95, stdev= 1.70, samples=2496
+  lat (usec)   : 500=1.21%, 750=2.35%, 1000=0.47%
+  lat (msec)   : 2=3.45%, 4=0.70%, 10=0.29%, 20=5.24%, 50=0.14%
+  lat (msec)   : 100=7.97%, 250=27.60%, 500=47.56%, 750=3.01%
+  cpu          : usr=0.00%, sys=0.01%, ctx=7629, majf=0, minf=14
+  IO depths    : 1=100.0%, 2=0.0%, 4=0.0%, 8=0.0%, 16=0.0%, 32=0.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     issued rwts: total=3866,3749,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=1
+
+Run status group 0 (all jobs):
+   READ: bw=1024KiB/s (1049kB/s), 1024KiB/s-1024KiB/s (1049kB/s-1049kB/s), io=60.4MiB (63.3MB), run=60406-60406msec
+  WRITE: bw=993KiB/s (1017kB/s), 993KiB/s-993KiB/s (1017kB/s-1017kB/s), io=58.6MiB (61.4MB), run=60406-60406msec
+
+Disk stats (read/write):
+    dm-1: ios=3869/3749, merge=0/0, ticks=4848/17833, in_queue=22681, util=6.68%, aggrios=3112/3221, aggrmerge=774/631, aggrticks=3921/13598, aggrin_queue=17396, aggrutil=6.75%
+  vdb: ios=3112/3221, merge=774/631, ticks=3921/13598, in_queue=17396, util=6.75%
+```
+
+若想要不同的 iops 和 bps 设置，可参考[存储类模板介绍](./../storageclass/param.md)。

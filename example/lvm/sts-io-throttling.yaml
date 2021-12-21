@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-io-throttling
+  labels:
+    app: test-io-throttling
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: test-io-throttling
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-io-throttling
+spec:
+  selector:
+    matchLabels:
+      app: test-io-throttling
+  podManagementPolicy: Parallel
+  serviceName: "test-io-throttling"
+  replicas: 1
+  volumeClaimTemplates:
+  - metadata:
+      name: html
+    spec:
+      volumeMode: Block
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: open-local-lvm-io-throttling
+      resources:
+        requests:
+          storage: 5Gi
+  template:
+    metadata:
+      labels:
+        app: test-io-throttling
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+      - name: test
+        image: centos:7
+        imagePullPolicy: IfNotPresent
+        volumeDevices:
+        - devicePath: "/dev/sdd"
+          name: html
+        command:
+        - sh
+        - "-c"
+        - |
+            yum install -y fio
+            while true; do
+              echo "huizhi testing";
+              echo "yes ">>/data/yes.txt;
+              sleep 120s
+            done;

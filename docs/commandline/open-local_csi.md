@@ -14,6 +14,7 @@ open-local csi [flags]
       --grpc-connection-timeout int   grpc connection timeout(second) (default 3)
   -h, --help                          help for csi
       --nodeID string                 the id of node
+      --path.sysfs string             Path of sysfs mountpoint (default "/host_sys")
 ```
 
 ### SEE ALSO

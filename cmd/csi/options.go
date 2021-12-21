@@ -25,6 +25,7 @@ type csiOption struct {
 	Endpoint              string
 	NodeID                string
 	Driver                string
+	SysPath               string
 	GrpcConnectionTimeout int
 }
 
@@ -32,5 +33,6 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Endpoint, "endpoint", csi.DefaultEndpoint, "the endpointof CSI")
 	fs.StringVar(&option.NodeID, "nodeID", "", "the id of node")
 	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")
+	fs.StringVar(&option.SysPath, "path.sysfs", "/host_sys", "Path of sysfs mountpoint")
 	fs.IntVar(&option.GrpcConnectionTimeout, "grpc-connection-timeout", csi.DefaultConnectTimeout, "grpc connection timeout(second)")
 }

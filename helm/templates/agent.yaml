@@ -149,6 +149,9 @@ spec:
           name: localvolume
         - mountPath: /var/log
           name: host-log
+        - mountPath: /host_sys
+          mountPropagation: Bidirectional
+          name: sys
       volumes:
       - name: host-dev
         hostPath:

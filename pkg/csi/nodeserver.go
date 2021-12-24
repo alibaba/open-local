@@ -19,8 +19,13 @@ package csi
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
+	"syscall"
 
+	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -31,6 +36,7 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	mountutils "k8s.io/mount-utils"
@@ -66,6 +72,7 @@ type nodeServer struct {
 	mounter    utils.Mounter
 	client     kubernetes.Interface
 	k8smounter k8smount.Interface
+	sysPath    string
 }
 
 var (
@@ -73,7 +80,7 @@ var (
 	kubeconfig string
 )
 
-func newNodeServer(d *csicommon.CSIDriver, dName, nodeID string) csi.NodeServer {
+func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.NodeServer {
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
 		log.Fatalf("Error building kubeconfig: %s", err.Error())
@@ -97,9 +104,13 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID string) csi.NodeServer 
 		k8smounter:        mounter,
 		client:            kubeClient,
 		driverName:        dName,
+		sysPath:           sysPath,
 	}
 }
 
+// volume_id: yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866
+// staging_target_path: /var/lib/kubelet/plugins/kubernetes.io/csi/pv/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/globalmount
+// target_path: /var/lib/kubelet/pods/2a7bbb9c-c915-4006-84d7-0e3ac9d8d70f/volumes/kubernetes.io~csi/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/mount
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	log.Debugf("NodePublishVolume:: local volume request with %v", req)
 
@@ -151,6 +162,11 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	default:
 		return nil, status.Errorf(codes.Internal, "NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
 	}
+
+	if err := ns.setIOThrottling(ctx, req); err != nil {
+		return nil, err
+	}
+
 	log.Infof("NodePublishVolume: Successful mount local volume %s to %s", req.VolumeId, targetPath)
 	return &csi.NodePublishVolumeResponse{}, nil
 }
@@ -347,4 +363,86 @@ func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1
 	return pvSizeMB, "m", pv
 	//}
 	//return pvSizeGB, "g", pv
+}
+
+func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+	volCap := req.GetVolumeCapability()
+	targetPath := req.GetTargetPath()
+	iops, iopsExist := req.VolumeContext[localtype.VolumeIOPS]
+	bps, bpsExist := req.VolumeContext[localtype.VolumeBPS]
+	if iopsExist || bpsExist {
+		// get pod
+		var pod v1.Pod
+		var podUID string
+		switch volCap.GetAccessType().(type) {
+		case *csi.VolumeCapability_Block:
+			// /var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/yoda-c018ff81-d346-452e-b7b8-a45f1d1c230e/76cf946e-d074-4455-a272-4d3a81264fab
+			podUID = strings.Split(targetPath, "/")[10]
+		case *csi.VolumeCapability_Mount:
+			// /var/lib/kubelet/pods/2a7bbb9c-c915-4006-84d7-0e3ac9d8d70f/volumes/kubernetes.io~csi/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/mount
+			podUID = strings.Split(targetPath, "/")[5]
+		}
+		log.Debugf("pod(volume id %s) uuid is %s", req.VolumeId, podUID)
+		namespace := req.VolumeContext[localtype.PVCNameSpace]
+		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+		for _, podItem := range pods.Items {
+			if podItem.UID == types.UID(podUID) {
+				pod = podItem
+			}
+		}
+		if err != nil {
+			return status.Errorf(codes.Internal, "NodePublishVolume: failed to get pod(uuid: %s): %s", podUID, err.Error())
+		}
+		// pod qosClass and blkioPath
+		qosClass := pod.Status.QOSClass
+		blkioPath := fmt.Sprintf("%s/fs/cgroup/blkio/kubepods.slice", ns.sysPath)
+		switch qosClass {
+		case v1.PodQOSGuaranteed:
+			blkioPath = path.Join(blkioPath, fmt.Sprintf("kubepods-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
+		case v1.PodQOSBurstable:
+			blkioPath = path.Join(blkioPath, "kubepods-burstable.slice", fmt.Sprintf("kubepods-burstable-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
+		case v1.PodQOSBestEffort:
+			blkioPath = path.Join(blkioPath, "kubepods-besteffort.slice", fmt.Sprintf("kubepods-besteffort-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
+		}
+		log.Debugf("pod(volume id %s) qosClass: %s", req.VolumeId, qosClass)
+		log.Debugf("pod(volume id %s) blkio path: %s", req.VolumeId, blkioPath)
+		// get lv lvpath
+		lvpath, err := ns.createLV(ctx, req)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get lv path %s: %s", req.VolumeId, err.Error())
+		}
+		stat := syscall.Stat_t{}
+		_ = syscall.Stat(lvpath, &stat)
+		maj := uint64(stat.Rdev / 256)
+		min := uint64(stat.Rdev % 256)
+		log.Debugf("volume %s maj:min: %d:%d", req.VolumeId, maj, min)
+		log.Debugf("volume %s path: %s", req.VolumeId, lvpath)
+		if iopsExist {
+			log.Debugf("volume %s iops: %s", req.VolumeId, iops)
+			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
+			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile), err.Error())
+			}
+			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSWriteFile))
+			_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSWriteFile), err.Error())
+			}
+		}
+		if bpsExist {
+			log.Debugf("volume %s bps: %s", req.VolumeId, bps)
+			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile))
+			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile), err.Error())
+			}
+			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSWriteFile))
+			_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.BPSWriteFile), err.Error())
+			}
+		}
+	}
+	return nil
 }

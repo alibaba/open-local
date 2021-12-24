@@ -36,6 +36,8 @@ storageclass:
     name: open-local-lvm
   lvm_xfs:
     name: open-local-lvm-xfs
+  lvm_io:
+    name: open-local-lvm-io-throttling
   device_ssd:
     name: open-local-device-ssd
   device_hdd:

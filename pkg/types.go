@@ -56,6 +56,13 @@ const (
 	VolumeFSTypeExt4          = "ext4"
 	VolumeFSTypeExt3          = "ext3"
 	VolumeFSTypeXFS           = "xfs"
+	VolumeIOPS                = "iops"
+	VolumeBPS                 = "bps"
+
+	BPSReadFile   = "blkio.throttle.read_bps_device"
+	BPSWriteFile  = "blkio.throttle.write_bps_device"
+	IOPSReadFile  = "blkio.throttle.read_iops_device"
+	IOPSWriteFile = "blkio.throttle.write_iops_device"
 
 	PVCName      = "csi.storage.k8s.io/pvc/name"
 	PVCNameSpace = "csi.storage.k8s.io/pvc/namespace"

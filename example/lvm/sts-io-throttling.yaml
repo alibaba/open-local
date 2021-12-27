@@ -45,8 +45,8 @@ spec:
           effect: NoSchedule
       containers:
       - name: test
-        image: centos:7
-        imagePullPolicy: IfNotPresent
+        image: xridge/fio
+        imagePullPolicy: Always
         volumeDevices:
         - devicePath: "/dev/sdd"
           name: html
@@ -54,7 +54,6 @@ spec:
         - sh
         - "-c"
         - |
-            yum install -y fio
             while true; do
               echo "huizhi testing";
               echo "yes ">>/data/yes.txt;

@@ -39,7 +39,7 @@ spec:
               value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
             - name: TZ
               value: Asia/Shanghai
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           resources:
             limits:
               cpu: 500m

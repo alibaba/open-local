@@ -37,7 +37,7 @@ spec:
               value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
             - name: TZ
               value: Asia/Shanghai
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: "Always"
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}

@@ -46,7 +46,7 @@ spec:
       containers:
       - name: nginx
         image: nginx
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         volumeDevices:
         - devicePath: "/dev/sdd"
           name: html

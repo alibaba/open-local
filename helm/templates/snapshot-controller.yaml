@@ -33,7 +33,7 @@ spec:
           env:
             - name: TZ
               value: Asia/Shanghai
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           resources:
             limits:
               cpu: 500m

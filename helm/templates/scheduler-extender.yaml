@@ -46,7 +46,7 @@ spec:
         - --port={{ .Values.extender.port }}
         - --scheduler-strategy={{ .Values.extender.strategy }}
         image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         name: {{ .Values.name }}-scheduler-extender
         resources:
           limits:

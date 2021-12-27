@@ -11,7 +11,7 @@
 ### 前期准备
 
 - 基于 Red Hat 和 Debian 的 Linux 发行版
-- Kubernetes v1.18+
+- Kubernetes v1.20+
 - Helm v3.0+
 - [lvm2](https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux))
 - 集群中至少提供一个空闲块设备用来测试，块设备可以是一整块磁盘，也可以是一个分区。建议一个节点至少一个空闲块设备。

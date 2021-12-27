@@ -60,7 +60,7 @@ spec:
         - name: MINIO_PROMETHEUS_AUTH_TYPE
           value: public
         image: minio/minio
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         livenessProbe:
           httpGet:
             path: /minio/health/live

@@ -5,7 +5,7 @@ This is the user guide for Open-Local.
 ## Requirements
 
 - Linux distributions based on Red Hat and Debian
-- Kubernetes v1.18+
+- Kubernetes v1.20+
 - Helm v3.0+
 - [lvm2](https://en.wikipedia.org/wiki/Logical_Volume_Manager_(Linux))
 - At least one block device

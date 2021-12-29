@@ -3,22 +3,22 @@ namespace: kube-system
 driver: local.csi.aliyun.com
 images:
   local:
-    image: thebeatles1994/open-local
-    tag: v0.3.3-dev
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/open-local
+    tag: v0.4.0
   registrar:
-    image: thebeatles1994/csi-node-driver-registrar
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-node-driver-registrar
     tag: v2.3.0
   provisioner:
-    image: thebeatles1994/csi-provisioner
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-provisioner
     tag: v2.2.2
   resizer:
-    image: thebeatles1994/csi-resizer
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-resizer
     tag: v1.3.0
   snapshotter:
-    image: thebeatles1994/csi-snapshotter
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-snapshotter
     tag: v4.2.1
   snapshot_controller:
-    image: thebeatles1994/snapshot-controller
+    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/snapshot-controller
     tag: v4.2.1
 agent:
   name: open-local-agent

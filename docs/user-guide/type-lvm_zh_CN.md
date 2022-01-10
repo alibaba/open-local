@@ -7,6 +7,7 @@
   - [存储卷快照](#存储卷快照)
   - [原生块设备](#原生块设备)
   - [IO 限流](#io-限流)
+  - [临时卷](#临时卷)
 
 ## 共享池配置
 
@@ -289,3 +290,74 @@ Disk stats (read/write):
 ```
 
 若想要不同的 iops 和 bps 设置，可参考[存储类模板介绍](./../storageclass/param.md)。
+
+## 临时卷
+
+Open-Local 支持为 Pod 创建临时卷，其中临时卷的生命周期与 Pod 一致，即 Pod 删除后，临时卷也随之删除。可理解为 Open-Local 版本的 emptydir。
+
+```bash
+# kubectl apply -f ./example/lvm/ephemeral.yaml
+```
+
+结果如下:
+
+```bash
+# kubectl describe po file-server
+Name:         file-server
+Namespace:    default
+Priority:     0
+Node:         izrj94p95e34mrm3aow48oz/172.23.28.137
+Start Time:   Tue, 11 Jan 2022 17:43:44 +0800
+Labels:       <none>
+Annotations:  cni.projectcalico.org/podIP: 100.84.211.72/32
+              cni.projectcalico.org/podIPs: 100.84.211.72/32
+Status:       Running
+IP:           100.84.211.72
+IPs:
+  IP:  100.84.211.72
+Containers:
+  file-server:
+    Container ID:   docker://2c2468024e89b03748070b6e96f508c6c31c7ea16aa3bf7e71a6dd534fae94b0
+    Image:          filebrowser/filebrowser:latest
+    Image ID:       docker-pullable://filebrowser/filebrowser@sha256:f3849e911fecead5b7da2d1c4b4ed9e5990afe04895bfb904c6b4270405277dc
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Tue, 11 Jan 2022 17:43:46 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /srv from webroot (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-dns4c (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  webroot:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            local.csi.aliyun.com
+    FSType:
+    ReadOnly:          false
+    VolumeAttributes:      size=2Gi
+                           vgName=open-local-pool-0
+  default-token-dns4c:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-dns4c
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  10m   default-scheduler  Successfully assigned default/file-server to izrj94p95e34mrm3aow48oz
+  Normal  Pulling    10m   kubelet            Pulling image "filebrowser/filebrowser:latest"
+  Normal  Pulled     10m   kubelet            Successfully pulled image "filebrowser/filebrowser:latest" in 1.175191049s
+  Normal  Created    10m   kubelet            Created container file-server
+  Normal  Started    10m   kubelet            Started container file-server
+```

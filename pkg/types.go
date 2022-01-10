@@ -94,6 +94,8 @@ const (
 	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
 	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
 	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
+	ParamVGName                  = "vgName"
+	ParamLVSize                  = "size"
 	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
 	DefaultSnapshotPrefix        = "snap"
 	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024

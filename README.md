@@ -17,6 +17,7 @@ English | [简体中文](./README_zh_CN.md)
 - Volume metrics
 - Raw block volume
 - IO Throttling
+- Ephemeral inline volume
 
 ## Overall Architecture
 

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/apimachinery/pkg/api/resource"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
 )
@@ -51,7 +52,7 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
 	if _, err := os.Stat(devicePath); os.IsNotExist(err) {
-		err := ns.createVolume(ctx, volumeID, vgName, lvmType)
+		err := ns.createVolume(req.VolumeContext, volumeID, vgName, lvmType)
 		if err != nil {
 			log.Errorf("createLV: create volume %s with error: %s", volumeID, err.Error())
 			return "", status.Error(codes.Internal, err.Error())
@@ -306,11 +307,26 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 }
 
 // create lvm volume
-func (ns *nodeServer) createVolume(ctx context.Context, volumeID, vgName, lvmType string) error {
+func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vgName, lvmType string) error {
 	pvSize, unit, _ := getPvInfo(ns.client, volumeID)
 	if pvSize == 0 {
-		log.Errorf("createVolume: Volume: %s, VG: %s, parse pv Size zero or snapshot lv is deleted", volumeID, vgName)
-		return status.Errorf(codes.Internal, "createVolume: Volume: %s, VG: %s, parse pv Size zero or snapshot lv is deleted", volumeID, vgName)
+		ephemeralVolume := volumeContext["csi.storage.k8s.io/ephemeral"] == "true" ||
+			volumeContext["csi.storage.k8s.io/ephemeral"] == ""
+		if ephemeralVolume {
+			sizeStr, exist := volumeContext[localtype.ParamLVSize]
+			if !exist {
+				sizeStr = "1Gi"
+			}
+			quan, err := resource.ParseQuantity(sizeStr)
+			if err != nil {
+				return err
+			}
+			pvSize = quan.Value() / 1024 / 1024
+			unit = "m"
+		} else {
+			log.Errorf("createVolume: Volume: %s, VG: %s, parse pv Size zero or snapshot lv is deleted", volumeID, vgName)
+			return status.Errorf(codes.Internal, "createVolume: Volume: %s, VG: %s, parse pv Size zero or snapshot lv is deleted", volumeID, vgName)
+		}
 	}
 	var err error
 
@@ -354,6 +370,17 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 		}
 		log.Infof("Successful Create Linear LVM volume: %s, with command: %s", volumeID, cmd)
 	}
+	return nil
+}
+
+func removeLVMByDevicePath(devicePath string) error {
+	cmd := fmt.Sprintf("%s lvremove -v -f %s", localtype.NsenterCmd, devicePath)
+	_, err := utils.Run(cmd)
+	if err != nil {
+		log.Errorf("removeLVMByDevicePath:: lvremove command %s error: %v", cmd, err)
+		return err
+	}
+	log.Infof("Successful Remove LVM devicePath: %s, with command: %s", devicePath, cmd)
 	return nil
 }
 

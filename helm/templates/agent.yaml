@@ -4,6 +4,10 @@ metadata:
   name: {{ .Values.driver }}
 spec:
   attachRequired: false
+  podInfoOnMount: true
+  volumeLifecycleModes:
+  - Persistent
+  - Ephemeral
 ---
 apiVersion: apps/v1
 kind: DaemonSet

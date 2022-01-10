@@ -126,6 +126,16 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		volumeType = req.VolumeContext[VolumeTypeTag]
 	}
 
+	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true" ||
+		req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == ""
+	if ephemeralVolume {
+		_, vgNameExist := req.VolumeContext[localtype.ParamVGName]
+		if !vgNameExist {
+			return nil, status.Error(codes.InvalidArgument, "NodePublishVolume: must set vgName in volumeAttributes when creating ephemeral local volume")
+		}
+		volumeType = LvmVolumeType
+	}
+
 	volCap := req.GetVolumeCapability()
 	switch volumeType {
 	case LvmVolumeType:
@@ -140,6 +150,9 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmFS): mount lvm volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
 			}
+		}
+		if err := ns.setIOThrottling(ctx, req); err != nil {
+			return nil, err
 		}
 	case MountPointType:
 		err := ns.mountMountPointVolume(ctx, req)
@@ -161,10 +174,6 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 	default:
 		return nil, status.Errorf(codes.Internal, "NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
-	}
-
-	if err := ns.setIOThrottling(ctx, req); err != nil {
-		return nil, err
 	}
 
 	log.Infof("NodePublishVolume: Successful mount local volume %s to %s", req.VolumeId, targetPath)
@@ -199,6 +208,22 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: volume %s at path %s still existed", req.VolumeId, targetPath))
 	}
 
+	var srcDevice string = ""
+	mps, err := ns.k8smounter.List()
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: fail to list mountpoints: %s", err.Error()))
+	}
+	for _, mp := range mps {
+		if mp.Path == targetPath {
+			srcDevice = mp.Device
+		}
+	}
+	if srcDevice == "" {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: can not get srcDevice from targetPath %s", targetPath))
+	} else {
+		log.Infof("srcDevice of targetPath %s is %s", targetPath, srcDevice)
+	}
+
 	err = ns.mounter.Unmount(req.GetTargetPath())
 	if err != nil {
 		log.Errorf("NodeUnpublishVolume: Umount volume %s for path %s with error %v", req.VolumeId, targetPath, err)
@@ -213,6 +238,15 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	if isMnt {
 		log.Errorf("NodeUnpublishVolume: Umount volume %s for path %s not successful", req.VolumeId, targetPath)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Umount volume %s not successful", req.VolumeId))
+	}
+
+	pvSize, _, _ := getPvInfo(ns.client, req.VolumeId)
+	if pvSize == 0 {
+		// /dev/mapper/yoda--pool0-yoda--5c523416--7288--4138--95e0--f9392995959f
+		err := removeLVMByDevicePath(srcDevice)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 	}
 
 	log.Infof("NodeUnpublishVolume: Successful umount target path %s for volume %s", targetPath, req.VolumeId)
@@ -407,6 +441,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		log.Debugf("pod(volume id %s) qosClass: %s", req.VolumeId, qosClass)
 		log.Debugf("pod(volume id %s) blkio path: %s", req.VolumeId, blkioPath)
 		// get lv lvpath
+		// todo: not support device kind
 		lvpath, err := ns.createLV(ctx, req)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get lv path %s: %s", req.VolumeId, err.Error())

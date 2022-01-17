@@ -37,7 +37,8 @@ func NewNodeCache(nodeName string) *NodeCache {
 			Devices:      make(map[ResourceName]ExclusiveResource),
 			AllocatedNum: 0,
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
-			LocalPVs: make(map[string]corev1.PersistentVolume)},
+			LocalPVs:            make(map[string]corev1.PersistentVolume),
+			PodInlineVolumeInfo: make(map[string][]InlineVolumeInfo)},
 	}
 }
 
@@ -150,6 +151,17 @@ func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage
 	for _, vg := range removedVGs {
 		delete(cacheNode.VGs, ResourceName(vg))
 		log.Debugf("deleted vg %s from node cache %s", vg, nodeLocal.Name)
+	}
+
+	for _, volumes := range nc.PodInlineVolumeInfo {
+		for _, volume := range volumes {
+			if !volume.Recorded {
+				volume.Recorded = true
+				vg := nc.VGs[ResourceName(volume.VgName)]
+				vg.Requested += volume.VolumeSize
+				nc.VGs[ResourceName(volume.VgName)] = vg
+			}
+		}
 	}
 
 	// Device
@@ -461,6 +473,67 @@ func (nc *NodeCache) RemoveLocalDevice(pv *corev1.PersistentVolume) error {
 	return nil
 }
 
+func (nc *NodeCache) AddPodInlineVolumeInfo(pod *corev1.Pod) error {
+	// 先判断 pod 中是否有临时卷，是否 Running，是否 nodeName 在本节点。没有直接退出
+	if !nc.checkInlineVolumes(pod) {
+		return nil
+	}
+	nc.rwLock.Lock()
+	defer nc.rwLock.Unlock()
+
+	if _, exist := nc.PodInlineVolumeInfo[string(pod.UID)]; !exist {
+		// 获取临时卷，更新 PodInlineVolumeInfo
+		nc.PodInlineVolumeInfo[string(pod.UID)] = []InlineVolumeInfo{}
+		for _, volume := range pod.Spec.Volumes {
+			if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
+				vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
+				if vgName == "" {
+					return fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+				}
+				inlineVolumeInfo := InlineVolumeInfo{
+					VgName:       vgName,
+					VolumeName:   volume.Name,
+					VolumeSize:   size,
+					PodName:      pod.Name,
+					PodNamespace: pod.Namespace,
+					Recorded:     false,
+				}
+				// 更新 VGs
+				if vg, exist := nc.VGs[ResourceName(vgName)]; exist {
+					vg.Requested += size
+					nc.VGs[ResourceName(vgName)] = vg
+					inlineVolumeInfo.Recorded = true
+				}
+
+				nc.PodInlineVolumeInfo[string(pod.UID)] = append(nc.PodInlineVolumeInfo[string(pod.UID)], inlineVolumeInfo)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (nc *NodeCache) UpdatePodInlineVolumeInfo(pod *corev1.Pod) error {
+	return nc.AddPodInlineVolumeInfo(pod)
+}
+
+func (nc *NodeCache) DeletePodInlineVolumeInfo(pod *corev1.Pod) error {
+	nc.rwLock.Lock()
+	defer nc.rwLock.Unlock()
+
+	if volumes, exist := nc.PodInlineVolumeInfo[string(pod.UID)]; exist {
+		delete(nc.PodInlineVolumeInfo, string(pod.UID))
+		for _, volume := range volumes {
+			// 更新 VGs
+			vg := nc.VGs[ResourceName(volume.VgName)]
+			vg.Requested -= volume.VolumeSize
+			nc.VGs[ResourceName(volume.VgName)] = vg
+		}
+	}
+
+	return nil
+}
+
 // isNodeLocal tests whether a PV is a local PV and belongs to this node
 // it use label "kubernetes.io/hostname" to identify a node
 func (nc *NodeCache) isNodeLocal(pv *corev1.PersistentVolume) bool {
@@ -495,5 +568,13 @@ func (nc *NodeCache) IsLocalPVExist(kind pkg.VolumeType, resourceName string) bo
 		}
 	}
 
+	return false
+}
+
+func (nc *NodeCache) checkInlineVolumes(pod *corev1.Pod) bool {
+	contain, node := utils.ContainInlineVolumes(pod)
+	if contain && node == nc.NodeName && pod.Status.Phase == corev1.PodRunning {
+		return true
+	}
 	return false
 }

@@ -1,18 +1,27 @@
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: file-server
 spec:
-  containers:
-   - name: file-server
-     image: filebrowser/filebrowser:latest
-     volumeMounts:
-       - mountPath: /srv
-         name: webroot
-  volumes:
-    - name: webroot
-      csi:
-        driver: local.csi.aliyun.com
-        volumeAttributes:
-          vgName: open-local-pool-0 # 【必填】临时卷所用的 VG
-          size: 1Gi                 # 【选填】临时卷大小，不填默认为 1 Gi
+  replicas: 2
+  selector:
+    matchLabels:
+      app: file-server
+  template:
+    metadata:
+      labels:
+        app: file-server
+    spec:
+      containers:
+      - name: file-server
+        image: filebrowser/filebrowser:latest
+        volumeMounts:
+          - mountPath: /srv
+            name: webroot
+      volumes:
+        - name: webroot
+          csi:
+            driver: local.csi.aliyun.com
+            volumeAttributes:
+              vgName: open-local-pool-0 # 【必填】临时卷所用的 VG
+              size: 1Gi                 # 【选填】临时卷大小，不填默认为 1 Gi

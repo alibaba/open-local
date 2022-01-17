@@ -93,6 +93,36 @@ func IsLocalPV(pv *corev1.PersistentVolume) (isLocalPV bool, node string) {
 	return isLocalPV, node
 }
 
+func ContainInlineVolumes(pod *corev1.Pod) (contain bool, node string) {
+	if pod == nil {
+		return false, ""
+	}
+	for _, volume := range pod.Spec.Volumes {
+		if volume.CSI != nil && ContainsProvisioner(volume.CSI.Driver) {
+			return true, pod.Spec.NodeName
+		}
+	}
+	return false, ""
+}
+
+func GetInlineVolumeInfoFromParam(attributes map[string]string) (vgName string, size int64) {
+	vgName, exist := attributes[localtype.VGName]
+	if !exist {
+		return "", 0
+	}
+	sizeStr, exist := attributes[localtype.ParamLVSize]
+	if !exist {
+		return vgName, 1024 * 1024 * 1024
+	}
+
+	quan, err := resource.ParseQuantity(sizeStr)
+	if err != nil {
+		return "", 0
+	}
+	size = quan.Value()
+	return vgName, size
+}
+
 // GetVGNameFromCsiPV extracts vgName from open-local csi PV via
 // VolumeAttributes
 func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
@@ -657,12 +687,11 @@ func NeedSkip(args schedulerapi.ExtenderArgs) bool {
 	}
 	// no volume contains PVC
 	for _, v := range pod.Spec.Volumes {
-		if v.PersistentVolumeClaim != nil {
+		if v.PersistentVolumeClaim != nil || v.CSI != nil {
 			return false
 		}
 	}
 	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
 
 	return true
-
 }

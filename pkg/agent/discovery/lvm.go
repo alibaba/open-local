@@ -140,6 +140,8 @@ func (d *Discoverer) isLocalLV(lvname string) bool {
 
 	if len(lvname) >= prefixlen && d.Configuration.LogicalVolumeNamePrefix == lvname[:prefixlen] {
 		return true
+	} else if lvname[:4] == "csi-" {
+		return true
 	}
 
 	return false

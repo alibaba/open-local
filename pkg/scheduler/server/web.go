@@ -182,6 +182,7 @@ func (e *ExtenderServer) InitRouter() {
 		metrics.MountPointBind,
 		metrics.AllocatedNum,
 		metrics.LocalPV,
+		metrics.InlineVolume,
 	}...)
 
 	// Setting up the extender http server

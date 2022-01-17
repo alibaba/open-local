@@ -39,9 +39,19 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 
 	containReadonlySnapshot := false
 	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
-
 	if err != nil {
 		return false, err
+	}
+
+	containInlineVolume, _ := utils.ContainInlineVolumes(pod)
+	if containInlineVolume {
+		fits, _, err := algo.HandleInlineLVMVolume(ctx, node, pod)
+		if err != nil {
+			log.Error(err)
+			return false, err
+		} else if !fits {
+			return false, nil
+		}
 	}
 
 	var fits bool
@@ -99,7 +109,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		}
 	}
 
-	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 {
+	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {
 		log.Infof("no open-local volume request on pod %s, skipped", pod.Name)
 		return true, nil
 	}

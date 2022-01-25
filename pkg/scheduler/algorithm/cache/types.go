@@ -25,15 +25,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type InlineVolumeInfo struct {
+	VgName       string `json:"vgName,string"`
+	VolumeName   string `json:"volumeName,string"`
+	VolumeSize   int64  `json:"volumeSize,string"`
+	PodName      string `json:"podName,string"`
+	PodNamespace string `json:"podNamespace,string"`
+	Recorded     bool   `json:"recorded,string"`
+}
+
 type NodeInfo struct {
 	NodeName string
 	// VGs is the volume group
 	VGs         map[ResourceName]SharedResource
 	MountPoints map[ResourceName]ExclusiveResource
 	// Devices only contains the whitelist raw devices
-	Devices      map[ResourceName]ExclusiveResource
-	AllocatedNum int64
-	LocalPVs     map[string]corev1.PersistentVolume
+	Devices             map[ResourceName]ExclusiveResource
+	AllocatedNum        int64
+	LocalPVs            map[string]corev1.PersistentVolume
+	PodInlineVolumeInfo map[string][]InlineVolumeInfo
 }
 
 type NodeCache struct {

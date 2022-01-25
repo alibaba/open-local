@@ -323,13 +323,27 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 	}
 	podName := utils.PodName(pod)
 
-	if len(pvcs) <= 0 {
+	containInlineVolumes, nodeName := utils.ContainInlineVolumes(pod)
+	if len(pvcs) <= 0 && !containInlineVolumes {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)
+
+	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
+	if nc == nil {
+		// Create a new node cache
+		log.Debugf("[onPodAdd]Created new node cache for %s", nodeName)
+		nc = cache.NewNodeCache(nodeName)
+
+	}
+	if err := nc.AddPodInlineVolumeInfo(pod); err != nil {
+		log.Infof("add pod %s inline volumeInfo failed: %s", podName, err.Error())
+		return
+	}
+	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
 
 func (e *ExtenderServer) onPodDelete(obj interface{}) {
@@ -356,13 +370,26 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
 	}
-	if len(pvcs) <= 0 {
+	containInlineVolumes, nodeName := utils.ContainInlineVolumes(pod)
+	if len(pvcs) <= 0 && !containInlineVolumes {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.DeletePod(podName, pvcs)
+
+	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
+	if nc == nil {
+		// Create a new node cache
+		log.Debugf("[onPodDelete]Created new node cache for %s", nodeName)
+		nc = cache.NewNodeCache(nodeName)
+	}
+	if err := nc.DeletePodInlineVolumeInfo(pod); err != nil {
+		log.Infof("delete pod %s inline volumeInfo failed: %s", podName, err.Error())
+		return
+	}
+	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
 
 func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
@@ -379,9 +406,9 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		log.Errorf("cannot convert to *v1.Pod: %v", t)
 		return
 	}
-	if len(pod.Spec.NodeName) > 0 { // do not handle any scheduled pod
-		return
-	}
+	// if len(pod.Spec.NodeName) > 0 { // do not handle any scheduled pod
+	// 	return
+	// }
 
 	containReadonlySnapshot := true
 	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
@@ -390,7 +417,8 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		return
 	}
 	podName := utils.PodName(pod)
-	if len(pvcs) <= 0 {
+	containInlineVolumes, nodeName := utils.ContainInlineVolumes(pod)
+	if len(pvcs) <= 0 && !containInlineVolumes {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
@@ -404,7 +432,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		}
 	}
 	log.Infof("handing pod %s whose pvcs are all pending", utils.PodName(pod))
-	if utils.PodPvcAllowReschedule(pvcs, nil) {
+	if utils.PodPvcAllowReschedule(pvcs, nil) && pod.Spec.NodeName == "" {
 		for _, pvc := range pvcs {
 			contains := utils.PvcContainsSelectedNode(pvc)
 			if contains {
@@ -431,6 +459,17 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 			}
 		}
 	}
+	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
+	if nc == nil {
+		// Create a new node cache
+		log.Debugf("[onPodUpdate]Created new node cache for %s", nodeName)
+		nc = cache.NewNodeCache(nodeName)
+	}
+	if err := nc.UpdatePodInlineVolumeInfo(pod); err != nil {
+		log.Infof("update pod %s inline volumeInfo failed: %s", podName, err.Error())
+		return
+	}
+	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
 
 func (e *ExtenderServer) onPvcAdd(obj interface{}) {

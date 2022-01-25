@@ -40,8 +40,9 @@ func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *core
 	if err != nil {
 		return MinScore, err
 	}
+	containInlineVolume, _ := utils.ContainInlineVolumes(pod)
 	// if pod has no open-local pvc, it should be scheduled to non Open-Local nodes
-	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 {
+	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {
 		log.Infof("no open-local volume request on pod %s, skipped", pod.Name)
 		if algorithm.IsLocalNode(node.Name, ctx) {
 			log.Infof("node %s is open-local node, so pod %s gets minimal score %d", node.Name, pod.Name, MinScore)
@@ -67,11 +68,16 @@ func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *core
 		return MinScore, err
 	}
 	trace.Step("Computing ScoreDeviceVolume")
-
 	deviceScore, _, err := algo.ScoreDeviceVolume(pod, devicePVCs, node, ctx)
 	if err != nil {
 		return MinScore, err
 	}
-	score := lvmScore + mpScore + deviceScore
+	trace.Step("Computing ScoreDeviceVolume")
+	inlineScore, _, err := algo.ScoreInlineLVMVolume(pod, node, ctx)
+	if err != nil {
+		return MinScore, err
+	}
+
+	score := lvmScore + mpScore + deviceScore + inlineScore
 	return score, nil
 }

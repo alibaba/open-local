@@ -113,6 +113,14 @@ var (
 		},
 		[]string{"nodename", "pv_name", "pv_type", "pvc_name", "pvc_ns", "status", "storage_name"},
 	)
+	InlineVolume = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: Subsystem,
+			Name:      "inline_volume",
+			Help:      "pod inline volume.",
+		},
+		[]string{"pod_name", "pod_namespace", "nodename", "vgname", "volume_name"},
+	)
 )
 
 func UpdateMetrics(c *cache.ClusterNodeCache) {
@@ -127,6 +135,7 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 	VolumeGroupUsedByLocal.Reset()
 	VolumeGroupTotal.Reset()
 	LocalPV.Reset()
+	InlineVolume.Reset()
 
 	// metrics update
 	for nodeName := range c.Nodes {
@@ -173,8 +182,20 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 				pv.Spec.CSI.VolumeAttributes[pkg.PVCNameSpace],
 				string(pv.Status.Phase),
 				storageName).Set(float64(utils.GetPVStorageSize(&pv)))
-
 		}
+
+		for _, volumes := range c.Nodes[nodeName].PodInlineVolumeInfo {
+			for _, volume := range volumes {
+				InlineVolume.WithLabelValues(
+					volume.PodName,
+					volume.PodNamespace,
+					nodeName,
+					volume.VgName,
+					volume.VolumeName,
+				).Set(float64(volume.VolumeSize))
+			}
+		}
+
 		AllocatedNum.WithLabelValues(nodeName).Set(float64(c.Nodes[nodeName].AllocatedNum))
 	}
 }

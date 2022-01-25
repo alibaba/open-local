@@ -139,10 +139,10 @@ func TestVGWithName(t *testing.T) {
 		f.t.Fatalf("Filter Result is wrong!")
 	}
 
-	var scores []int = []int{0, 7, 5, 0}
-	for i, priScore := range hostPriorityList {
-		if priScore.Score != int64(scores[i]) {
-			f.t.Fatalf("Priority Result is wrong!")
+	var expectScores []int = []int{0, 7, 5, 0}
+	for i, actualScore := range hostPriorityList {
+		if actualScore.Score != int64(expectScores[i]) {
+			f.t.Fatalf("Priority Result is wrong, expect %d, actual %d", expectScores[i], actualScore.Score)
 		}
 	}
 }

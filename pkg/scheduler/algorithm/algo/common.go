@@ -143,6 +143,48 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 	return true, units, nil
 }
 
+func HandleInlineLVMVolume(ctx *algorithm.SchedulingContext, node *corev1.Node, pod *corev1.Pod) (fits bool, units []cache.AllocatedUnit, err error) {
+	cacheVGsMap, err := GetNodeVGMap(node, ctx)
+	if err != nil {
+		return false, units, err
+	}
+
+	for _, volume := range pod.Spec.Volumes {
+		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
+			vgName, requestedSize := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
+			if vgName == "" {
+				return false, units, fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+			}
+			vg, ok := cacheVGsMap[cache.ResourceName(vgName)]
+			if !ok {
+				return false, units, errors.NewNoSuchVGError(vgName, node.GetName())
+			}
+
+			freeSize := vg.Capacity - vg.Requested
+
+			if freeSize < requestedSize {
+				return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity, vg.Name, node.GetName())
+			}
+			tmp := cacheVGsMap[cache.ResourceName(vgName)]
+			tmp.Requested += requestedSize
+			cacheVGsMap[cache.ResourceName(vgName)] = tmp
+			u := cache.AllocatedUnit{
+				NodeName:   node.Name,
+				VolumeType: localtype.VolumeTypeLVM,
+				Requested:  requestedSize,
+				Allocated:  requestedSize, // for LVM requested is always equal to allocated
+				VgName:     string(vgName),
+				Device:     "",
+				MountPoint: "",
+				PVCName:    "",
+			}
+			units = append(units, u)
+		}
+	}
+
+	return true, units, nil
+}
+
 // DivideLVMPVCs divide pvcs into pvcsWithVG and pvcsWithoutVG
 func DivideLVMPVCs(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithVG, pvcsWithoutVG []*corev1.PersistentVolumeClaim) {
 	for _, pvc := range pvcs {
@@ -490,6 +532,27 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node,
 	return true, nil
 }
 
+func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
+	if pod != nil {
+		log.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+	}
+
+	fits, units, err := HandleInlineLVMVolume(ctx, node, pod)
+	if err != nil {
+		return MinScore, units, err
+	}
+	if !fits {
+		return MinScore, units, nil
+	}
+
+	cacheVGsMap, err := GetNodeVGMap(node, ctx)
+	if err != nil {
+		return MinScore, units, err
+	}
+	score = ScoreLVM(units, cacheVGsMap)
+	return score, units, nil
+}
+
 func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
 	if len(pvcs) <= 0 {
 		return
@@ -670,6 +733,9 @@ func Spread(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Nod
 }
 
 func ScoreLVM(units []cache.AllocatedUnit, cacheVGsMap map[cache.ResourceName]cache.SharedResource) (score int) {
+	if len(units) == 0 {
+		return MinScore
+	}
 	// make a map store VG size pvcs used
 	// key: VG name
 	// value: used size
@@ -728,6 +794,9 @@ func ScoreMountPointVolume(
 }
 
 func ScoreMP(units []cache.AllocatedUnit) (score int) {
+	if len(units) == 0 {
+		return MinScore
+	}
 	// score
 	var scoref float64 = 0
 	for _, unit := range units {
@@ -763,6 +832,9 @@ func ScoreDeviceVolume(
 }
 
 func ScoreDevice(units []cache.AllocatedUnit) (score int) {
+	if len(units) == 0 {
+		return MinScore
+	}
 	// score
 	var scoref float64 = 0
 	for _, unit := range units {

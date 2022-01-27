@@ -84,7 +84,7 @@ spec:
         args:
         - "--v=5"
         - "--csi-address=/csi/csi.sock"
-        - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock"
+        - "--kubelet-registration-path={{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -169,15 +169,15 @@ spec:
           type: DirectoryOrCreate
       - name: plugin-dir
         hostPath:
-          path: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          path: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
           type: DirectoryOrCreate
       - name: registration-dir
         hostPath:
-          path: /var/lib/kubelet/plugins_registry
+          path: {{ .Values.agent.kubelet_dir }}/plugins_registry
           type: DirectoryOrCreate
       - name: pods-mount-dir
         hostPath:
-          path: /var/lib/kubelet
+          path: {{ .Values.agent.kubelet_dir }}
           type: Directory
       - name: host-log
         hostPath:

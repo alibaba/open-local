@@ -25,6 +25,7 @@ agent:
   # This block device will be used to create as a Volume Group in every node
   # Open-Local does nothing if the device has been formatted or mountted
   device: /dev/vdb
+  kubelet_dir: /var/lib/kubelet
 extender:
   name: open-local-scheduler-extender
   # scheduling strategy: binpack/spread

@@ -12,7 +12,7 @@ IMAGE_NAME=ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/${NAME}
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"
 GIT_COMMIT=$(shell git rev-parse HEAD)
-VERSION=v0.4.1-dev
+VERSION=v0.5.0
 
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 CRD_VERSION=v1alpha1

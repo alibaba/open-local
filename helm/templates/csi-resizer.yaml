@@ -51,5 +51,5 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/{{ .Values.driver }}
+            path: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
             type: DirectoryOrCreate

@@ -47,3 +47,5 @@ storageclass:
     name: open-local-mountpoint-ssd
   mountpoint_hdd:
     name: open-local-mountpoint-hdd
+initjob:
+  enabled: true

@@ -32,6 +32,8 @@ extender:
   strategy: spread
   # scheduler extender http port
   port: 23000
+  # you can also configure your kube-scheduler manually, see docs/user-guide/kube-scheduler-configuration.md to get more details
+  init_job: true
 storageclass:
   lvm:
     name: open-local-lvm

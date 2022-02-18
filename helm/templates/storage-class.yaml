@@ -5,6 +5,7 @@ metadata:
 provisioner: {{ .Values.driver }}
 parameters:
   volumeType: "LVM"
+  csi.storage.k8s.io/fstype: ext4
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
@@ -27,6 +28,7 @@ metadata:
   name: {{ .Values.storageclass.lvm_io.name }}
 provisioner: {{ .Values.driver }}
 parameters:
+  csi.storage.k8s.io/fstype: ext4
   volumeType: "LVM"
   bps: "1048576"
   iops: "1024"
@@ -40,6 +42,7 @@ metadata:
   name: {{ .Values.storageclass.device_hdd.name }}
 provisioner: {{ .Values.driver }}
 parameters:
+  csi.storage.k8s.io/fstype: ext4
   volumeType: Device
   mediaType: hdd
 reclaimPolicy: Delete
@@ -52,6 +55,7 @@ metadata:
   name: {{ .Values.storageclass.device_ssd.name }}
 provisioner: {{ .Values.driver }}
 parameters:
+  csi.storage.k8s.io/fstype: ext4
   volumeType: Device
   mediaType: sdd
 reclaimPolicy: Delete
@@ -64,8 +68,9 @@ metadata:
    name: {{ .Values.storageclass.mountpoint_hdd.name }}
 provisioner: {{ .Values.driver }}
 parameters:
-    volumeType: MountPoint
-    mediaType: hdd
+  csi.storage.k8s.io/fstype: ext4
+  volumeType: MountPoint
+  mediaType: hdd
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 ---
@@ -75,7 +80,8 @@ metadata:
    name: {{ .Values.storageclass.mountpoint_ssd.name }}
 provisioner: {{ .Values.driver }}
 parameters:
-    volumeType: MountPoint
-    mediaType: ssd
+  csi.storage.k8s.io/fstype: ext4
+  volumeType: MountPoint
+  mediaType: ssd
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

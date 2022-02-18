@@ -126,8 +126,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		volumeType = req.VolumeContext[VolumeTypeTag]
 	}
 
-	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true" ||
-		req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == ""
+	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
 	if ephemeralVolume {
 		_, vgNameExist := req.VolumeContext[localtype.ParamVGName]
 		if !vgNameExist {

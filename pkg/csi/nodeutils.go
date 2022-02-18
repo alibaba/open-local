@@ -227,11 +227,10 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 	}
 
 	// Step Start to format
-	mnt := req.VolumeCapability.GetMount()
-	options := append(mnt.MountFlags, "shared")
-	fsType := "ext4"
-	if mnt.FsType != "" {
-		fsType = mnt.FsType
+	// fs type
+	fsType := req.GetVolumeCapability().GetMount().FsType
+	if len(fsType) == 0 {
+		fsType = DefaultFs
 	}
 
 	// Check targetPath
@@ -242,11 +241,23 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 		}
 	}
 
-	// do format-mount or mount
-	diskMounter := &k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()}
-	if err := diskMounter.FormatAndMount(sourceDevice, targetPath, fsType, options); err != nil {
-		log.Errorf("mountDeviceVolume: Volume: %s, Device: %s, FormatAndMount error: %s", req.VolumeId, sourceDevice, err.Error())
-		return status.Error(codes.Internal, err.Error())
+	isMnt := utils.IsMounted(targetPath)
+	if !isMnt {
+		var options []string
+		if req.GetReadonly() {
+			options = append(options, "ro")
+		} else {
+			options = append(options, "rw")
+		}
+		mountFlags := req.GetVolumeCapability().GetMount().GetMountFlags()
+		options = append(options, mountFlags...)
+		// do format-mount or mount
+		diskMounter := &k8smount.SafeFormatAndMount{Interface: ns.k8smounter, Exec: utilexec.New()}
+		if err := diskMounter.FormatAndMount(sourceDevice, targetPath, fsType, options); err != nil {
+			log.Errorf("mountDeviceVolume: Volume: %s, Device: %s, FormatAndMount error: %s", req.VolumeId, sourceDevice, err.Error())
+			return status.Error(codes.Internal, err.Error())
+		}
+		log.Infof("mountDeviceVolume:: mount successful sourceDevice: %s, targetPath: %s, options: %v", sourceDevice, targetPath, options)
 	}
 
 	return nil

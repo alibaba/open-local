@@ -22,7 +22,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/agent/common"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	lssfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
+	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes"
@@ -32,14 +32,14 @@ import (
 
 func TestNewAgent(t *testing.T) {
 	type args struct {
-		config        *common.Configuration
-		kubeclientset kubernetes.Interface
-		lssclientset  clientset.Interface
-		snapclientset volumesnapshot.Interface
-		recorder      record.EventRecorder
+		config         *common.Configuration
+		kubeclientset  kubernetes.Interface
+		localclientset clientset.Interface
+		snapclientset  volumesnapshot.Interface
+		recorder       record.EventRecorder
 	}
 
-	lssclient := lssfake.NewSimpleClientset()
+	localclient := localfake.NewSimpleClientset()
 	kubeclient := k8sfake.NewSimpleClientset()
 	snapclient := volumesnapshotfake.NewSimpleClientset()
 	recorder := record.FakeRecorder{}
@@ -49,13 +49,11 @@ func TestNewAgent(t *testing.T) {
 			SysPath:          "",
 			MountPath:        "",
 			DiscoverInterval: common.DefaultInterval,
-			CRDSpec:          nil,
-			CRDStatus:        nil,
 		},
-		kubeclientset: kubeclient,
-		lssclientset:  lssclient,
-		snapclientset: snapclient,
-		recorder:      &recorder,
+		kubeclientset:  kubeclient,
+		localclientset: localclient,
+		snapclientset:  snapclient,
+		recorder:       &recorder,
 	}
 
 	tests := []struct {
@@ -67,17 +65,17 @@ func TestNewAgent(t *testing.T) {
 			name: "test",
 			args: tmpargs,
 			want: &Agent{
-				Configuration: tmpargs.config,
-				kubeclientset: kubeclient,
-				lssclientset:  lssclient,
-				snapclientset: snapclient,
-				eventRecorder: &recorder,
+				Configuration:  tmpargs.config,
+				kubeclientset:  kubeclient,
+				localclientset: localclient,
+				snapclientset:  snapclient,
+				eventRecorder:  &recorder,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.lssclientset, tt.args.snapclientset, tt.args.recorder); !reflect.DeepEqual(got, tt.want) {
+			if got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.localclientset, tt.args.snapclientset, tt.args.recorder); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewAgent() = %v, want %v", got, tt.want)
 			}
 		})

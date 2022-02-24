@@ -21,7 +21,6 @@ import (
 
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/controller"
-	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	"github.com/alibaba/open-local/pkg/signals"
@@ -71,7 +70,7 @@ func Start(opt *agentOption) error {
 		return fmt.Errorf("Error building kubernetes clientset: %s", err.Error())
 	}
 
-	lssClient, err := clientset.NewForConfig(cfg)
+	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("Error building example clientset: %s", err.Error())
 	}
@@ -91,7 +90,7 @@ func Start(opt *agentOption) error {
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "open-local-agent"})
 
-	agent := controller.NewAgent(config, kubeClient, lssClient, snapClient, eventRecorder)
+	agent := controller.NewAgent(config, kubeClient, localClient, snapClient, eventRecorder)
 
 	log.Info("starting open-local agent")
 	if err = agent.Run(stopCh); err != nil {
@@ -103,22 +102,13 @@ func Start(opt *agentOption) error {
 
 // getAgentConfig returns Configuration that agent needs
 func getAgentConfig(opt *agentOption) (*common.Configuration, error) {
-	spec := &lssv1alpha1.NodeLocalStorageSpec{
-		NodeName: opt.NodeName,
-	}
-	status := new(lssv1alpha1.NodeLocalStorageStatus)
-
 	configuration := &common.Configuration{
 		Nodename:                opt.NodeName,
-		ConfigPath:              opt.Config,
 		SysPath:                 opt.SysPath,
 		MountPath:               opt.MountPath,
 		DiscoverInterval:        opt.Interval,
-		CRDSpec:                 spec,
-		CRDStatus:               status,
 		LogicalVolumeNamePrefix: opt.LVNamePrefix,
 		RegExp:                  opt.RegExp,
-		InitConfig:              opt.InitConfig,
 	}
 	return configuration, nil
 }

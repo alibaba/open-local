@@ -42,7 +42,6 @@ spec:
         - "--nodename=$(KUBE_NODE_NAME)"
         - "--path.sysfs=/host_sys"
         - "--path.mount=/mnt/{{ .Values.name }}/"
-        - "--initconfig={{ .Values.name }}"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -62,11 +61,11 @@ spec:
         imagePullPolicy: Always
         resources:
           limits:
-            cpu: 400m
-            memory: 200Mi
+            cpu: 200m
+            memory: 256Mi
           requests:
             cpu: 50m
-            memory: 100Mi
+            memory: 64Mi
         volumeMounts:
         - mountPath: /dev
           mountPropagation: "HostToContainer"

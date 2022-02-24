@@ -19,15 +19,14 @@ package discovery
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	localtype "github.com/alibaba/open-local/pkg"
-	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	log "github.com/sirupsen/logrus"
 )
 
-func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
+func (d *Discoverer) discoverVGs(newStatus *localv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
 
 	vgnames, err := lvm.ListVolumeGroupNames()
 	if err != nil {
@@ -35,8 +34,8 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 	}
 
 	for _, vgname := range vgnames {
-		var vgCrd lssv1alpha1.VolumeGroup
-		vgCrd.Condition = lssv1alpha1.StorageReady
+		var vgCrd localv1alpha1.VolumeGroup
+		vgCrd.Condition = localv1alpha1.StorageReady
 		// Name
 		vg, err := lvm.LookupVolumeGroup(vgname)
 		if err != nil {
@@ -55,7 +54,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		vgCrd.Total, _ = vg.BytesTotal()
 		vgCrd.Available, _ = vg.BytesFree()
 		if vgCrd.Available == 0 {
-			vgCrd.Condition = lssv1alpha1.StorageFull
+			vgCrd.Condition = localv1alpha1.StorageFull
 		}
 
 		// LogicalVolumes
@@ -66,7 +65,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		}
 		vgCrd.Allocatable = vgCrd.Total
 		for _, lvname := range logicalVolumeNames {
-			var lv lssv1alpha1.LogicalVolume
+			var lv localv1alpha1.LogicalVolume
 			lv.Name = lvname
 			lv.VGName = vgname
 			tmplv, err := vg.LookupLogicalVolume(lvname)
@@ -78,7 +77,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 			if !d.isLocalLV(lvname) {
 				vgCrd.Allocatable -= lv.Total
 			}
-			lv.Condition = lssv1alpha1.StorageReady
+			lv.Condition = localv1alpha1.StorageReady
 			vgCrd.LogicalVolumes = append(vgCrd.LogicalVolumes, lv)
 		}
 
@@ -102,7 +101,7 @@ func (d *Discoverer) discoverVGs(newStatus *lssv1alpha1.NodeLocalStorageStatus, 
 		// 	log.Errorf("volume %s check error: %s", vgname, err.Error())
 		// 	vgCrd.Condition = lssv1alpha1.StorageFault
 		// }
-		vgCrd.Condition = lssv1alpha1.StorageReady
+		vgCrd.Condition = localv1alpha1.StorageReady
 
 		newStatus.NodeStorageInfo.VolumeGroups = append(newStatus.NodeStorageInfo.VolumeGroups, vgCrd)
 	}
@@ -145,40 +144,4 @@ func (d *Discoverer) isLocalLV(lvname string) bool {
 	}
 
 	return false
-}
-
-// checkIfVGStatusTransition check if VG Status Transition
-func checkIfVGStatusTransition(old, new *lssv1alpha1.NodeLocalStorageStatus) (transition bool) {
-
-	transition = false
-
-	newVGMap := make(map[string]lssv1alpha1.VolumeGroup)
-	newVGID := make(map[string]int)
-	for i, vg := range new.NodeStorageInfo.VolumeGroups {
-		newVGMap[vg.Name] = vg
-		newVGID[vg.Name] = i
-	}
-
-	if len(old.NodeStorageInfo.VolumeGroups) != 0 {
-		for _, vg := range old.NodeStorageInfo.VolumeGroups {
-			_, isExist := newVGMap[vg.Name]
-			if isExist {
-				if reflect.DeepEqual(newVGMap[vg.Name].LogicalVolumes, vg.LogicalVolumes) &&
-					reflect.DeepEqual(newVGMap[vg.Name].PhysicalVolumes, vg.PhysicalVolumes) &&
-					newVGMap[vg.Name].Total == vg.Total &&
-					newVGMap[vg.Name].Available == vg.Available {
-					continue
-				} else {
-					transition = true
-					break
-				}
-			}
-		}
-	} else {
-		if len(new.NodeStorageInfo.VolumeGroups) != 0 {
-			transition = true
-		}
-	}
-
-	return
 }

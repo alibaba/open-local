@@ -1,6 +1,6 @@
 # 控制器方案
 
-> 暂不升级API，与当前API兼容
+> 暂不升级API，与当前API兼容。之后专门出版本，将API从v1alpha1升级到v1alpha2
 
 ## 目标
 
@@ -21,3 +21,16 @@ controller 还可以作为 server 对外暴露 restful api
 - agent 根据节点上的资源信息，更新 status 字段
   - extender不再更新nls，由agent来更新status字段中的filteredStorageInfo部分
   - extender仅watch nls资源，并更新cache
+- 事件监听逻辑
+  - 监听node
+    - add：createNLS
+    - update：不做操作
+    - delete：deleteNLS
+  - 监听nlsc
+    - add：createNLS
+    - update：updateNLS
+    - delete：不做操作
+  - 监听nls
+    - add：是否执行 updateNLS
+    - update：是否执行 updateNLS
+    - delete：createNLS

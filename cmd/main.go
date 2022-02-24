@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alibaba/open-local/cmd/agent"
+	"github.com/alibaba/open-local/cmd/controller"
 	"github.com/alibaba/open-local/cmd/csi"
 	"github.com/alibaba/open-local/cmd/doc"
 	"github.com/alibaba/open-local/cmd/scheduler"
@@ -54,6 +55,7 @@ func addCommands() {
 		agent.Cmd,
 		scheduler.Cmd,
 		csi.Cmd,
+		controller.Cmd,
 		version.Cmd,
 		doc.Cmd.Cmd,
 	)

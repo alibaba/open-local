@@ -47,6 +47,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&NodeLocalStorage{},
 		&NodeLocalStorageList{},
+		&NodeLocalStorageInitConfig{},
+		&NodeLocalStorageInitConfigList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

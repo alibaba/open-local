@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-controller
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-controller
+    spec:
+      priorityClassName: system-cluster-critical
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Values.name }}-controller
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - controller
+        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        imagePullPolicy: Always
+        name: {{ .Values.name }}-controller
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+      serviceAccount: {{ .Values.name }}

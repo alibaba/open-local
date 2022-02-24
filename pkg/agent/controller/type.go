@@ -30,9 +30,9 @@ type Agent struct {
 	*common.Configuration
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
-	// lssclientset is a clientset for our own API group
-	lssclientset  clientset.Interface
-	snapclientset snapshot.Interface
+	// localclientset is a clientset for our own API group
+	localclientset clientset.Interface
+	snapclientset  snapshot.Interface
 	// eventRecorder is an event eventRecorder for recording Event resources to the
 	// Kubernetes API.
 	eventRecorder record.EventRecorder

@@ -26,14 +26,11 @@ import (
 	"github.com/alibaba/open-local/pkg"
 
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	"github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
-	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/metrics"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
-	"github.com/alibaba/open-local/pkg/scheduler/statussyncer"
 	"github.com/julienschmidt/httprouter"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
@@ -43,16 +40,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	clientgocache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
 )
 
 func NewExtenderServer(kubeClient kubernetes.Interface,
-	lss clientset.Interface,
+	localclient clientset.Interface,
 	snapClient volumesnapshot.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	localStorageInformerFactory informers.SharedInformerFactory,
@@ -106,22 +100,14 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	snapStorageClassInformer := snapshotInformers.VolumeSnapshotClasses().Informer()
 	informersSyncd = append(informersSyncd, snapStorageClassInformer.HasSynced)
 
-	// setup syncer
-	utilruntime.Must(localscheme.AddToScheme(scheme.Scheme))
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: pkg.SchedulerName})
-
-	syncer := statussyncer.NewStatusSyncer(recorder, lss, Ctx)
 	e := &ExtenderServer{
 		kubeClient:         kubeClient,
-		localStorageClient: lss,
+		localStorageClient: localclient,
 		snapClient:         snapClient,
 		port:               port,
 		Ctx:                Ctx,
-		informersSyncd:     informersSyncd,
-		syncer:             syncer}
+		informersSynced:    informersSyncd,
+	}
 	localInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
 		AddFunc:    e.onNodeLocalStorageAdd,
 		UpdateFunc: e.onNodeLocalStorageUpdate,
@@ -153,8 +139,7 @@ type ExtenderServer struct {
 	localStorageClient     clientset.Interface
 	snapClient             volumesnapshot.Interface
 	port                   int32
-	informersSyncd         []clientgocache.InformerSynced
-	syncer                 *statussyncer.StatusSyncer
+	informersSynced        []clientgocache.InformerSynced
 	currentWorkingRoutines int32
 }
 
@@ -211,7 +196,7 @@ func (e *ExtenderServer) InitRouter() {
 func (e *ExtenderServer) WaitForCacheSync(stopCh <-chan struct{}) {
 	// Wait for the caches to be synced before starting workers
 	log.Info("Waiting for informer caches to sync")
-	if ok := clientgocache.WaitForCacheSync(stopCh, e.informersSyncd...); !ok {
+	if ok := clientgocache.WaitForCacheSync(stopCh, e.informersSynced...); !ok {
 		log.Fatal("failed to wait for all informer caches to be synced")
 	}
 	log.Info("all informer caches are synced")

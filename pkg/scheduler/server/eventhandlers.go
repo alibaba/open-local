@@ -75,12 +75,6 @@ func (e *ExtenderServer) onNodeLocalStorageUpdate(oldObj, newObj interface{}) {
 	}
 	log.Debugf("get update on node local cache %s", local.Name)
 
-	// trigger an status update according to spec
-	if err := e.syncer.OnUpdateInitialized(local); err != nil {
-		log.Errorf("[onNodeLocalStorageUpdate]update status of nls %s failed: %s", local.Name, err.Error())
-		return
-	}
-
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	nodeName := local.Name

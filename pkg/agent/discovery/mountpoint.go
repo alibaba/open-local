@@ -20,16 +20,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"reflect"
 
-	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/ricochet2200/go-disk-usage/du"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/mount"
 )
 
-func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorageStatus) error {
+func (d *Discoverer) discoverMountPoints(newStatus *localv1alpha1.NodeLocalStorageStatus) error {
 	mountPoints, err := d.K8sMounter.List()
 	if err != nil {
 		return fmt.Errorf("List mountpoint error: %s", err.Error())
@@ -61,15 +60,15 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 		}
 
 		diskUsage := du.NewDiskUsage(mountPointMap[filePath].Path)
-		var mpinfo lssv1alpha1.MountPoint
-		mpinfo.Condition = lssv1alpha1.StorageReady
+		var mpinfo localv1alpha1.MountPoint
+		mpinfo.Condition = localv1alpha1.StorageReady
 		mpinfo.Name = mountPointMap[filePath].Path
 		mpinfo.Device = mountPointMap[filePath].Device
 		mpinfo.FsType = mountPointMap[filePath].Type
 		mpinfo.Total = diskUsage.Size()
 		mpinfo.Available = diskUsage.Available()
 		if mpinfo.Available == 0 {
-			mpinfo.Condition = lssv1alpha1.StorageFull
+			mpinfo.Condition = localv1alpha1.StorageFull
 		}
 		// TODO(huizhi.szh): IsBind
 		mpinfo.IsBind = false
@@ -84,41 +83,4 @@ func (d *Discoverer) discoverMountPoints(newStatus *lssv1alpha1.NodeLocalStorage
 	}
 
 	return nil
-}
-
-// checkIfMPStatusTransition check if VG Status Transition
-func checkIfMPStatusTransition(old, new *lssv1alpha1.NodeLocalStorageStatus) (transition bool) {
-
-	transition = false
-
-	newMPMap := make(map[string]lssv1alpha1.MountPoint)
-	newMPID := make(map[string]int)
-	for i, mp := range new.NodeStorageInfo.MountPoints {
-		newMPMap[mp.Name] = mp
-		newMPID[mp.Name] = i
-	}
-
-	if len(old.NodeStorageInfo.MountPoints) != 0 {
-		for _, mp := range old.NodeStorageInfo.MountPoints {
-			_, isExist := newMPMap[mp.Name]
-			if isExist {
-				if newMPMap[mp.Name].Available == mp.Available &&
-					newMPMap[mp.Name].Total == mp.Total &&
-					newMPMap[mp.Name].FsType == mp.FsType &&
-					newMPMap[mp.Name].Device == mp.Device &&
-					reflect.DeepEqual(newMPMap[mp.Name].Options, mp.Options) {
-					continue
-				} else {
-					transition = true
-					break
-				}
-			}
-		}
-	} else {
-		if len(new.NodeStorageInfo.MountPoints) != 0 {
-			transition = true
-		}
-	}
-
-	return
 }

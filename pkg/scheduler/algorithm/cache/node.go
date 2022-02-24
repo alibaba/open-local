@@ -549,9 +549,9 @@ func (nc *NodeCache) IsLocalPVExist(kind pkg.VolumeType, resourceName string) bo
 	for _, pv := range nc.LocalPVs {
 		attributes := pv.Spec.CSI.VolumeAttributes
 		if kind, exist := attributes[pkg.VolumeTypeKey]; exist {
-			if lsstype, err := pkg.VolumeTypeFromString(kind); err == nil {
+			if localtype, err := pkg.VolumeTypeFromString(kind); err == nil {
 				var name string
-				switch lsstype {
+				switch localtype {
 				case pkg.VolumeTypeMountPoint:
 					name, exist = attributes[pkg.MPName]
 				case pkg.VolumeTypeDevice:

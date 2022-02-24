@@ -21,12 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/agent/common"
-	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
@@ -36,7 +37,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/mount"
@@ -66,10 +66,10 @@ const (
 )
 
 // NewDiscoverer return Discoverer
-func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interface, lssclientset clientset.Interface, snapclient snapshot.Interface, recorder record.EventRecorder) *Discoverer {
+func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interface, localclientset clientset.Interface, snapclient snapshot.Interface, recorder record.EventRecorder) *Discoverer {
 	return &Discoverer{
 		Configuration:  config,
-		localclientset: lssclientset,
+		localclientset: localclientset,
 		kubeclientset:  kubeclientset,
 		snapclient:     snapclient,
 		K8sMounter:     mount.New("" /* default mount path */),
@@ -77,71 +77,12 @@ func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interf
 	}
 }
 
-// updateConfigurationFromNLSC will update the common.Configuration.CRDSpec from nodelocalstorage initconfig
-func (d *Discoverer) updateConfigurationFromNLSC() error {
-	nlsc, err := d.localclientset.CsiV1alpha1().NodeLocalStorageInitConfigs().Get(context.Background(), d.InitConfig, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("error updateConfigurationFromNLSC: %s", err.Error())
-	}
-
-	node, err := d.kubeclientset.CoreV1().Nodes().Get(context.Background(), d.Nodename, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("kubeclientset get node %s failed", d.Nodename)
-	}
-	nodeLabels := node.Labels
-	for _, nodeconfig := range nlsc.Spec.NodesConfig {
-		selector, err := metav1.LabelSelectorAsSelector(nodeconfig.Selector)
-		if err != nil {
-			return err
-		}
-		if !selector.Matches(labels.Set(nodeLabels)) {
-			continue
-		}
-		updateCRDSpec(d.CRDSpec, nodeconfig.ListConfig, nodeconfig.ResourceToBeInited)
-		return nil
-	}
-	updateCRDSpec(d.CRDSpec, nlsc.Spec.GlobalConfig.ListConfig, nlsc.Spec.GlobalConfig.ResourceToBeInited)
-	return nil
-}
-
-// updateCRDSpec will update the nodelocalstorage spec according to necessary info
-func updateCRDSpec(CRDSpec *lssv1alpha1.NodeLocalStorageSpec, listConfig lssv1alpha1.ListConfig, resource lssv1alpha1.ResourceToBeInited) {
-	CRDSpec.ListConfig = listConfig
-	CRDSpec.ResourceToBeInited = resource
-}
-
-// createLocalStorageCRD will create NodeLocalStorage CRD
-// Notice: the agent will create only one CRD, this CRD will show
-// the local storage information of that node which the agent run at
-func (d *Discoverer) newLocalStorageCRD() *lssv1alpha1.NodeLocalStorage {
-	nls := new(lssv1alpha1.NodeLocalStorage)
-
-	nls.ObjectMeta.Name = d.Nodename
-	nls.Spec.NodeName = d.Nodename
-	nls.Spec.ListConfig = d.CRDSpec.ListConfig
-	nls.Spec.ResourceToBeInited = d.CRDSpec.ResourceToBeInited
-
-	return nls
-}
-
 // Discover update local storage periodically
 func (d *Discoverer) Discover() {
-	// update configuration from NLSC
-	if err := d.updateConfigurationFromNLSC(); err != nil {
-		log.Errorf("update configuration from NLSC error: %s", err.Error())
-		return
-	}
-
 	if nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
 		if k8serr.IsNotFound(err) {
-			log.Infof("creating node local storage %s", d.Nodename)
-			nls = d.newLocalStorageCRD()
-			// create new nls
-			_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
-			if err != nil {
-				log.Errorf("create local storage CRD status failed: %s", err.Error())
-				return
-			}
+			log.Infof("node local storage %s not found, waiting for the controller to create the resource", d.Nodename)
+			return
 		} else {
 			log.Errorf("get NodeLocalStorages failed: %s", err.Error())
 			return
@@ -158,7 +99,7 @@ func (d *Discoverer) Discover() {
 			}
 		}
 		// get status first, for we need support regexp
-		newStatus := new(lssv1alpha1.NodeLocalStorageStatus)
+		newStatus := new(localv1alpha1.NodeLocalStorageStatus)
 		if err := d.discoverVGs(newStatus, reservedVGInfos); err != nil {
 			log.Errorf("discover VG error: %s", err.Error())
 			return
@@ -171,19 +112,17 @@ func (d *Discoverer) Discover() {
 			log.Errorf("discover MountPoint error: %s", err.Error())
 			return
 		}
-		newStatus.NodeStorageInfo.Phase = lssv1alpha1.NodeStorageRunning
-		newStatus.NodeStorageInfo.State.Status = lssv1alpha1.ConditionTrue
-		newStatus.NodeStorageInfo.State.Type = lssv1alpha1.StorageReady
+		newStatus.NodeStorageInfo.Phase = localv1alpha1.NodeStorageRunning
+		newStatus.NodeStorageInfo.State.Status = localv1alpha1.ConditionTrue
+		newStatus.NodeStorageInfo.State.Type = localv1alpha1.StorageReady
 		newStatus.NodeStorageInfo.State.LastHeartbeatTime = metav1.Now()
-		if checkIfStatusTransition(d.CRDStatus, newStatus) {
-			newStatus.NodeStorageInfo.State.LastTransitionTime = metav1.Now()
-		} else {
-			newStatus.NodeStorageInfo.State.LastTransitionTime = d.CRDStatus.NodeStorageInfo.State.LastTransitionTime
-		}
 		nlsCopy.Status.NodeStorageInfo = newStatus.NodeStorageInfo
-		if nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime.Time.IsZero() {
-			nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = metav1.Now()
-		}
+		nlsCopy.Status.FilteredStorageInfo.VolumeGroups = FilterVGInfo(nlsCopy)
+		nlsCopy.Status.FilteredStorageInfo.MountPoints = FilterMPInfo(nlsCopy)
+		nlsCopy.Status.FilteredStorageInfo.Devices = FilterDeviceInfo(nlsCopy)
+		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Status = localv1alpha1.UpdateStatusAccepted
+		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = metav1.Now()
+		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 
 		// only update status
 		log.Infof("update nls %s", nlsCopy.Name)
@@ -240,11 +179,6 @@ func (d *Discoverer) InitResource() {
 	}
 }
 
-func checkIfStatusTransition(old, new *lssv1alpha1.NodeLocalStorageStatus) (transition bool) {
-	transition = checkIfDeviceStatusTransition(old, new) || checkIfVGStatusTransition(old, new) || checkIfMPStatusTransition(old, new)
-	return
-}
-
 func getReservedVGInfo(reservedAnno string) (infos map[string]ReservedVGInfo, err error) {
 	// step 0: var definition
 	infos = make(map[string]ReservedVGInfo)
@@ -288,4 +222,59 @@ func getReservedVGInfo(reservedAnno string) (infos map[string]ReservedVGInfo, er
 	}
 
 	return infos, nil
+}
+
+func FilterVGInfo(nls *localv1alpha1.NodeLocalStorage) []string {
+	var vgSlice []string
+	for _, vg := range nls.Status.NodeStorageInfo.VolumeGroups {
+		vgSlice = append(vgSlice, vg.Name)
+	}
+
+	return FilterInfo(vgSlice, nls.Spec.ListConfig.VGs.Include, nls.Spec.ListConfig.VGs.Exclude)
+}
+
+func FilterMPInfo(nls *localv1alpha1.NodeLocalStorage) []string {
+	var mpSlice []string
+	for _, mp := range nls.Status.NodeStorageInfo.MountPoints {
+		mpSlice = append(mpSlice, mp.Name)
+	}
+
+	return FilterInfo(mpSlice, nls.Spec.ListConfig.MountPoints.Include, nls.Spec.ListConfig.MountPoints.Exclude)
+}
+
+func FilterDeviceInfo(nls *localv1alpha1.NodeLocalStorage) []string {
+	var devSlice []string
+	for _, dev := range nls.Status.NodeStorageInfo.DeviceInfos {
+		devSlice = append(devSlice, dev.Name)
+	}
+
+	return FilterInfo(devSlice, nls.Spec.ListConfig.Devices.Include, nls.Spec.ListConfig.Devices.Exclude)
+}
+
+func FilterInfo(info []string, include []string, exclude []string) []string {
+	filterMap := make(map[string]string, len(info))
+
+	for _, inc := range include {
+		reg := regexp.MustCompile(inc)
+		for _, i := range info {
+			if reg.FindString(i) == i {
+				filterMap[i] = i
+			}
+		}
+	}
+	for _, exc := range exclude {
+		reg := regexp.MustCompile(exc)
+		for _, i := range info {
+			if reg.FindString(i) == i {
+				delete(filterMap, i)
+			}
+		}
+	}
+
+	var filterSlice []string
+	for vg := range filterMap {
+		filterSlice = append(filterSlice, vg)
+	}
+
+	return filterSlice
 }

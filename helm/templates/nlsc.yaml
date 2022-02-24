@@ -11,9 +11,6 @@ spec:
       vgs:
         include:
         - {{ .Values.name }}-pool-[0-9]+
-      mountPoints:
-        include:
-        - /mnt/{{ .Values.name }}/disk-[0-9]+
     resourceToBeInited:
       vgs:
       - devices:

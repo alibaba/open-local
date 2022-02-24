@@ -407,8 +407,8 @@ func IsOpenLocalPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, 
 		}
 		// check open-local type
 		if value, exist := attributes[localtype.VolumeTypeKey]; exist {
-			if lsstype, err := localtype.VolumeTypeFromString(value); err == nil {
-				return true, lsstype
+			if localtype, err := localtype.VolumeTypeFromString(value); err == nil {
+				return true, localtype
 			}
 		}
 	}

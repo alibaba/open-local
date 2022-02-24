@@ -26,9 +26,9 @@ import (
 	"time"
 
 	localtype "github.com/alibaba/open-local/pkg"
-	lssv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	lssfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
-	lssinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
+	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
+	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
@@ -70,14 +70,14 @@ const (
 	SCLVMWithoutVG string = "sc-novg"
 	SCWithMP       string = "sc-mp"
 	SCWithDevice   string = "sc-device"
-	SCNoLocal      string = "sc-nolss"
+	SCNoLocal      string = "sc-nolocal"
 	// PVC
 	PVCWithVG         string = "pvc-vg"
 	PVCWithoutVG      string = "pvc-novg"
 	PVCWithVGError    string = "pvc-vg-error"
 	PVCWithMountPoint string = "pvc-mp"
 	PVCWithDevice     string = "pvc-device"
-	PVCNoLocal        string = "pvc-nolss"
+	PVCNoLocal        string = "pvc-nolocal"
 	// Pod
 	PodName string = "testpod"
 )
@@ -87,14 +87,14 @@ var NodeNamesAll []string = []string{NodeName1, NodeName2, NodeName3, NodeName4}
 type fixture struct {
 	t *testing.T
 
-	kubeclient *k8sfake.Clientset
-	lssclient  *lssfake.Clientset
-	snapclient *volumesnapshotfake.Clientset
+	kubeclient  *k8sfake.Clientset
+	localclient *localfake.Clientset
+	snapclient  *volumesnapshotfake.Clientset
 
 	// Objects from here preloaded into NewSimpleFake.
-	kubeobjects []runtime.Object
-	lssobjects  []runtime.Object
-	snapobjects []runtime.Object
+	kubeobjects  []runtime.Object
+	localobjects []runtime.Object
+	snapobjects  []runtime.Object
 }
 
 var f *fixture
@@ -108,7 +108,7 @@ func init() {
 	pvcs := newPersistentVolumeClaim()
 
 	for _, crd := range crds {
-		f.lssobjects = append(f.lssobjects, crd)
+		f.localobjects = append(f.localobjects, crd)
 	}
 	for _, sc := range scs {
 		f.kubeobjects = append(f.kubeobjects, sc)
@@ -242,26 +242,26 @@ func TestNoLocal(t *testing.T) {
 func TestUpdateCR(t *testing.T) {
 	f.setT(t)
 
-	updateCR := &lssv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: lssv1alpha1.SchemeGroupVersion.String()},
+	updateCR := &localv1alpha1.NodeLocalStorage{
+		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: NodeName1,
 		},
-		Spec: lssv1alpha1.NodeLocalStorageSpec{
+		Spec: localv1alpha1.NodeLocalStorageSpec{
 			NodeName: NodeName1,
-			ListConfig: lssv1alpha1.ListConfig{
-				VGs: lssv1alpha1.VGList{
+			ListConfig: localv1alpha1.ListConfig{
+				VGs: localv1alpha1.VGList{
 					Include: []string{VGHDD, VGSSD},
 				},
 			},
 		},
-		Status: lssv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: lssv1alpha1.NodeStorageInfo{
-				VolumeGroups: []lssv1alpha1.VolumeGroup{
+		Status: localv1alpha1.NodeLocalStorageStatus{
+			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
+				VolumeGroups: []localv1alpha1.VolumeGroup{
 					{
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           100 * LocalGi,
 						Available:       100 * LocalGi,
 						Allocatable:     100 * LocalGi,
@@ -269,15 +269,15 @@ func TestUpdateCR(t *testing.T) {
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           500 * LocalGi,
 						Available:       500 * LocalGi,
 						Allocatable:     500 * LocalGi,
 					},
 				},
-				MountPoints: []lssv1alpha1.MountPoint{
+				MountPoints: []localv1alpha1.MountPoint{
 					{
-						Name:      "/mnt/lss/testmnt-node1-a",
+						Name:      "/mnt/open-local/testmnt-node1-a",
 						Total:     200 * LocalGi,
 						Available: 200 * LocalGi,
 						FsType:    "ext4",
@@ -286,7 +286,7 @@ func TestUpdateCR(t *testing.T) {
 						ReadOnly:  false,
 					},
 					{
-						Name:      "/mnt/lss/testmnt-node1-b",
+						Name:      "/mnt/open-local/testmnt-node1-b",
 						Total:     150 * LocalGi,
 						Available: 150 * LocalGi,
 						FsType:    "ext4",
@@ -295,7 +295,7 @@ func TestUpdateCR(t *testing.T) {
 						ReadOnly:  false,
 					},
 				},
-				DeviceInfos: []lssv1alpha1.DeviceInfo{
+				DeviceInfos: []localv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
 						MediaType: "hdd",
@@ -316,7 +316,7 @@ func TestUpdateCR(t *testing.T) {
 					},
 				},
 			},
-			FilteredStorageInfo: lssv1alpha1.FilteredStorageInfo{
+			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
 				VolumeGroups: []string{
 					VGSSD,
 					VGHDD,
@@ -326,7 +326,7 @@ func TestUpdateCR(t *testing.T) {
 	}
 
 	// TODO(huizhi): don't know why this does not trigger scheduler onNodeLocalStorageAdd function
-	if _, err := f.lssclient.CsiV1alpha1().NodeLocalStorages().Update(context.TODO(), updateCR, metav1.UpdateOptions{}); err != nil {
+	if _, err := f.localclient.CsiV1alpha1().NodeLocalStorages().Update(context.TODO(), updateCR, metav1.UpdateOptions{}); err != nil {
 		f.t.Errorf(err.Error())
 	}
 	time.Sleep(2 * time.Second)
@@ -384,7 +384,7 @@ func priorityFunc(pod *corev1.Pod, nodeNames []string) (hostPriorityList schedul
 func newFixture(t *testing.T) *fixture {
 	f := &fixture{}
 	f.t = t
-	f.lssobjects = []runtime.Object{}
+	f.localobjects = []runtime.Object{}
 	f.kubeobjects = []runtime.Object{}
 	f.snapobjects = []runtime.Object{}
 	return f
@@ -439,30 +439,30 @@ type NodeInfo struct {
 	DeviceInfos      []DeviceInfo
 }
 
-func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
-	node1 := &lssv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: lssv1alpha1.SchemeGroupVersion.String()},
+func newNodeLocalStorage() (crds []*localv1alpha1.NodeLocalStorage) {
+	node1 := &localv1alpha1.NodeLocalStorage{
+		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: NodeName1,
 		},
-		Spec: lssv1alpha1.NodeLocalStorageSpec{
+		Spec: localv1alpha1.NodeLocalStorageSpec{
 			NodeName: NodeName1,
-			ListConfig: lssv1alpha1.ListConfig{
-				VGs: lssv1alpha1.VGList{
+			ListConfig: localv1alpha1.ListConfig{
+				VGs: localv1alpha1.VGList{
 					Include: []string{VGHDD, VGSSD},
 				},
-				MountPoints: lssv1alpha1.MountPointList{
-					Include: []string{"/mnt/lss/testmnt-*"},
+				MountPoints: localv1alpha1.MountPointList{
+					Include: []string{"/mnt/open-local/testmnt-*"},
 				},
 			},
 		},
-		Status: lssv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: lssv1alpha1.NodeStorageInfo{
-				VolumeGroups: []lssv1alpha1.VolumeGroup{
+		Status: localv1alpha1.NodeLocalStorageStatus{
+			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
+				VolumeGroups: []localv1alpha1.VolumeGroup{
 					{
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           100 * LocalGi,
 						Available:       100 * LocalGi,
 						Allocatable:     100 * LocalGi,
@@ -470,15 +470,15 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           500 * LocalGi,
 						Available:       500 * LocalGi,
 						Allocatable:     500 * LocalGi,
 					},
 				},
-				MountPoints: []lssv1alpha1.MountPoint{
+				MountPoints: []localv1alpha1.MountPoint{
 					{
-						Name:      "/mnt/lss/testmnt-node1-a",
+						Name:      "/mnt/open-local/testmnt-node1-a",
 						Total:     500 * LocalGi,
 						Available: 500 * LocalGi,
 						FsType:    "ext4",
@@ -487,7 +487,7 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						ReadOnly:  false,
 					},
 				},
-				DeviceInfos: []lssv1alpha1.DeviceInfo{
+				DeviceInfos: []localv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHDD),
@@ -508,36 +508,36 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					},
 				},
 			},
-			FilteredStorageInfo: lssv1alpha1.FilteredStorageInfo{
+			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
 				VolumeGroups: []string{VGHDD, VGSSD},
-				MountPoints:  []string{"/mnt/lss/testmnt-node1-a"},
+				MountPoints:  []string{"/mnt/open-local/testmnt-node1-a"},
 			},
 		},
 	}
-	node2 := &lssv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: lssv1alpha1.SchemeGroupVersion.String()},
+	node2 := &localv1alpha1.NodeLocalStorage{
+		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: NodeName2,
 		},
-		Spec: lssv1alpha1.NodeLocalStorageSpec{
+		Spec: localv1alpha1.NodeLocalStorageSpec{
 			NodeName: NodeName2,
-			ListConfig: lssv1alpha1.ListConfig{
-				VGs: lssv1alpha1.VGList{
+			ListConfig: localv1alpha1.ListConfig{
+				VGs: localv1alpha1.VGList{
 					Include: []string{VGHDD, VGSSD},
 				},
-				MountPoints: lssv1alpha1.MountPointList{
-					Include: []string{"/mnt/lss/testmnt-*"},
-					Exclude: []string{"/mnt/lss/testmnt-node1-a"},
+				MountPoints: localv1alpha1.MountPointList{
+					Include: []string{"/mnt/open-local/testmnt-*"},
+					Exclude: []string{"/mnt/open-local/testmnt-node1-a"},
 				},
 			},
 		},
-		Status: lssv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: lssv1alpha1.NodeStorageInfo{
-				VolumeGroups: []lssv1alpha1.VolumeGroup{
+		Status: localv1alpha1.NodeLocalStorageStatus{
+			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
+				VolumeGroups: []localv1alpha1.VolumeGroup{
 					{
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           200 * LocalGi,
 						Available:       200 * LocalGi,
 						Allocatable:     200 * LocalGi,
@@ -545,15 +545,15 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					{
 						Name:            VGHDD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           750 * LocalGi,
 						Available:       750 * LocalGi,
 						Allocatable:     750 * LocalGi,
 					},
 				},
-				MountPoints: []lssv1alpha1.MountPoint{
+				MountPoints: []localv1alpha1.MountPoint{
 					{
-						Name:      "/mnt/lss/testmnt-node1-a",
+						Name:      "/mnt/open-local/testmnt-node1-a",
 						Total:     750 * LocalGi,
 						Available: 750 * LocalGi,
 						FsType:    "ext4",
@@ -562,7 +562,7 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						ReadOnly:  false,
 					},
 				},
-				DeviceInfos: []lssv1alpha1.DeviceInfo{
+				DeviceInfos: []localv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHDD),
@@ -589,45 +589,45 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					},
 				},
 			},
-			FilteredStorageInfo: lssv1alpha1.FilteredStorageInfo{
+			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
 				VolumeGroups: []string{VGHDD, VGSSD},
 			},
 		},
 	}
-	node3 := &lssv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: lssv1alpha1.SchemeGroupVersion.String()},
+	node3 := &localv1alpha1.NodeLocalStorage{
+		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: NodeName3,
 		},
-		Spec: lssv1alpha1.NodeLocalStorageSpec{
+		Spec: localv1alpha1.NodeLocalStorageSpec{
 			NodeName: NodeName3,
-			ListConfig: lssv1alpha1.ListConfig{
-				VGs: lssv1alpha1.VGList{
+			ListConfig: localv1alpha1.ListConfig{
+				VGs: localv1alpha1.VGList{
 					Include: []string{VGSSD},
 				},
-				MountPoints: lssv1alpha1.MountPointList{
-					Include: []string{"/mnt/lss/testmnt-*"},
+				MountPoints: localv1alpha1.MountPointList{
+					Include: []string{"/mnt/open-local/testmnt-*"},
 				},
-				Devices: lssv1alpha1.DeviceList{
+				Devices: localv1alpha1.DeviceList{
 					Include: []string{"/dev/sdc"},
 				},
 			},
 		},
-		Status: lssv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: lssv1alpha1.NodeStorageInfo{
-				VolumeGroups: []lssv1alpha1.VolumeGroup{
+		Status: localv1alpha1.NodeLocalStorageStatus{
+			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
+				VolumeGroups: []localv1alpha1.VolumeGroup{
 					{
 						Name:            VGSSD,
 						PhysicalVolumes: []string{},
-						LogicalVolumes:  []lssv1alpha1.LogicalVolume{},
+						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
 						Total:           300 * LocalGi,
 						Available:       300 * LocalGi,
 						Allocatable:     300 * LocalGi,
 					},
 				},
-				MountPoints: []lssv1alpha1.MountPoint{
+				MountPoints: []localv1alpha1.MountPoint{
 					{
-						Name:      "/mnt/lss/testmnt-node1-a",
+						Name:      "/mnt/open-local/testmnt-node1-a",
 						Total:     1000 * LocalGi,
 						Available: 1000 * LocalGi,
 						FsType:    "ext4",
@@ -636,7 +636,7 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 						ReadOnly:  false,
 					},
 				},
-				DeviceInfos: []lssv1alpha1.DeviceInfo{
+				DeviceInfos: []localv1alpha1.DeviceInfo{
 					{
 						Name:      "/dev/sda",
 						MediaType: string(localtype.MediaTypeHDD),
@@ -657,27 +657,27 @@ func newNodeLocalStorage() (crds []*lssv1alpha1.NodeLocalStorage) {
 					},
 				},
 			},
-			FilteredStorageInfo: lssv1alpha1.FilteredStorageInfo{
+			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
 				VolumeGroups: []string{VGHDD, VGSSD},
-				MountPoints:  []string{"/mnt/lss/testmnt-node1-a"},
+				MountPoints:  []string{"/mnt/open-local/testmnt-node1-a"},
 				Devices:      []string{"/dev/sdc"},
 			},
 		},
 	}
-	node4 := &lssv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: lssv1alpha1.SchemeGroupVersion.String()},
+	node4 := &localv1alpha1.NodeLocalStorage{
+		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: NodeName4,
 		},
-		Spec: lssv1alpha1.NodeLocalStorageSpec{
+		Spec: localv1alpha1.NodeLocalStorageSpec{
 			NodeName: NodeName4,
-			ListConfig: lssv1alpha1.ListConfig{
-				VGs: lssv1alpha1.VGList{
+			ListConfig: localv1alpha1.ListConfig{
+				VGs: localv1alpha1.VGList{
 					Include: []string{VGSSD},
 				},
 			},
 		},
-		Status: lssv1alpha1.NodeLocalStorageStatus{},
+		Status: localv1alpha1.NodeLocalStorageStatus{},
 	}
 	crds = append(crds, node1, node2, node3, node4)
 	return crds
@@ -804,28 +804,28 @@ func newStorageClass() (scs []*storagev1.StorageClass) {
 	return scs
 }
 
-func (f *fixture) newExtender() (*server.ExtenderServer, kubeinformers.SharedInformerFactory, lssinformers.SharedInformerFactory, volumesnapshotinformers.SharedInformerFactory) {
-	f.lssclient = lssfake.NewSimpleClientset(f.lssobjects...)
+func (f *fixture) newExtender() (*server.ExtenderServer, kubeinformers.SharedInformerFactory, localinformers.SharedInformerFactory, volumesnapshotinformers.SharedInformerFactory) {
+	f.localclient = localfake.NewSimpleClientset(f.localobjects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.snapclient = volumesnapshotfake.NewSimpleClientset(f.snapobjects...)
 
 	k8sInformer := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-	lssInformer := lssinformers.NewSharedInformerFactory(f.lssclient, noResyncPeriodFunc())
+	localInformer := localinformers.NewSharedInformerFactory(f.localclient, noResyncPeriodFunc())
 	snapInforer := volumesnapshotinformers.NewSharedInformerFactory(f.snapclient, noResyncPeriodFunc())
 
-	extenderServer := server.NewExtenderServer(f.kubeclient, f.lssclient, f.snapclient, k8sInformer, lssInformer, snapInforer, TestPort, localtype.NewNodeAntiAffinityWeight())
+	extenderServer := server.NewExtenderServer(f.kubeclient, f.localclient, f.snapclient, k8sInformer, localInformer, snapInforer, TestPort, localtype.NewNodeAntiAffinityWeight())
 
-	return extenderServer, k8sInformer, lssInformer, snapInforer
+	return extenderServer, k8sInformer, localInformer, snapInforer
 }
 
 func (f *fixture) runExtender() {
 	// Init extender
-	extenderServer, k8sInformer, lssInformer, snapInformer := f.newExtender()
+	extenderServer, k8sInformer, localInformer, snapInformer := f.newExtender()
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
 	k8sInformer.Start(stopCh)
-	lssInformer.Start(stopCh)
+	localInformer.Start(stopCh)
 	snapInformer.Start(stopCh)
 	extenderServer.InitRouter()
 	extenderServer.WaitForCacheSync(stopCh)

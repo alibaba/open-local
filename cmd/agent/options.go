@@ -29,13 +29,10 @@ type agentOption struct {
 	MountPath    string
 	Interval     int
 	LVNamePrefix string
-	Config       string
 	RegExp       string
-	InitConfig   string
 }
 
 func (option *agentOption) addFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&option.Config, "config", common.DefaultConfigPath, "Path to the open-local config file to use.")
 	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
 	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.StringVar(&option.NodeName, "nodename", option.NodeName, "Kubernetes node name.")
@@ -44,5 +41,4 @@ func (option *agentOption) addFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&option.Interval, "interval", common.DefaultInterval, "The interval that the agent checks the local storage at one time")
 	fs.StringVar(&option.LVNamePrefix, "lvname", "local", "The prefix of Logical Volume Name created by open-local")
 	fs.StringVar(&option.RegExp, "regexp", "^(s|v|xv)d[a-z]+$", "regexp is used to filter device names")
-	fs.StringVar(&option.InitConfig, "initconfig", "open-local", "initconfig is NodeLocalStorageInitConfig(CRD) for agent to create NodeLocalStorage")
 }

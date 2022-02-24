@@ -37,16 +37,16 @@ import (
 func NewAgent(
 	config *common.Configuration,
 	kubeclientset kubernetes.Interface,
-	lssclientset clientset.Interface,
+	localclientset clientset.Interface,
 	snapclientset snapshot.Interface,
 	eventRecorder record.EventRecorder) *Agent {
 
 	controller := &Agent{
-		Configuration: config,
-		kubeclientset: kubeclientset,
-		lssclientset:  lssclientset,
-		snapclientset: snapclientset,
-		eventRecorder: eventRecorder,
+		Configuration:  config,
+		kubeclientset:  kubeclientset,
+		localclientset: localclientset,
+		snapclientset:  snapclientset,
+		eventRecorder:  eventRecorder,
 	}
 
 	return controller
@@ -60,7 +60,7 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 
 	// Start the informer factories to begin populating the informer caches
-	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.lssclientset, c.snapclientset, c.eventRecorder)
+	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.localclientset, c.snapclientset, c.eventRecorder)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 	go wait.Until(discoverer.InitResource, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
 

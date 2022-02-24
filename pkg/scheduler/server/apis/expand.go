@@ -64,13 +64,13 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 		return err
 	}
 	containReadonlySnapshot := false
-	isOpenLocal, lssType := utils.IsOpenLocalPV(pv, ctx.StorageV1Informers, ctx.CoreV1Informers, containReadonlySnapshot)
+	isOpenLocal, localType := utils.IsOpenLocalPV(pv, ctx.StorageV1Informers, ctx.CoreV1Informers, containReadonlySnapshot)
 	if !isOpenLocal {
 		err := fmt.Errorf("unable to expand non-open-local PV %s", pv.Name)
 		log.Errorf(err.Error())
 		return err
 	}
-	switch pkg.VolumeType(lssType) {
+	switch pkg.VolumeType(localType) {
 	case pkg.VolumeTypeLVM:
 		vg := utils.GetVGNameFromCsiPV(pv)
 		if vg == "" {

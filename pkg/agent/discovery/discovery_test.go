@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package statussyncer
+package discovery
 
 import (
 	"testing"
@@ -80,40 +80,4 @@ func sameStringSlice(x, y []string) bool {
 		}
 	}
 	return len(diff) == 0
-}
-
-func TestSameStringSliceIgnoreOrder(t *testing.T) {
-	type args struct {
-		x []string
-		y []string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "test1",
-			args: args{
-				x: []string{"share", "paas"},
-				y: []string{"paas", "share"},
-			},
-			want: true,
-		},
-		{
-			name: "test2",
-			args: args{
-				x: []string{"share", "paas"},
-				y: []string{"paas", "share1"},
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := SameStringSliceIgnoreOrder(tt.args.x, tt.args.y); got != tt.want {
-				t.Errorf("SameStringSliceIgnoreOrder() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }

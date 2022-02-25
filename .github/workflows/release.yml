@@ -88,5 +88,5 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
           tags: |
-            ${{ steps.meta-arm64.outputs.tags }}
-            ${{ steps.meta-acr-arm64.outputs.tags }}
+            ${{ steps.meta-arm64.outputs.tags }}-arm64
+            ${{ steps.meta-acr-arm64.outputs.tags }}-arm64

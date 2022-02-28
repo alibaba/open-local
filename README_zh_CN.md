@@ -9,8 +9,10 @@
 
 `Open-Local`已广泛用于生产环境，目前使用的产品包括：
 
-- 阿里云 OECP (企业级容器平台)
+- [ACK 发行版](https://github.com/AliyunContainerService/ackdistro)
+- 阿里云 ECP (企业级容器平台)
 - 阿里云 ADP (云原生应用交付平台)
+- [云原生 CNStack 产品](https://github.com/alibaba/CNStackCommunityEdition)
 - 蚂蚁 AntStack Plus 产品
 
 ## 特性

@@ -36,7 +36,7 @@ English | [简体中文](./README_zh_CN.md)
 - [ACK Distro](https://github.com/AliyunContainerService/ackdistro)
 - Alibaba Cloud ECP (Enterprise Container Platform)
 - Alibaba Cloud ADP (Cloud-Native Application Delivery Platform)
-- CNStack Products
+- [CNStack Products](https://github.com/alibaba/CNStackCommunityEdition)
 - AntStack Plus Products
 
 ## User guide

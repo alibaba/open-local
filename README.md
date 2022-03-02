@@ -21,13 +21,62 @@ English | [简体中文](./README_zh_CN.md)
 
 ## Overall Architecture
 
-![](docs/imgs/architecture.png)
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Master                                                                      │
+│                   ┌───┬───┐           ┌────────────────┐                    │
+│                   │Pod│PVC│           │   API-Server   │                    │
+│                   └───┴┬──┘           └────────────────┘                    │
+│                        │ bound                ▲                             │
+│                        ▼                      │ watch                       │
+│                      ┌────┐           ┌───────┴────────┐                    │
+│                      │ PV │           │ Kube-Scheduler │                    │
+│                      └────┘         ┌─┴────────────────┴─┐                  │
+│                        ▲            │     open-local     │                  │
+│                        │            │ scheduler-extender │                  │
+│                        │      ┌────►└────────────────────┘◄───┐             │
+│ ┌──────────────────┐   │      │               ▲               │             │
+│ │ NodeLocalStorage │   │create│               │               │  callback   │
+│ │    InitConfig    │  ┌┴──────┴─────┐  ┌──────┴───────┐  ┌────┴────────┐    │
+│ └──────────────────┘  │  External   │  │   External   │  │  External   │    │
+│          ▲            │ Provisioner │  │   Resizer    │  │ Snapshotter │    │
+│          │ watch      ├─────────────┤  ├──────────────┤  ├─────────────┤    │
+│    ┌─────┴──────┐     ├─────────────┴──┴──────────────┴──┴─────────────┤GRPC│
+│    │ open-local │     │                 open-local                     │    │
+│    │ controller │     │             CSI ControllerServer               │    │
+│    └─────┬──────┘     └────────────────────────────────────────────────┘    │
+│          │ create                                                           │
+└──────────┼──────────────────────────────────────────────────────────────────┘
+           │
+┌──────────┼──────────────────────────────────────────────────────────────────┐
+│ Worker   │                                                                  │
+│          │                                                                  │
+│          ▼                ┌───────────┐                                     │
+│ ┌──────────────────┐      │  Kubelet  │                                     │
+│ │ NodeLocalStorage │      └─────┬─────┘                                     │
+│ └──────────────────┘            │ GRPC                     Shared Disks     │
+│          ▲                      ▼                          ┌───┐  ┌───┐     │
+│          │              ┌────────────────┐                 │sdb│  │sdc│     │
+│          │              │   open-local   │ create volume   └───┘  └───┘     │
+│          │              │ CSI NodeServer ├───────────────► VolumeGroup      │
+│          │              └────────────────┘                                  │
+│          │                                                                  │
+│          │                                                 Exclusive Disks  │
+│          │                ┌─────────────┐                  ┌───┐            │
+│          │ update         │ open-local  │  init device     │sdd│            │
+│          └────────────────┤    agent    ├────────────────► └───┘            │
+│                           └─────────────┘                  Block Device     │
+│                                                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-`Open-Local`contains three types of components:
+`Open-Local`contains four types of components:
 
 - Scheduler extender: as an extended component of Kubernetes Scheduler, adding local storage scheduling algorithm
 - CSI plugins: providing the ability to create/delete volume, expand volume and take snapshots of the volume
-- Agent: running on each node in the K8s cluster, and report local storage device information for Scheduler extender
+- Agent: running on each node in the K8s cluster, initializing the storage device according to the configuration list, and reporting local storage device information for Scheduler extender
+- Controller: getting the cluster initial configuration of the storage and deliver a detailed configuration list to Agents running on each node
 
 ## Who uses Open-Local
 

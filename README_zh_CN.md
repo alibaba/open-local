@@ -86,6 +86,10 @@
 - Agent: 运行在集群中的每个节点，根据配置清单初始化存储设备，并通过上报集群中本地存储设备信息以供 Scheduler-Extender 决策调度
 - Controller: 获取集群存储初始化配置，并向运行在各个节点的 Agent 下发详细的配置清单
 
+若集群中部署有 Prometheus 和 Grafana，部署 `Open-Local` 时也可选择性安装监控大盘:
+
+![](docs/imgs/open-local-dashboard.png)
+
 ## 用户手册
 
 详见[文档](docs/user-guide/user-guide_zh_CN.md)

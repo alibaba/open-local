@@ -2,9 +2,9 @@
 
 `Open-Local` 可通过 NodeLocalStorageInitConfig 资源初始化每个 NodeLocalStorage 资源。目前版本为 `csi.aliyun.com/v1alpha1`。
 
-Agent 在创建 NodeLocalStorage 资源时，会观察环境中是否有 NodeLocalStorageInitConfig。NodeLocalStorageInitConfig 名称由 open-local agent --initconfig 参数指定。若有，则 Agent 会将 NodeLocalStorageInitConfig 中的相关配置填充到新创建的 NodeLocalStorage 资源的 Spec 中。
+Controller 在创建 NodeLocalStorage 资源时，会观察环境中是否有 NodeLocalStorageInitConfig。NodeLocalStorageInitConfig 名称由 open-local controller --initconfig 参数指定。若有，则 Controller 会将 NodeLocalStorageInitConfig 中的相关配置填充到新创建的 NodeLocalStorage 资源的 Spec 中。
 
-编辑 NodeLocalStorageInitConfig 对环境中已存在的 NodeLocalStorage 资源无效，即 NodeLocalStorageInitConfig 资源只会在创建 NodeLocalStorage 资源时有效。
+编辑 NodeLocalStorageInitConfig 会更改环境中已存在的 NodeLocalStorage 资源。
 
 下面为 NodeLocalStorageInitConfig 的 Yaml 文件介绍。
 

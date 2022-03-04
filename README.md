@@ -78,6 +78,10 @@ English | [简体中文](./README_zh_CN.md)
 - Agent: running on each node in the K8s cluster, initializing the storage device according to the configuration list, and reporting local storage device information for Scheduler extender
 - Controller: getting the cluster initial configuration of the storage and deliver a detailed configuration list to Agents running on each node
 
+`Open-Local` also includes a monitoring dashboard:
+
+![](docs/imgs/open-local-dashboard.png)
+
 ## Who uses Open-Local
 
 `Open-Local` has been widely used in production environments, and currently used products include:

@@ -1,8 +1,8 @@
 # NodeLocalStorage
 
-`Open-Local` 通过 NodeLocalStorage 资源上报每个节点上的存储设备信息，该资源由 Agent 创建及管理，属于全局范围的资源。目前版本为 `csi.aliyun.com/v1alpha1`。
+`Open-Local` 通过 NodeLocalStorage 资源上报每个节点上的存储设备信息，该资源由 Controller 创建，由每个节点的 Agent 组件更新其 status。该 CRD 属于全局范围的资源。目前版本为 `csi.aliyun.com/v1alpha1`。
 
-用户可根据需要编辑 NodeLocalStorage 资源的 Spec 字段，Status字段由 Agent 和 Scheduler-Extender 共同更新。
+用户可根据需要编辑 NodeLocalStorage 资源的 Spec 字段。
 
 下面为 NodeLocalStorage 的 Yaml 文件介绍。
 
@@ -87,7 +87,7 @@ status:
       physicalVolumes:            # VG 对应的 PVs（Physical Volumes）
       - /dev/vdb3
       total: 860063006720         # VG 总量
-  filteredStorageInfo:            # 被 Open-Local 纳管的设备情况，由 Scheduler-Extender 组件更新。只有纳管后的设备才会参与存储调度&分配。该字段的值由 Status 中的 .nodeStorageInfo.deviceInfo 和 .nodeStorageInfo.volumeGroups 与 Spec 中的 .listConfig 共同决定。本例中 Spec 的 VG 列表中有 open-local-pool-[0-9]+，且该节点有名为 open-local-pool-0 的 VG，故可被纳管。/dev/vdc 同理。
+  filteredStorageInfo:            # 设备筛选情况，筛选后的设备会参与存储调度&分配。该字段的值由 Status 中的 .nodeStorageInfo.deviceInfo 和 .nodeStorageInfo.volumeGroups 与 Spec 中的 .listConfig 共同决定。本例中 Spec 的 VG 列表中有 open-local-pool-[0-9]+，且该节点有名为 open-local-pool-0 的 VG，故可被纳管。/dev/vdc 同理。
     volumeGroups:
     - open-local-pool-0
     devices:

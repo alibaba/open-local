@@ -49,3 +49,8 @@ storageclass:
     name: open-local-mountpoint-ssd
   mountpoint_hdd:
     name: open-local-mountpoint-hdd
+monitor:
+  # install grafana dashboard
+  enabled: false
+  # grafana namespace
+  namespace: monitoring

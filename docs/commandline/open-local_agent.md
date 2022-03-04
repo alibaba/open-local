@@ -9,9 +9,7 @@ open-local agent [flags]
 ### Options
 
 ```
-      --config string       Path to the open-local config file to use. (default "/etc/controller/config/")
   -h, --help                help for agent
-      --initconfig string   initconfig is NodeLocalStorageInitConfig(CRD) for agent to create NodeLocalStorage (default "open-local")
       --interval int        The interval that the agent checks the local storage at one time (default 60)
       --kubeconfig string   Path to the kubeconfig file to use.
       --lvname string       The prefix of Logical Volume Name created by open-local (default "local")

@@ -22,8 +22,10 @@ import (
 
 	"github.com/alibaba/open-local/pkg/controller"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/signals"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
@@ -67,16 +69,23 @@ func Start(opt *controllerOption) error {
 
 	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building example clientset: %s", err.Error())
+		return fmt.Errorf("Error building open-local clientset: %s", err.Error())
+	}
+
+	snapClient, err := snapshot.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("Error building snapshot clientset: %s", err.Error())
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
-	localInformerFactory := informers.NewSharedInformerFactory(localClient, time.Second*30)
+	localInformerFactory := localinformers.NewSharedInformerFactory(localClient, time.Second*30)
+	snapshotInformerFactory := snapshotinformers.NewSharedInformerFactory(snapClient, time.Second*30)
 
-	controller := controller.NewController(kubeClient, localClient, kubeInformerFactory.Core().V1().Nodes(), localInformerFactory.Csi().V1alpha1().NodeLocalStorages(), localInformerFactory.Csi().V1alpha1().NodeLocalStorageInitConfigs(), opt.InitConfig)
+	controller := controller.NewController(kubeClient, localClient, snapClient, kubeInformerFactory.Core().V1().Nodes(), localInformerFactory.Csi().V1alpha1().NodeLocalStorages(), localInformerFactory.Csi().V1alpha1().NodeLocalStorageInitConfigs(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshots(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshotContents(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshotClasses(), opt.InitConfig)
 
 	kubeInformerFactory.Start(stopCh)
 	localInformerFactory.Start(stopCh)
+	snapshotInformerFactory.Start(stopCh)
 
 	log.Info("Starting open-local controller")
 	if err = controller.Run(2, stopCh); err != nil {

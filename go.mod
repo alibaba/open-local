@@ -35,6 +35,7 @@ require (
 	k8s.io/apimachinery v0.20.5
 	k8s.io/client-go v0.20.5
 	k8s.io/code-generator v0.20.5
+	k8s.io/component-base v0.20.5
 	k8s.io/kube-scheduler v0.20.5
 	k8s.io/kubernetes v1.20.5
 	k8s.io/mount-utils v0.21.0-beta.0

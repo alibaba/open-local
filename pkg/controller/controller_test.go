@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
+	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,6 +48,7 @@ type fixture struct {
 
 	client     *localfake.Clientset
 	kubeclient *k8sfake.Clientset
+	snapclient *snapshotfake.Clientset
 	// Objects to put in the store.
 	nlsLister  []*localv1alpha1.NodeLocalStorage
 	nlscLister []*localv1alpha1.NodeLocalStorageInitConfig
@@ -138,15 +141,19 @@ func newMasterNode(name string) *corev1.Node {
 func (f *fixture) newController() (*Controller, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.client = localfake.NewSimpleClientset(f.localobjects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.snapclient = snapshotfake.NewSimpleClientset()
 
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-
-	c := NewController(f.kubeclient, f.client, k8sI.Core().V1().Nodes(), i.Csi().V1alpha1().NodeLocalStorages(), i.Csi().V1alpha1().NodeLocalStorageInitConfigs(), "open-local")
+	snapI := snapshotinformers.NewSharedInformerFactory(f.snapclient, noResyncPeriodFunc())
+	c := NewController(f.kubeclient, f.client, f.snapclient, k8sI.Core().V1().Nodes(), i.Csi().V1alpha1().NodeLocalStorages(), i.Csi().V1alpha1().NodeLocalStorageInitConfigs(), snapI.Snapshot().V1().VolumeSnapshots(), snapI.Snapshot().V1().VolumeSnapshotContents(), snapI.Snapshot().V1().VolumeSnapshotClasses(), "open-local")
 
 	c.nlsSynced = alwaysReady
 	c.nlscSynced = alwaysReady
-	c.nodesSynced = alwaysReady
+	c.nodeSynced = alwaysReady
+	c.snapshotSynced = alwaysReady
+	c.snapshotContentSynced = alwaysReady
+	c.snapshotClassSynced = alwaysReady
 	c.recorder = &record.FakeRecorder{}
 
 	for _, nls := range f.nlsLister {

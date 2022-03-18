@@ -22,6 +22,10 @@ import (
 	"reflect"
 	"time"
 
+	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
+	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -41,25 +45,34 @@ import (
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
-	listers "github.com/alibaba/open-local/pkg/generated/listers/storage/v1alpha1"
+	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
+	locallisters "github.com/alibaba/open-local/pkg/generated/listers/storage/v1alpha1"
+	"github.com/alibaba/open-local/pkg/utils"
 )
 
 const (
-	SuccessSynced         = "Synced"
-	MessageResourceSynced = "NLSC synced successfully"
+	SuccessSynced                 = "Synced"
+	MessageResourceSynced         = "NLSC synced successfully"
+	AnnVolumeSnapshotBeingDeleted = "snapshot.storage.kubernetes.io/volumesnapshot-being-deleted"
 )
 
 type Controller struct {
-	kubeclientset  kubernetes.Interface
-	localclientset clientset.Interface
+	kubeclientset     kubernetes.Interface
+	localclientset    clientset.Interface
+	snapshotclientset snapshot.Interface
 
-	nodesLister corelisters.NodeLister
-	nodesSynced cache.InformerSynced
-	nlsLister   listers.NodeLocalStorageLister
-	nlsSynced   cache.InformerSynced
-	nlscLister  listers.NodeLocalStorageInitConfigLister
-	nlscSynced  cache.InformerSynced
+	nodeLister            corelisters.NodeLister
+	nodeSynced            cache.InformerSynced
+	snapshotLister        snapshotlisters.VolumeSnapshotLister
+	snapshotSynced        cache.InformerSynced
+	snapshotContentLister snapshotlisters.VolumeSnapshotContentLister
+	snapshotContentSynced cache.InformerSynced
+	snapshotClassLister   snapshotlisters.VolumeSnapshotClassLister
+	snapshotClassSynced   cache.InformerSynced
+	nlsLister             locallisters.NodeLocalStorageLister
+	nlsSynced             cache.InformerSynced
+	nlscLister            locallisters.NodeLocalStorageInitConfigLister
+	nlscSynced            cache.InformerSynced
 
 	workqueue workqueue.RateLimitingInterface
 	recorder  record.EventRecorder
@@ -76,9 +89,13 @@ type WorkQueueItem struct {
 func NewController(
 	kubeclientset kubernetes.Interface,
 	localclientset clientset.Interface,
+	snapclientset snapshot.Interface,
 	nodeInformer coreinformers.NodeInformer,
-	nlsInformer informers.NodeLocalStorageInformer,
-	nlscInformer informers.NodeLocalStorageInitConfigInformer,
+	nlsInformer localinformers.NodeLocalStorageInformer,
+	nlscInformer localinformers.NodeLocalStorageInitConfigInformer,
+	snapshotInformer snapshotinformers.VolumeSnapshotInformer,
+	snapshotContentInformer snapshotinformers.VolumeSnapshotContentInformer,
+	snapshotClassInformer snapshotinformers.VolumeSnapshotClassInformer,
 	nlscName string) *Controller {
 
 	// Create event broadcaster
@@ -88,17 +105,24 @@ func NewController(
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "open-local-controller"})
 
 	c := &Controller{
-		kubeclientset:  kubeclientset,
-		localclientset: localclientset,
-		nodesLister:    nodeInformer.Lister(),
-		nodesSynced:    nodeInformer.Informer().HasSynced,
-		nlsLister:      nlsInformer.Lister(),
-		nlsSynced:      nlsInformer.Informer().HasSynced,
-		nlscLister:     nlscInformer.Lister(),
-		nlscSynced:     nlscInformer.Informer().HasSynced,
-		workqueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeLocalStorageInitConfig"),
-		recorder:       eventRecorder,
-		nlscName:       nlscName,
+		kubeclientset:         kubeclientset,
+		localclientset:        localclientset,
+		snapshotclientset:     snapclientset,
+		nodeLister:            nodeInformer.Lister(),
+		nodeSynced:            nodeInformer.Informer().HasSynced,
+		nlsLister:             nlsInformer.Lister(),
+		nlsSynced:             nlsInformer.Informer().HasSynced,
+		nlscLister:            nlscInformer.Lister(),
+		nlscSynced:            nlscInformer.Informer().HasSynced,
+		snapshotLister:        snapshotInformer.Lister(),
+		snapshotSynced:        snapshotInformer.Informer().HasSynced,
+		snapshotContentLister: snapshotContentInformer.Lister(),
+		snapshotContentSynced: snapshotContentInformer.Informer().HasSynced,
+		snapshotClassLister:   snapshotClassInformer.Lister(),
+		snapshotClassSynced:   snapshotClassInformer.Informer().HasSynced,
+		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeLocalStorageInitConfig"),
+		recorder:              eventRecorder,
+		nlscName:              nlscName,
 	}
 
 	log.Info("Setting up event handlers")
@@ -128,7 +152,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 
 	// Wait for the caches to be synced before starting workers
 	log.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.nlscSynced, c.nlsSynced, c.nodesSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.nlscSynced, c.nlsSynced, c.nodeSynced, c.snapshotSynced, c.snapshotContentSynced, c.snapshotClassSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -136,6 +160,10 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 
 	for i := 0; i < workers; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
+	}
+
+	if DefaultFeatureGate.Enabled(OrphanedSnapshotContent) {
+		go wait.Until(c.cleanOrphanSnapshotContents, time.Minute, stopCh)
 	}
 
 	log.Info("Started controller")
@@ -195,7 +223,7 @@ func (c *Controller) syncHandler(item WorkQueueItem) error {
 	if item.nlsName != "" {
 		nlsNames = append(nlsNames, item.nlsName)
 	} else {
-		nodelist, err := c.nodesLister.List(labels.Everything())
+		nodelist, err := c.nodeLister.List(labels.Everything())
 		if err != nil {
 			return err
 		}
@@ -248,7 +276,7 @@ func (c *Controller) updateNLSIfNeeded(nls *localv1alpha1.NodeLocalStorage) erro
 		return fmt.Errorf("get nlsc %s failed: %s", c.nlscName, err.Error())
 	}
 
-	node, err := c.nodesLister.Get(nls.Name)
+	node, err := c.nodeLister.Get(nls.Name)
 	if err != nil {
 		return fmt.Errorf("get node %s failed", nls.Name)
 	}
@@ -328,4 +356,65 @@ func (c *Controller) enqueueNLSC(nlscName string, nlsName string) {
 			nlsName:  nlsName,
 		})
 	}
+}
+
+func (c *Controller) cleanOrphanSnapshotContents() {
+	allContents, err := c.snapshotContentLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("fail to list snapshot contents: %s", err.Error())
+		return
+	}
+	for _, content := range allContents {
+		needAnnotation, err := c.isOrphanSnapshotContent(content)
+		if err != nil {
+			log.Errorf("fail to check snapshot content %s is orphan: %s", content.Name, err.Error())
+			continue
+		}
+		if needAnnotation {
+			if err := c.setAnnVolumeSnapshotBeingDeleted(content); err != nil {
+				log.Errorf("fail to set annotation on orphan snapshot content %s: %s", content.Name, err.Error())
+				continue
+			}
+			log.Infof("annotate orphan snapshot content %s successfully", content.Name)
+		}
+	}
+}
+
+func (c *Controller) isOrphanSnapshotContent(content *snapshotapi.VolumeSnapshotContent) (bool, error) {
+	if content.DeletionTimestamp == nil {
+		return false, nil
+	}
+	if content.Spec.VolumeSnapshotRef.UID == "" {
+		return false, nil
+	}
+
+	class, err := c.snapshotClassLister.Get(*content.Spec.VolumeSnapshotClassName)
+	if err != nil {
+		return false, err
+	}
+	if !utils.ContainsProvisioner(class.Driver) {
+		return false, nil
+	}
+
+	_, err = c.snapshotLister.VolumeSnapshots(content.Spec.VolumeSnapshotRef.Namespace).Get(content.Spec.VolumeSnapshotRef.Name)
+	if err == nil {
+		return false, nil
+	}
+	if err != nil && !errors.IsNotFound(err) {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (c *Controller) setAnnVolumeSnapshotBeingDeleted(content *snapshotapi.VolumeSnapshotContent) error {
+	if !metav1.HasAnnotation(content.ObjectMeta, AnnVolumeSnapshotBeingDeleted) {
+		log.Infof("setAnnVolumeSnapshotBeingDeleted: set annotation %s on content %s", AnnVolumeSnapshotBeingDeleted, content.Name)
+		metav1.SetMetaDataAnnotation(&content.ObjectMeta, AnnVolumeSnapshotBeingDeleted, "yes")
+	}
+	_, err := c.snapshotclientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), content, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -17,17 +17,24 @@ limitations under the License.
 package controller
 
 import (
+	"strings"
+
+	"github.com/alibaba/open-local/pkg/controller"
 	"github.com/spf13/pflag"
+	cliflag "k8s.io/component-base/cli/flag"
 )
 
 type controllerOption struct {
-	Master     string
-	Kubeconfig string
-	InitConfig string
+	Master       string
+	Kubeconfig   string
+	InitConfig   string
+	FeatureGates map[string]bool
 }
 
 func (option *controllerOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
 	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.StringVar(&option.InitConfig, "initconfig", "open-local", "initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage")
+	fs.Var(cliflag.NewMapStringBool(&option.FeatureGates), "feature-gates", "A set of key=value pairs that describe feature gates for alpha/experimental features. "+
+		"Options are:\n"+strings.Join(controller.DefaultFeatureGate.KnownFeatures(), "\n"))
 }

@@ -212,12 +212,6 @@ func (c *Controller) processNextWorkItem() bool {
 }
 
 func (c *Controller) syncHandler(item WorkQueueItem) error {
-	// step 1: get nlsc
-	nlsc, err := c.nlscLister.Get(item.nlscName)
-	if err != nil {
-		return err
-	}
-
 	// step 1: get nls name slice
 	var nlsNames []string
 	if item.nlsName != "" {
@@ -235,11 +229,17 @@ func (c *Controller) syncHandler(item WorkQueueItem) error {
 	// step 2: handle
 	for _, name := range nlsNames {
 		nls, err := c.nlsLister.Get(name)
-
 		// create nls if not found
 		if errors.IsNotFound(err) {
 			log.Warningf("nls %s not found", name)
-			_, createErr := c.localclientset.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), newNodeLocalStorage(name), metav1.CreateOptions{})
+			nls := new(localv1alpha1.NodeLocalStorage)
+			nls.SetName(name)
+			nls.Spec.NodeName = name
+			nls, err := c.updateNLSSpec(nls)
+			if err != nil {
+				return err
+			}
+			_, createErr := c.localclientset.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
 			if createErr != nil {
 				return createErr
 			}
@@ -250,44 +250,44 @@ func (c *Controller) syncHandler(item WorkQueueItem) error {
 		}
 
 		// update nls if needed
-		if err := c.updateNLSIfNeeded(nls); err != nil {
-			return err
+		if DefaultFeatureGate.Enabled(UpdateNLS) {
+			if err := c.updateNLSIfNeeded(nls); err != nil {
+				return err
+			}
 		}
 	}
 
+	// step 3: update nlsc event
+	nlsc, err := c.nlscLister.Get(item.nlscName)
+	if err != nil {
+		return err
+	}
 	if item.nlsName == "" {
 		c.recorder.Event(nlsc, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	}
 	return nil
 }
 
-func newNodeLocalStorage(name string) *localv1alpha1.NodeLocalStorage {
-	nls := new(localv1alpha1.NodeLocalStorage)
-	nls.SetName(name)
-	nls.Spec.NodeName = name
-
-	return nls
-}
-
-func (c *Controller) updateNLSIfNeeded(nls *localv1alpha1.NodeLocalStorage) error {
-	// update spec
+func (c *Controller) updateNLSSpec(nls *localv1alpha1.NodeLocalStorage) (*localv1alpha1.NodeLocalStorage, error) {
+	if nls == nil {
+		return nil, fmt.Errorf("nls is nil!")
+	}
 	nlsc, err := c.nlscLister.Get(c.nlscName)
 	if err != nil {
-		return fmt.Errorf("get nlsc %s failed: %s", c.nlscName, err.Error())
+		return nil, fmt.Errorf("get nlsc %s failed: %s", c.nlscName, err.Error())
 	}
-
-	node, err := c.nodeLister.Get(nls.Name)
-	if err != nil {
-		return fmt.Errorf("get node %s failed", nls.Name)
-	}
-	nodeLabels := node.Labels
 	nlsCopy := nls.DeepCopy()
 	nlsCopy.Spec.ListConfig = nlsc.Spec.GlobalConfig.ListConfig
 	nlsCopy.Spec.ResourceToBeInited = nlsc.Spec.GlobalConfig.ResourceToBeInited
+	node, err := c.nodeLister.Get(nlsCopy.Name)
+	if err != nil {
+		return nil, fmt.Errorf("get node %s failed", nlsCopy.Name)
+	}
+	nodeLabels := node.Labels
 	for _, nodeconfig := range nlsc.Spec.NodesConfig {
 		selector, err := metav1.LabelSelectorAsSelector(nodeconfig.Selector)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !selector.Matches(labels.Set(nodeLabels)) {
 			continue
@@ -296,9 +296,18 @@ func (c *Controller) updateNLSIfNeeded(nls *localv1alpha1.NodeLocalStorage) erro
 		nlsCopy.Spec.ResourceToBeInited = nodeconfig.ResourceToBeInited
 	}
 
-	if !reflect.DeepEqual(nls, nlsCopy) {
+	return nlsCopy, nil
+}
+
+func (c *Controller) updateNLSIfNeeded(nls *localv1alpha1.NodeLocalStorage) error {
+	nlsUpdated, err := c.updateNLSSpec(nls)
+	if err != nil {
+		return err
+	}
+
+	if !reflect.DeepEqual(nls, nlsUpdated) {
 		log.Infof("nls %s need to be updated", nls.Name)
-		if _, err := c.localclientset.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsCopy, metav1.UpdateOptions{}); err != nil {
+		if _, err := c.localclientset.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsUpdated, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
 	}

@@ -54,6 +54,10 @@ func init() {
 
 // Start will start controller
 func Start(opt *controllerOption) error {
+	if err := controller.DefaultMutableFeatureGate.SetFromMap(opt.FeatureGates); err != nil {
+		return fmt.Errorf("Unable to setup feature-gates: %s", err)
+	}
+
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 

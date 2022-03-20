@@ -7,6 +7,7 @@ import (
 
 var (
 	OrphanedSnapshotContent featuregate.Feature = "OrphanedSnapshotContent"
+	UpdateNLS               featuregate.Feature = "UpdateNLS"
 
 	DefaultMutableFeatureGate featuregate.MutableFeatureGate = featuregate.NewFeatureGate()
 
@@ -14,6 +15,7 @@ var (
 
 	defaultControllerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 		OrphanedSnapshotContent: {Default: true, PreRelease: featuregate.Alpha},
+		UpdateNLS:               {Default: true, PreRelease: featuregate.Alpha},
 	}
 )
 

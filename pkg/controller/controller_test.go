@@ -318,6 +318,11 @@ func TestCreateNLS(t *testing.T) {
 	nlsc := newNLSC("open-local")
 	node_master := newMasterNode("master-0")
 	nls_expected := newNLS("master-0")
+	nls_expected.Spec.ListConfig = localv1alpha1.ListConfig{
+		VGs: localv1alpha1.VGList{
+			Include: []string{"open-local-pool-1"},
+		},
+	}
 
 	f.nlscLister = append(f.nlscLister, nlsc)
 	f.nodeLister = append(f.nodeLister, node_master)
@@ -333,6 +338,11 @@ func TestUpdateNLS(t *testing.T) {
 	nlsc := newNLSC("open-local")
 	node_master := newMasterNode("master-0")
 	nls := newNLS("master-0")
+	nls.Spec.ListConfig = localv1alpha1.ListConfig{
+		VGs: localv1alpha1.VGList{
+			Include: []string{"open-local-pool-4"},
+		},
+	}
 	nls_expected := nls.DeepCopy()
 	nls_expected.Spec.ListConfig = localv1alpha1.ListConfig{
 		VGs: localv1alpha1.VGList{

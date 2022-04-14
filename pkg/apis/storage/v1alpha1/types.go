@@ -177,7 +177,7 @@ var (
 )
 
 type UpdateStatusInfo struct {
-	LastUpdateTime metav1.Time  `json:"lastUpdateTime,omitempty"`
+	LastUpdateTime *metav1.Time `json:"lastUpdateTime,omitempty"`
 	Status         UpdateStatus `json:"updateStatus,omitempty"`
 	Reason         string       `json:"reason,omitempty"`
 }
@@ -309,9 +309,9 @@ type StorageState struct {
 	Type   StorageConditionType `json:"type,omitempty"`
 	Status ConditionStatus      `json:"status,omitempty"`
 	// +optional
-	LastHeartbeatTime metav1.Time `json:"lastHeartbeatTime,omitempty"`
+	LastHeartbeatTime *metav1.Time `json:"lastHeartbeatTime,omitempty"`
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 	// +optional
 	Reason string `json:"reason,omitempty"`
 	// +optional

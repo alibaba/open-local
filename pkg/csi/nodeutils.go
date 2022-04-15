@@ -373,7 +373,7 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 		}
 		log.Infof("Successful Create Striping LVM volume: %s, with command: %s", volumeID, cmd)
 	} else if lvmType == LinearType {
-		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s %s", localtype.NsenterCmd, volumeID, pvSize, unit, vgName)
+		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s -Wy -y %s", localtype.NsenterCmd, volumeID, pvSize, unit, vgName)
 		_, err := utils.Run(cmd)
 		if err != nil {
 			log.Errorf("createVolume:: lvcreate linear command %s error: %v", cmd, err)

@@ -115,13 +115,15 @@ func (d *Discoverer) Discover() {
 		newStatus.NodeStorageInfo.Phase = localv1alpha1.NodeStorageRunning
 		newStatus.NodeStorageInfo.State.Status = localv1alpha1.ConditionTrue
 		newStatus.NodeStorageInfo.State.Type = localv1alpha1.StorageReady
-		newStatus.NodeStorageInfo.State.LastHeartbeatTime = metav1.Now()
+		lastHeartbeatTime := metav1.Now()
+		newStatus.NodeStorageInfo.State.LastHeartbeatTime = &lastHeartbeatTime
 		nlsCopy.Status.NodeStorageInfo = newStatus.NodeStorageInfo
 		nlsCopy.Status.FilteredStorageInfo.VolumeGroups = FilterVGInfo(nlsCopy)
 		nlsCopy.Status.FilteredStorageInfo.MountPoints = FilterMPInfo(nlsCopy)
 		nlsCopy.Status.FilteredStorageInfo.Devices = FilterDeviceInfo(nlsCopy)
 		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Status = localv1alpha1.UpdateStatusAccepted
-		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = metav1.Now()
+		lastUpdateTime := metav1.Now()
+		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = &lastUpdateTime
 		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 
 		// only update status

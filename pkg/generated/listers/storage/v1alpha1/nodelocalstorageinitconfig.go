@@ -26,10 +26,13 @@ import (
 )
 
 // NodeLocalStorageInitConfigLister helps list NodeLocalStorageInitConfigs.
+// All objects returned here must be treated as read-only.
 type NodeLocalStorageInitConfigLister interface {
 	// List lists all NodeLocalStorageInitConfigs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.NodeLocalStorageInitConfig, err error)
 	// Get retrieves the NodeLocalStorageInitConfig from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.NodeLocalStorageInitConfig, error)
 	NodeLocalStorageInitConfigListerExpansion
 }

@@ -17,21 +17,21 @@ limitations under the License.
 package server
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	serverhelpers "github.com/google/go-microservice-helpers/server"
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	// LvmdPort is lvm daemon tcp port
-	LvmdPort = "1736"
+var (
+	lvmdPort string
 )
 
 // Start start lvmd
-func Start() {
-	address := "0.0.0.0:" + GetLvmdPort()
+func Start(ip, port string) {
+	lvmdPort = port
+	address := fmt.Sprintf("%s:%s", ip, port)
 	log.Infof("Lvmd Starting with socket: %s ...", address)
 
 	svr := NewServer()
@@ -54,9 +54,5 @@ func Start() {
 
 // GetLvmdPort get lvmd port
 func GetLvmdPort() string {
-	port := LvmdPort
-	if value := os.Getenv("LVMD_PORT"); value != "" {
-		port = value
-	}
-	return port
+	return lvmdPort
 }

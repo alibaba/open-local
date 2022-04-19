@@ -18,6 +18,7 @@ package csi
 
 import (
 	"github.com/alibaba/open-local/pkg/csi"
+	lvmserver "github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/om"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -48,11 +49,12 @@ func Start(opt *csiOption) error {
 
 	// Storage devops
 	go om.StorageOM()
+	// local volume daemon
+	// GRPC server to provide volume manage
+	go lvmserver.Start(opt.LVMDIP, opt.LVMDPort)
 
-	// go func(endPoint string) {
 	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.GrpcConnectionTimeout)
 	driver.Run()
-	// }(opt.Endpoint)
 
 	return nil
 }

@@ -26,7 +26,6 @@ import (
 	"syscall"
 
 	localtype "github.com/alibaba/open-local/pkg"
-	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
@@ -92,10 +91,6 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.No
 	}
 
 	mounter := k8smount.New("")
-
-	// local volume daemon
-	// GRPC server to provide volume manage
-	go server.Start()
 
 	return &nodeServer{
 		DefaultNodeServer: csicommon.NewDefaultNodeServer(d),

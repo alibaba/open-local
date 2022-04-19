@@ -883,6 +883,10 @@ func getNodeAddr(client kubernetes.Interface, node string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if ip.To4() == nil {
+		// ipv6: https://stackoverflow.com/a/22752227
+		return fmt.Sprintf("[%s]", ip.String()) + ":" + server.GetLvmdPort(), nil
+	}
 	return ip.String() + ":" + server.GetLvmdPort(), nil
 }
 

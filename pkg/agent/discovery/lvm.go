@@ -136,10 +136,11 @@ func (d *Discoverer) createVG(vgname string, devices []string) error {
 // isLocalLV check if lv is created by open-local according to the lv name
 func (d *Discoverer) isLocalLV(lvname string) bool {
 	prefixlen := len(d.Configuration.LogicalVolumeNamePrefix)
+	ephemeralVolumePrefix := "csi-"
 
 	if len(lvname) >= prefixlen && d.Configuration.LogicalVolumeNamePrefix == lvname[:prefixlen] {
 		return true
-	} else if lvname[:4] == "csi-" {
+	} else if len(lvname) >= len(ephemeralVolumePrefix) && lvname[:4] == ephemeralVolumePrefix {
 		return true
 	}
 

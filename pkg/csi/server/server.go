@@ -29,9 +29,9 @@ var (
 )
 
 // Start start lvmd
-func Start(ip, port string) {
+func Start(port string) {
 	lvmdPort = port
-	address := fmt.Sprintf("%s:%s", ip, port)
+	address := fmt.Sprintf(":%s", port)
 	log.Infof("Lvmd Starting with socket: %s ...", address)
 
 	svr := NewServer()

@@ -51,7 +51,7 @@ func Start(opt *csiOption) error {
 	go om.StorageOM()
 	// local volume daemon
 	// GRPC server to provide volume manage
-	go lvmserver.Start(opt.LVMDIP, opt.LVMDPort)
+	go lvmserver.Start(opt.LVMDPort)
 
 	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.GrpcConnectionTimeout)
 	driver.Run()

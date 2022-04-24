@@ -19,6 +19,7 @@ package adapter
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/alibaba/open-local/pkg/csi/client"
@@ -43,20 +44,16 @@ type BindingInfo struct {
 }
 
 const (
-	// SchedulerHostTag tag
-	SchedulerHostTag = "SCHEDULER_HOST"
-)
+	EnvSchedulerExtenderServiceIP   = "EXTENDER_SVC_IP"
+	EnvSchedulerExtenderServicePort = "EXTENDER_SVC_PORT"
 
-// URLHost default value
-var URLHost = "http://open-local-scheduler-extender:23000"
+	DefaultSchedulerExtenderServiceName = "open-local-scheduler-extender"
+	DefaultSchedulerExtenderPort        = "23000"
+)
 
 // ScheduleVolume make request and get expect schedule topology
 func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*BindingInfo, error) {
 	bindingInfo := &BindingInfo{}
-	hostEnv := os.Getenv(SchedulerHostTag)
-	if hostEnv != "" {
-		URLHost = hostEnv
-	}
 
 	// make request url
 	urlPath := fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?nodeName=%s&volumeType=%s&vgName=%s", pvcNamespace, pvcName, nodeID, volumeType, vgName)
@@ -67,7 +64,7 @@ func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*
 	} else if nodeID == "" && vgName == "" {
 		urlPath = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s", pvcNamespace, pvcName, volumeType)
 	}
-	url := URLHost + urlPath
+	url := getExtenderURLHost() + urlPath
 
 	// Request restful api
 	respBody, err := client.DoRequest(url)
@@ -89,12 +86,8 @@ func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*
 // ExpandVolume do volume capacity check
 func ExpandVolume(pvcNameSpace, pvcName string, newSize int) error {
 	urlPath := fmt.Sprintf("/apis/expand/%s/persistentvolumeclaims/%s?newSize=%d", pvcNameSpace, pvcName, newSize)
-	hostEnv := os.Getenv(SchedulerHostTag)
-	if hostEnv != "" {
-		URLHost = hostEnv
-	}
-	url := URLHost + urlPath
 
+	url := getExtenderURLHost() + urlPath
 	// Request restful api
 	respBody, err := client.DoRequest(url)
 	if err != nil {
@@ -104,4 +97,29 @@ func ExpandVolume(pvcNameSpace, pvcName string, newSize int) error {
 
 	log.Debugf("Volume Expand with Url(%s) Finished, get result: %s", url, string(respBody))
 	return nil
+}
+
+func getExtenderURLHost() string {
+	extenderServicePort := os.Getenv(EnvSchedulerExtenderServicePort)
+	if extenderServicePort == "" {
+		extenderServicePort = DefaultSchedulerExtenderPort
+	}
+
+	var URLHost string = fmt.Sprintf("http://%s:%s", DefaultSchedulerExtenderServiceName, extenderServicePort)
+	extenderServiceIP := os.Getenv(EnvSchedulerExtenderServiceIP)
+	if extenderServiceIP != "" {
+		ip := net.ParseIP(extenderServiceIP)
+		if ip == nil {
+			log.Warningf("%s is not a valid IP, so we use default url %s", extenderServiceIP, URLHost)
+		}
+		if ip.To4() == nil {
+			// ipv6
+			URLHost = fmt.Sprintf("http://[%s]:%s", extenderServiceIP, extenderServicePort)
+		} else {
+			// ipv4
+			URLHost = fmt.Sprintf("http://%s:%s", extenderServiceIP, extenderServicePort)
+		}
+	}
+
+	return URLHost
 }

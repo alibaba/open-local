@@ -27,7 +27,6 @@ type csiOption struct {
 	Driver                string
 	SysPath               string
 	GrpcConnectionTimeout int
-	LVMDIP                string
 	LVMDPort              string
 }
 
@@ -37,6 +36,5 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")
 	fs.StringVar(&option.SysPath, "path.sysfs", "/host_sys", "Path of sysfs mountpoint")
 	fs.IntVar(&option.GrpcConnectionTimeout, "grpc-connection-timeout", csi.DefaultConnectTimeout, "grpc connection timeout(second)")
-	fs.StringVar(&option.LVMDIP, "lvmdIP", "0.0.0.0", "IP of lvm daemon. Set to [::] when deploying in IPv6 mode.")
 	fs.StringVar(&option.LVMDPort, "lvmdPort", "1736", "Port of lvm daemon")
 }

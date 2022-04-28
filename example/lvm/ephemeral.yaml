@@ -22,6 +22,7 @@ spec:
         - name: webroot
           csi:
             driver: local.csi.aliyun.com
+            fsType: ext4                # 此处指定文件系统，可为 ext4、xfs
             volumeAttributes:
               vgName: open-local-pool-0 # 【必填】临时卷所用的 VG
               size: 1Gi                 # 【选填】临时卷大小，不填默认为 1 Gi

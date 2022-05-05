@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"k8s.io/apimachinery/pkg/util/clock"
 	"os"
 	"strconv"
 	"time"
@@ -62,7 +63,12 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	// Start the informer factories to begin populating the informer caches
 	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.localclientset, c.snapclientset, c.eventRecorder)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
-	go wait.Until(discoverer.InitResource, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
+	go wait.BackoffUntil(discoverer.InitResource,
+		wait.NewExponentialBackoffManager(time.Duration(discoverer.DiscoverInterval)*time.Second,
+			30*time.Duration(discoverer.DiscoverInterval)*time.Second,
+			90*time.Duration(discoverer.DiscoverInterval)*time.Second,
+			2.0, 1.0, &clock.RealClock{}),
+		true, stopCh)
 
 	// get auto expand snapshot interval
 	var err error

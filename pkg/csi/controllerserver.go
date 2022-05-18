@@ -663,7 +663,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	} else {
 		log.Infof("CreateSnapshot: lvm snapshot %s in node %s already exists", snapshotName, nodeName)
 	}
-	return cs.newCreateSnapshotResponse(req)
+	return cs.newCreateSnapshotResponse(req, int64(initialSize))
 }
 
 // DeleteSnapshot delete lvm snapshot
@@ -781,13 +781,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
-func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	_, _, pv, err := getPvSpec(cs.client, req.GetSourceVolumeId(), cs.driverName)
-	if err != nil {
-		log.Errorf("newCreateSnapshotResponse: get pv %s error: %s", req.GetSourceVolumeId(), err.Error())
-		return nil, status.Errorf(codes.Internal, "newCreateSnapshotResponse: get pv %s error: %s", req.GetSourceVolumeId(), err.Error())
-	}
-
+func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotRequest, snapshotSize int64) (*csi.CreateSnapshotResponse, error) {
 	ts := &timestamppb.Timestamp{
 		Seconds: time.Now().Unix(),
 		Nanos:   int32(time.Now().Nanosecond()),
@@ -797,7 +791,7 @@ func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotReq
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     req.Name,
 			SourceVolumeId: req.SourceVolumeId,
-			SizeBytes:      int64(pv.Size()),
+			SizeBytes:      snapshotSize,
 			ReadyToUse:     true,
 			CreationTime:   ts,
 		},

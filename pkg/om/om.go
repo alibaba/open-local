@@ -1,3 +1,18 @@
+/*
+Copyright © 2021 Alibaba Group Holding Ltd.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package om
 
 import (
@@ -66,7 +81,7 @@ func CheckMessageFileIssue() {
 				log.Warning("fix reference mount issue failed")
 			}
 			// Fix Orphaned Pod Issue
-		} else if GlobalConfigVar.IssueOrphanedPod && strings.Contains(line, "rphaned pod") && (strings.Contains(line, "found, but volume paths are still present on disk") || strings.Contains(line, "found, but volumes are not cleaned up")) {
+		} else if GlobalConfigVar.IssueOrphanedPod && strings.Contains(line, "rphaned pod") && (strings.Contains(line, "found, but volume paths are still present on disk") || strings.Contains(line, "found, but volumes are not cleaned up") || strings.Contains(line, "terminated, but some volumes have not been cleaned up")) {
 			if FixOrphanedPodIssue(line) {
 				log.Info("fix orphaned pod done")
 			} else {

@@ -113,6 +113,12 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		}
 		log.Infof("mountLvmFS:: mount successful devicePath: %s, targetPath: %s, options: %v", devicePath, targetPath, options)
 	}
+	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+	if ephemeralVolume {
+		if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, devicePath); err != nil {
+			log.Warningf("fail to add volume: %s", err.Error())
+		}
+	}
 	return nil
 }
 

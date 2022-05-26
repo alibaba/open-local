@@ -401,7 +401,9 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		}
 		log.Debugf("pod(volume id %s) uuid is %s", volumeID, podUID)
 		namespace := req.VolumeContext[localtype.PVCNameSpace]
-		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+		// set ResourceVersion to 0
+		// https://arthurchiao.art/blog/k8s-reliability-list-data-zh/
+		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{ResourceVersion: "0"})
 		for _, podItem := range pods.Items {
 			if podItem.UID == types.UID(podUID) {
 				pod = podItem

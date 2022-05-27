@@ -204,7 +204,9 @@ func (e *ExtenderServer) WaitForCacheSync(stopCh <-chan struct{}) {
 
 func (e *ExtenderServer) TriggerPendingPodReschedule(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(pkg.TriggerPendingPodCycle)
-	opt := metav1.ListOptions{FieldSelector: pkg.PendingWithoutScheduledFieldSelector}
+	// set ResourceVersion to 0
+	// https://arthurchiao.art/blog/k8s-reliability-list-data-zh/
+	opt := metav1.ListOptions{FieldSelector: pkg.PendingWithoutScheduledFieldSelector, ResourceVersion: "0"}
 	for range ticker.C {
 		podList, err := e.kubeClient.CoreV1().Pods("").List(context.Background(), opt)
 		if err != nil {

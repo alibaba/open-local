@@ -22,8 +22,11 @@ import (
 )
 
 const (
-	DefaultEndpoint   string = "unix://tmp/csi.sock"
-	DefaultDriverName string = "local.csi.aliyun.com"
+	DefaultEndpoint                    string = "unix://tmp/csi.sock"
+	DefaultDriverName                  string = "local.csi.aliyun.com"
+	DefaultEphemeralVolumeDataFilePath string = "/var/lib/kubelet/open-local-volumes.json"
+	// VolumeOperationAlreadyExists is message fmt returned to CO when there is another in-flight call on the given volumeID
+	VolumeOperationAlreadyExists = "An operation with the given volume=%q is already in progress"
 )
 
 type CSIPlugin struct {

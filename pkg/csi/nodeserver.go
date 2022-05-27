@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright © 2021 Alibaba Group Holding Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package csi
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -66,12 +66,14 @@ const (
 
 type nodeServer struct {
 	*csicommon.DefaultNodeServer
-	nodeID     string
-	driverName string
-	mounter    utils.Mounter
-	client     kubernetes.Interface
-	k8smounter k8smount.Interface
-	sysPath    string
+	nodeID               string
+	driverName           string
+	mounter              utils.Mounter
+	client               kubernetes.Interface
+	k8smounter           k8smount.Interface
+	sysPath              string
+	ephemeralVolumeStore Store
+	inFlight             *InFlight
 }
 
 var (
@@ -92,14 +94,21 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.No
 
 	mounter := k8smount.New("")
 
+	store, err := NewVolumeStore(DefaultEphemeralVolumeDataFilePath)
+	if err != nil {
+		log.Fatalf("fail to initialize ephemeral volume store: %s", err.Error())
+	}
+
 	return &nodeServer{
-		DefaultNodeServer: csicommon.NewDefaultNodeServer(d),
-		nodeID:            nodeID,
-		mounter:           utils.NewMounter(),
-		k8smounter:        mounter,
-		client:            kubeClient,
-		driverName:        dName,
-		sysPath:           sysPath,
+		DefaultNodeServer:    csicommon.NewDefaultNodeServer(d),
+		nodeID:               nodeID,
+		mounter:              utils.NewMounter(),
+		k8smounter:           mounter,
+		client:               kubeClient,
+		driverName:           dName,
+		sysPath:              sysPath,
+		ephemeralVolumeStore: store,
+		inFlight:             NewInFlight(),
 	}
 }
 
@@ -107,14 +116,15 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.No
 // staging_target_path: /var/lib/kubelet/plugins/kubernetes.io/csi/pv/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/globalmount
 // target_path: /var/lib/kubelet/pods/2a7bbb9c-c915-4006-84d7-0e3ac9d8d70f/volumes/kubernetes.io~csi/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/mount
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	log.Debugf("NodePublishVolume:: local volume request with %v", req)
-
-	// parse request args.
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume: Volume ID not provided")
+	}
 	targetPath := req.GetTargetPath()
 	if targetPath == "" {
-		log.Errorf("NodePublishVolume: mount local volume %s with path %s", req.VolumeId, targetPath)
 		return nil, status.Error(codes.Internal, "NodePublishVolume: targetPath is empty")
 	}
+	log.Infof("NodePublishVolume: Start to mount volume %s to target path %s", volumeID, targetPath)
 
 	volumeType := ""
 	if _, ok := req.VolumeContext[VolumeTypeTag]; ok {
@@ -130,6 +140,13 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		volumeType = LvmVolumeType
 	}
 
+	if ok := ns.inFlight.Insert(volumeID); !ok {
+		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, volumeID)
+	}
+	defer func() {
+		ns.inFlight.Delete(volumeID)
+	}()
+
 	volCap := req.GetVolumeCapability()
 	switch volumeType {
 	case LvmVolumeType:
@@ -137,12 +154,12 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		case *csi.VolumeCapability_Block:
 			err := ns.mountLvmBlock(ctx, req)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmBlock): mount lvm volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmBlock): mount lvm volume %s with path %s with error: %s", volumeID, targetPath, err.Error())
 			}
 		case *csi.VolumeCapability_Mount:
 			err := ns.mountLvmFS(ctx, req)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmFS): mount lvm volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(mountLvmFS): mount lvm volume %s with path %s with error: %s", volumeID, targetPath, err.Error())
 			}
 		}
 		if err := ns.setIOThrottling(ctx, req); err != nil {
@@ -151,99 +168,72 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	case MountPointType:
 		err := ns.mountMountPointVolume(ctx, req)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "NodePublishVolume: mount mountpoint volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+			return nil, status.Errorf(codes.Internal, "NodePublishVolume: mount mountpoint volume %s with path %s with error: %s", volumeID, targetPath, err.Error())
 		}
 	case DeviceVolumeType:
 		switch volCap.GetAccessType().(type) {
 		case *csi.VolumeCapability_Block:
 			err := ns.mountDeviceVolumeBlock(ctx, req)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "NodePublishVolume(Block): mount device volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(Block): mount device volume %s with path %s with error: %s", volumeID, targetPath, err.Error())
 			}
 		case *csi.VolumeCapability_Mount:
 			err := ns.mountDeviceVolumeFS(ctx, req)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "NodePublishVolume(FileSystem): mount device volume %s with path %s with error: %s", req.VolumeId, targetPath, err.Error())
+				return nil, status.Errorf(codes.Internal, "NodePublishVolume(FileSystem): mount device volume %s with path %s with error: %s", volumeID, targetPath, err.Error())
 			}
 		}
 	default:
-		return nil, status.Errorf(codes.Internal, "NodePublishVolume: unsupported volume %s with type %s", req.VolumeId, volumeType)
+		return nil, status.Errorf(codes.Internal, "NodePublishVolume: unsupported volume %s with type %s", volumeID, volumeType)
 	}
 
-	log.Infof("NodePublishVolume: Successful mount local volume %s to %s", req.VolumeId, targetPath)
+	log.Infof("NodePublishVolume: Successful mount local volume %s to %s", volumeID, targetPath)
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume: Volume ID not provided")
+	}
 	targetPath := req.GetTargetPath()
-	log.Infof("NodeUnpublishVolume: Starting to unmount target path %s for volume %s", targetPath, req.VolumeId)
+	if targetPath == "" {
+		return nil, status.Error(codes.Internal, "NodeUnpublishVolume: targetPath is empty")
+	}
+	log.Infof("NodeUnpublishVolume: Start to unmount target path %s for volume %s", targetPath, volumeID)
+
+	if ok := ns.inFlight.Insert(volumeID); !ok {
+		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, volumeID)
+	}
+	defer func() {
+		ns.inFlight.Delete(volumeID)
+	}()
 
 	isMnt, err := ns.mounter.IsMounted(targetPath)
 	if err != nil {
-		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-			log.Infof("NodeUnpublishVolume: Target path not exist for volume %s with path %s", req.VolumeId, targetPath)
-			return &csi.NodeUnpublishVolumeResponse{}, nil
-		}
-		log.Errorf("NodeUnpublishVolume: Stat volume %s at path %s with error %v", req.VolumeId, targetPath, err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if !isMnt {
-		_, err := os.Stat(targetPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Infof("NodeUnpublishVolume: Target path %s not exist", targetPath)
-				return &csi.NodeUnpublishVolumeResponse{}, nil
-			} else {
-				log.Errorf("NodeUnpublishVolume: Stat volume %s at path %s with error %s", req.VolumeId, targetPath, err.Error())
-				return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: Stat volume %s at path %s with error %s", req.VolumeId, targetPath, err.Error()))
-			}
-		}
-		log.Errorf("NodeUnpublishVolume: volume %s at path %s still existed", req.VolumeId, targetPath)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: volume %s at path %s still existed", req.VolumeId, targetPath))
-	}
-
-	var srcDevice string = ""
-	mps, err := ns.k8smounter.List()
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: fail to list mountpoints: %s", err.Error()))
-	}
-	for _, mp := range mps {
-		if mp.Path == targetPath {
-			srcDevice = mp.Device
-		}
-	}
-	if srcDevice == "" {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnpublishVolume: can not get srcDevice from targetPath %s", targetPath))
-	} else {
-		log.Infof("srcDevice of targetPath %s is %s", targetPath, srcDevice)
-	}
-
-	err = ns.mounter.Unmount(req.GetTargetPath())
-	if err != nil {
-		log.Errorf("NodeUnpublishVolume: Umount volume %s for path %s with error %v", req.VolumeId, targetPath, err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	isMnt, err = ns.mounter.IsMounted(targetPath)
-	if err != nil {
-		log.Errorf("NodeUnpublishVolume: check if path %s is mounted error %v", targetPath, err)
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to check if targetPath %s is mounted", targetPath)
 	}
 	if isMnt {
-		log.Errorf("NodeUnpublishVolume: Umount volume %s for path %s not successful", req.VolumeId, targetPath)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Umount volume %s not successful", req.VolumeId))
+		err := ns.mounter.Unmount(targetPath)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: Umount volume %s for path %s with error %v", volumeID, targetPath, err)
+		}
 	}
 
-	pvSize, _, _ := getPvInfo(ns.client, req.VolumeId)
-	if pvSize == 0 {
+	ephemeralDevice := ns.ephemeralVolumeStore.GetDevice(volumeID)
+	if ephemeralDevice != "" {
 		// /dev/mapper/yoda--pool0-yoda--5c523416--7288--4138--95e0--f9392995959f
-		err := removeLVMByDevicePath(srcDevice)
+		err := removeLVMByDevicePath(ephemeralDevice)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
+		err = ns.ephemeralVolumeStore.DeleteVolume(volumeID)
+		if err != nil {
+			log.Warningf("failed to remove volume: %s", err.Error())
+		}
 	}
 
-	log.Infof("NodeUnpublishVolume: Successful umount target path %s for volume %s", targetPath, req.VolumeId)
+	log.Infof("NodeUnpublishVolume: Successful umount target path %s for volume %s", targetPath, volumeID)
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
@@ -262,8 +252,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes
 	if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
-		log.Errorf("NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
 	}
 
 	log.Infof("NodeExpandVolume: Successful expand local volume: %v to %d", req.VolumeId, expectSize)
@@ -340,8 +329,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 			volumeType = value
 		}
 	} else {
-		log.Errorf("resizeVolume:: local volume get pv info error %s", volumeID)
-		return status.Errorf(codes.Internal, "resizeVolume:: local volume get pv info error %s", volumeID)
+		return status.Errorf(codes.Internal, "resizeVolume: local volume get pv info error %s", volumeID)
 	}
 
 	switch volumeType {
@@ -362,12 +350,10 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 		resizer := mountutils.NewResizeFs(utilexec.New())
 		ok, err := resizer.Resize(devicePath, targetPath)
 		if err != nil {
-			log.Errorf("NodeExpandVolume:: Lvm Resize Error, volumeId: %s, devicePath: %s, volumePath: %s, err: %s", volumeID, devicePath, targetPath, err.Error())
-			return err
+			return fmt.Errorf("NodeExpandVolume: Lvm Resize Error, volumeId: %s, devicePath: %s, volumePath: %s, err: %s", volumeID, devicePath, targetPath, err.Error())
 		}
 		if !ok {
-			log.Errorf("NodeExpandVolume:: Lvm Resize failed, volumeId: %s, devicePath: %s, volumePath: %s", volumeID, devicePath, targetPath)
-			return status.Error(codes.Internal, "Fail to resize volume fs")
+			return status.Errorf(codes.Internal, "NodeExpandVolume:: Lvm Resize failed, volumeId: %s, devicePath: %s, volumePath: %s", volumeID, devicePath, targetPath)
 		}
 		log.Infof("NodeExpandVolume:: lvm resizefs successful volumeId: %s, devicePath: %s, volumePath: %s", volumeID, devicePath, targetPath)
 		return nil
@@ -379,7 +365,9 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1.PersistentVolume) {
 	pv, err := client.CoreV1().PersistentVolumes().Get(context.Background(), volumeID, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("getPvInfo: fail to get pv, err: %v", err)
+		if !apierrors.IsNotFound(err) {
+			log.Errorf("getPvInfo: fail to get pv, err: %v", err)
+		}
 		return 0, "", nil
 	}
 	pvQuantity := pv.Spec.Capacity["storage"]
@@ -396,6 +384,7 @@ func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1
 func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	volCap := req.GetVolumeCapability()
 	targetPath := req.GetTargetPath()
+	volumeID := req.VolumeId
 	iops, iopsExist := req.VolumeContext[localtype.VolumeIOPS]
 	bps, bpsExist := req.VolumeContext[localtype.VolumeBPS]
 	if iopsExist || bpsExist {
@@ -410,9 +399,11 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 			// /var/lib/kubelet/pods/2a7bbb9c-c915-4006-84d7-0e3ac9d8d70f/volumes/kubernetes.io~csi/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/mount
 			podUID = strings.Split(targetPath, "/")[5]
 		}
-		log.Debugf("pod(volume id %s) uuid is %s", req.VolumeId, podUID)
+		log.Debugf("pod(volume id %s) uuid is %s", volumeID, podUID)
 		namespace := req.VolumeContext[localtype.PVCNameSpace]
-		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+		// set ResourceVersion to 0
+		// https://arthurchiao.art/blog/k8s-reliability-list-data-zh/
+		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{ResourceVersion: "0"})
 		for _, podItem := range pods.Items {
 			if podItem.UID == types.UID(podUID) {
 				pod = podItem
@@ -432,22 +423,22 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		case v1.PodQOSBestEffort:
 			blkioPath = path.Join(blkioPath, "kubepods-besteffort.slice", fmt.Sprintf("kubepods-besteffort-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
 		}
-		log.Debugf("pod(volume id %s) qosClass: %s", req.VolumeId, qosClass)
-		log.Debugf("pod(volume id %s) blkio path: %s", req.VolumeId, blkioPath)
+		log.Debugf("pod(volume id %s) qosClass: %s", volumeID, qosClass)
+		log.Debugf("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 		// get lv lvpath
 		// todo: not support device kind
 		lvpath, err := ns.createLV(ctx, req)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to get lv path %s: %s", req.VolumeId, err.Error())
+			return status.Errorf(codes.Internal, "failed to get lv path %s: %s", volumeID, err.Error())
 		}
 		stat := syscall.Stat_t{}
 		_ = syscall.Stat(lvpath, &stat)
 		maj := uint64(stat.Rdev / 256)
 		min := uint64(stat.Rdev % 256)
-		log.Debugf("volume %s maj:min: %d:%d", req.VolumeId, maj, min)
-		log.Debugf("volume %s path: %s", req.VolumeId, lvpath)
+		log.Debugf("volume %s maj:min: %d:%d", volumeID, maj, min)
+		log.Debugf("volume %s path: %s", volumeID, lvpath)
 		if iopsExist {
-			log.Debugf("volume %s iops: %s", req.VolumeId, iops)
+			log.Debugf("volume %s iops: %s", volumeID, iops)
 			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
@@ -460,7 +451,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 			}
 		}
 		if bpsExist {
-			log.Debugf("volume %s bps: %s", req.VolumeId, bps)
+			log.Debugf("volume %s bps: %s", volumeID, bps)
 			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {

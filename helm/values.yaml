@@ -4,7 +4,7 @@ driver: local.csi.aliyun.com
 images:
   local:
     image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/open-local
-    tag: v0.5.4
+    tag: v0.5.5
   registrar:
     image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-node-driver-registrar
     tag: v2.3.0

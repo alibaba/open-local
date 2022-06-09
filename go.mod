@@ -12,7 +12,7 @@ require (
 	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
-	github.com/json-iterator/go v1.1.10
+	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kubernetes-csi/csi-lib-utils v0.9.1 // indirect
 	github.com/kubernetes-csi/drivers v1.0.2
@@ -27,7 +27,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
+	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.26.0

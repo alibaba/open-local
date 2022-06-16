@@ -66,7 +66,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
-		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers)
+		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
 		requestedSize := utils.GetPVCRequested(pvc)
 
 		vg, ok := cacheVGsMap[cache.ResourceName(vgName)]
@@ -188,7 +188,7 @@ func HandleInlineLVMVolume(ctx *algorithm.SchedulingContext, node *corev1.Node, 
 // DivideLVMPVCs divide pvcs into pvcsWithVG and pvcsWithoutVG
 func DivideLVMPVCs(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithVG, pvcsWithoutVG []*corev1.PersistentVolumeClaim) {
 	for _, pvc := range pvcs {
-		if vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers); vgName == "" {
+		if vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister()); vgName == "" {
 			pvcsWithoutVG = append(pvcsWithoutVG, pvc)
 		} else {
 			pvcsWithVG = append(pvcsWithVG, pvc)
@@ -293,7 +293,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 // DividePVCAccordingToMediaType divide pvcs into pvcsWithSSD and pvcsWithHDD
 func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithTypeSSD, pvcsWithTypeHDD []*corev1.PersistentVolumeClaim) {
 	for _, pvc := range pvcs {
-		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers); mediaType == localtype.MediaTypeSSD {
+		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister()); mediaType == localtype.MediaTypeSSD {
 			pvcsWithTypeSSD = append(pvcsWithTypeSSD, pvc)
 		} else if mediaType == localtype.MediaTypeHDD {
 			pvcsWithTypeHDD = append(pvcsWithTypeHDD, pvc)
@@ -586,7 +586,7 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
-		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers)
+		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
 		if _, ok := cacheVGsMap[cache.ResourceName(vgName)]; !ok {
 			return false, units, fmt.Errorf("no vg named %s on node %s", vgName, node.Name)
 		}

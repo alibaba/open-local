@@ -29,6 +29,10 @@ test:
 build:
 	CGO_ENABLED=0 $(GO_BUILD) $(LD_FLAGS) -v -o $(OUTPUT_DIR)/$(NAME) $(MAIN_FILE)
 
+.PHONY: build-fw
+build-fw:
+	CGO_ENABLED=0 $(GO_BUILD) -v -o $(OUTPUT_DIR)/kube-scheduler ./cmd/schedulingframework/framework.go
+
 .PHONY: develop
 develop:
 	GOARCH=amd64 GOOS=linux CGO_ENABLED=0 $(GO_BUILD) $(LD_FLAGS) -v -o $(OUTPUT_DIR)/$(NAME) $(MAIN_FILE)
@@ -41,6 +45,11 @@ develop:
 image:
 	docker build . -t ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION} -f ./Dockerfile
 	docker tag ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION} ${IMAGE_NAME_FOR_ACR}:${VERSION} 
+
+# build image for framework test
+.PHONY: image-fw
+image-fw: build-fw
+	docker build . -t kube-scheduler:${GIT_COMMIT} -f ./Dockerfile.fw.dev
 
 # build image for arm64
 .PHONY: image-arm64

@@ -61,7 +61,7 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 			}
 			var isLocalPV bool
 			var pvType pkg.VolumeType
-			if isLocalPV, pvType = utils.IsLocalPVC(pvc, ctx.StorageV1Informers, containReadonlySnapshot); isLocalPV {
+			if isLocalPV, pvType = utils.IsLocalPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister(), containReadonlySnapshot); isLocalPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
 					log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)

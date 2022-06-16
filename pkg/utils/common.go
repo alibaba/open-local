@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	k8svol "k8s.io/kubernetes/pkg/volume"
@@ -316,14 +317,14 @@ func GetPVFromBoundPVC(pvc *corev1.PersistentVolumeClaim) (name string) {
 	return
 }
 
-func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.Interface) *storagev1.StorageClass {
+func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) *storagev1.StorageClass {
 	var scName string
 	if pvc.Spec.StorageClassName == nil {
 		log.Infof("pvc %s/%s has no associated storage class", pvc.Namespace, pvc.Name)
 		return nil
 	}
 	scName = *pvc.Spec.StorageClassName
-	sc, err := p.StorageClasses().Lister().Get(scName)
+	sc, err := scLister.Get(scName)
 	if err != nil {
 		log.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
 		return nil
@@ -346,8 +347,8 @@ func GetStorageClassFromPV(pv *corev1.PersistentVolume, p storagev1informers.Int
 	return sc
 }
 
-func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.Interface) string {
-	sc := GetStorageClassFromPVC(pvc, p)
+func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) string {
+	sc := GetStorageClassFromPVC(pvc, scLister)
 	if sc == nil {
 		return ""
 	}
@@ -359,8 +360,8 @@ func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.In
 	return vgName
 }
 
-func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers.Interface) localtype.MediaType {
-	sc := GetStorageClassFromPVC(pvc, p)
+func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) localtype.MediaType {
+	sc := GetStorageClassFromPVC(pvc, scLister)
 	if sc == nil {
 		return ""
 	}
@@ -372,8 +373,8 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, p storagev1informers
 	return localtype.MediaType(mediaType)
 }
 
-func IsLocalPVC(claim *corev1.PersistentVolumeClaim, p storagev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
-	sc := GetStorageClassFromPVC(claim, p)
+func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+	sc := GetStorageClassFromPVC(claim, scLister)
 	if sc == nil {
 		return false, ""
 	}

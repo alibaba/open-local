@@ -6,7 +6,7 @@ metadata:
   namespace: {{ .Values.monitor.namespace }}
 spec:
   endpoints:
-  - port: http-metrics
+  - port: http-port
     path: /metrics
   jobLabel: app
   namespaceSelector:

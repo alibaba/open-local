@@ -30,7 +30,6 @@ spec:
         - name: csi-resizer
           image: {{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS

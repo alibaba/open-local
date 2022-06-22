@@ -28,8 +28,6 @@ spec:
       containers:
         - name: csi-snapshotter
           image: {{ .Values.images.snapshot_controller.image }}:{{ .Values.images.snapshot_controller.tag }}
-          args:
-            - --v=5
           env:
             - name: TZ
               value: Asia/Shanghai

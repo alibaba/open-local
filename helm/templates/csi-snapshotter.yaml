@@ -29,7 +29,6 @@ spec:
         - name: csi-snapshotter
           image: {{ .Values.images.snapshotter.image }}:{{ .Values.images.snapshotter.tag }}
           args:
-            - --v=5
             - --csi-address=$(ADDRESS)
             - --snapshot-name-prefix=snap
             # no extra-create-metadata flag in v3.0.0

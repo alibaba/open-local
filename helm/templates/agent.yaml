@@ -42,6 +42,7 @@ spec:
         - "--nodename=$(KUBE_NODE_NAME)"
         - "--path.sysfs=/host_sys"
         - "--path.mount=/mnt/{{ .Values.name }}/"
+        - "--lvname={{ .Values.agent.volume_name_prefix }}"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -133,6 +134,10 @@ spec:
           value: "true"
         - name: ISSUE_MESSAGE_FILE
           value: "true"
+{{- if .Values.agent.extender_ip }}
+        - name: EXTENDER_SVC_IP
+          value: "{{ .Values.agent.extender_ip }}"
+{{- end }}
         resources:
           limits:
             cpu: 500m

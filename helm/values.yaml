@@ -3,22 +3,22 @@ namespace: kube-system
 driver: local.csi.aliyun.com
 images:
   local:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/open-local
+    image: ecp_builder/open-local
     tag: v0.5.5
   registrar:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-node-driver-registrar
+    image: ecp_builder/csi-node-driver-registrar
     tag: v2.3.0
   provisioner:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-provisioner
+    image: ecp_builder/csi-provisioner
     tag: v2.2.2
   resizer:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-resizer
+    image: ecp_builder/csi-resizer
     tag: v1.3.0
   snapshotter:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-snapshotter
+    image: ecp_builder/csi-snapshotter
     tag: v4.2.1
   snapshot_controller:
-    image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/snapshot-controller
+    image: ecp_builder/snapshot-controller
     tag: v4.2.1
 agent:
   name: open-local-agent
@@ -57,3 +57,5 @@ monitor:
   enabled: false
   # grafana namespace
   namespace: monitoring
+globalconfig:
+  RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com

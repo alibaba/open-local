@@ -58,7 +58,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         resources:
           limits:
@@ -79,7 +79,7 @@ spec:
           name: localvolume
           mountPropagation: "Bidirectional"
       - name: driver-registrar
-        image: {{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
         imagePullPolicy: Always
         args:
         - "--v=5"
@@ -111,7 +111,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         args:
         - csi
@@ -134,9 +134,9 @@ spec:
           value: "true"
         - name: ISSUE_MESSAGE_FILE
           value: "true"
-{{- if .Values.agent.extender_ip }}
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
         - name: EXTENDER_SVC_IP
-          value: "{{ .Values.agent.extender_ip }}"
+          value: "{{ .Values.globalconfig.YodaSchedulerSvcIP }}"
 {{- end }}
         resources:
           limits:

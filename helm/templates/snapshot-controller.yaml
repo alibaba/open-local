@@ -27,7 +27,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: csi-snapshotter
-          image: {{ .Values.images.snapshot_controller.image }}:{{ .Values.images.snapshot_controller.tag }}
+          image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.snapshot_controller.image }}:{{ .Values.images.snapshot_controller.tag }}
           env:
             - name: TZ
               value: Asia/Shanghai

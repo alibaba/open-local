@@ -69,8 +69,8 @@ metadata:
   name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
 spec:
-{{- if .Values.agent.extender_ip }}
-  clusterIP: {{ .Values.agent.extender_ip }}
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
+  clusterIP: {{ .Values.globalconfig.YodaSchedulerSvcIP }}
 {{- end }}
   selector:
     app: {{ .Values.name }}

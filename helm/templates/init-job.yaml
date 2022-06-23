@@ -40,7 +40,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: init
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         command:
         - sh
         - "-c"

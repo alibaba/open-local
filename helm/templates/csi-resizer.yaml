@@ -28,7 +28,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: csi-resizer
-          image: {{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
+          image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
           args:
             - "--csi-address=$(ADDRESS)"
           env:

@@ -138,6 +138,20 @@ spec:
                         maxItems: 50
                         type: array
                     type: object
+                  spdkConfig:
+                    description: SpdkConfig defines SPDK configuration
+                    properties:
+                      deviceType:
+                        description: DeviceType is the type of SPDK block devices
+                        maxLength: 8
+                        minLength: 0
+                        type: string
+                      rpcSocket:
+                        description: RpcSocket is the unix domain socket for SPDK RPC
+                        maxLength: 128
+                        minLength: 0
+                        type: string
+                    type: object
                 type: object
               nodesConfig:
                 items:
@@ -273,6 +287,20 @@ spec:
                             type: string
                           description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                           type: object
+                      type: object
+                    spdkConfig:
+                      description: SpdkConfig defines SPDK configuration
+                      properties:
+                        deviceType:
+                          description: DeviceType is the type of SPDK block devices
+                          maxLength: 8
+                          minLength: 0
+                          type: string
+                        rpcSocket:
+                          description: RpcSocket is the unix domain socket for SPDK RPC
+                          maxLength: 128
+                          minLength: 0
+                          type: string
                       type: object
                   type: object
                 type: array

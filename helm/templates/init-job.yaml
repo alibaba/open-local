@@ -8,13 +8,8 @@ metadata:
     app: {{ .Values.name }}
     component: {{ .Values.name }}-init-job
 spec:
-{{- if .Values.globalconfig.NumOfMasters }}
-  completions: {{ .Values.globalconfig.NumOfMasters }}
-  parallelism: {{ .Values.globalconfig.NumOfMasters }}
-{{- else }}
-  completions: 3
-  parallelism: 3
-{{- end }}
+  completions: {{ or .Values.globalconfig.NumOfMasters 3 }}
+  parallelism: {{ or .Values.globalconfig.NumOfMasters 3 }}
   template:
     metadata:
       labels:

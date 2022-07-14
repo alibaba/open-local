@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Connection lvm connection interface
@@ -79,7 +80,7 @@ func (c *workerConnection) Close() error {
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	log.Debugf("New Connecting to %s", address)
 	dialOptions := []grpc.DialOption{
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		// grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithUnaryInterceptor(logGRPC),
 	}

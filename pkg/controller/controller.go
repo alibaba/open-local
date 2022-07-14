@@ -278,6 +278,7 @@ func (c *Controller) updateNLSSpec(nls *localv1alpha1.NodeLocalStorage) (*localv
 	}
 	nlsCopy := nls.DeepCopy()
 	nlsCopy.Spec.ListConfig = nlsc.Spec.GlobalConfig.ListConfig
+	nlsCopy.Spec.SpdkConfig = nlsc.Spec.GlobalConfig.SpdkConfig
 	nlsCopy.Spec.ResourceToBeInited = nlsc.Spec.GlobalConfig.ResourceToBeInited
 	node, err := c.nodeLister.Get(nlsCopy.Name)
 	if err != nil {
@@ -293,6 +294,7 @@ func (c *Controller) updateNLSSpec(nls *localv1alpha1.NodeLocalStorage) (*localv
 			continue
 		}
 		nlsCopy.Spec.ListConfig = nodeconfig.ListConfig
+		nlsCopy.Spec.SpdkConfig = nodeconfig.SpdkConfig
 		nlsCopy.Spec.ResourceToBeInited = nodeconfig.ResourceToBeInited
 	}
 

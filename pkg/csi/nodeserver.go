@@ -17,16 +17,24 @@ limitations under the License.
 package csi
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	localtype "github.com/alibaba/open-local/pkg"
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/utils"
+	spdk "github.com/alibaba/open-local/pkg/utils/spdk"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/google/uuid"
+	volume "github.com/kata-containers/kata-containers/src/runtime/pkg/direct-volume"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -62,6 +70,8 @@ const (
 	DefaultNodeAffinity = "true"
 	// LinearType linear type
 	LinearType = "linear"
+	// DirectTag is direct-assigned volume tag
+	DirectTag = "direct"
 )
 
 type nodeServer struct {
@@ -70,10 +80,13 @@ type nodeServer struct {
 	driverName           string
 	mounter              utils.Mounter
 	client               kubernetes.Interface
+	localclient          clientset.Interface
 	k8smounter           k8smount.Interface
 	sysPath              string
 	ephemeralVolumeStore Store
 	inFlight             *InFlight
+	spdkSupported        bool
+	spdkclient           *spdk.SpdkClient
 }
 
 var (
@@ -92,6 +105,11 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.No
 		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
 	}
 
+	localclient, err := clientset.NewForConfig(cfg)
+	if err != nil {
+		log.Fatalf("Error building local clientset: %s", err.Error())
+	}
+
 	mounter := k8smount.New("")
 
 	store, err := NewVolumeStore(DefaultEphemeralVolumeDataFilePath)
@@ -99,17 +117,238 @@ func newNodeServer(d *csicommon.CSIDriver, dName, nodeID, sysPath string) csi.No
 		log.Fatalf("fail to initialize ephemeral volume store: %s", err.Error())
 	}
 
-	return &nodeServer{
+	ns := &nodeServer{
 		DefaultNodeServer:    csicommon.NewDefaultNodeServer(d),
 		nodeID:               nodeID,
 		mounter:              utils.NewMounter(),
 		k8smounter:           mounter,
 		client:               kubeClient,
+		localclient:          localclient,
 		driverName:           dName,
 		sysPath:              sysPath,
 		ephemeralVolumeStore: store,
 		inFlight:             NewInFlight(),
+		spdkSupported:        false,
 	}
+
+	go ns.checkSPDKSupport()
+
+	return ns
+}
+
+func (ns *nodeServer) addDirectVolume(volumePath, device, fsType string) error {
+	mountInfo := struct {
+		VolumeType string            `json:"volume-type"`
+		Device     string            `json:"device"`
+		FsType     string            `json:"fstype"`
+		Metadata   map[string]string `json:"metadata,omitempty"`
+		Options    []string          `json:"options,omitempty"`
+	}{
+		VolumeType: "block",
+		Device:     device,
+		FsType:     fsType,
+	}
+
+	mi, err := json.Marshal(mountInfo)
+	if err != nil {
+		log.Error("addDirectVolume - json.Marshal failed: ", err.Error())
+		return status.Errorf(codes.Internal, "json.Marshal failed: %s", err.Error())
+	}
+
+	if err := volume.Add(volumePath, string(mi)); err != nil {
+		log.Error("addDirectVolume - add direct volume failed: ", err.Error())
+		return status.Errorf(codes.Internal, "add direct volume failed: %s", err.Error())
+	}
+
+	log.Infof("add direct volume done: %s %s", volumePath, string(mi))
+	return nil
+}
+
+func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
+	mounted, err := ns.mounter.IsMounted(targetPath)
+	if err != nil {
+		log.Errorf("mountBlockDevice - check if %s is mounted failed: %s", targetPath, err.Error())
+		return status.Errorf(codes.Internal, "check if %s is mounted failed: %s", targetPath, err.Error())
+	}
+
+	mountOptions := []string{"bind"}
+	if mounted {
+		log.Infof("Target path %s is already mounted", targetPath)
+	} else {
+		log.Infof("mounting %s at %s", device, targetPath)
+
+		if err := ns.mounter.MountBlock(device, targetPath, mountOptions...); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				log.Errorf("Remove mount target %s failed: %s", targetPath, removeErr.Error())
+				return status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, removeErr)
+			}
+			log.Errorf("mount block %s at %s failed: %s", device, targetPath, err.Error())
+			return status.Errorf(codes.Internal, "Could not mount block %s at %s: %s", device, targetPath, err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePublishVolumeRequest, volumeType string) error {
+	device := ""
+	if volumeType != LvmVolumeType {
+		if value, ok := req.VolumeContext[DeviceVolumeType]; ok {
+			device = value
+		} else {
+			log.Error("source device is empty")
+			return status.Error(codes.Internal, "publishDirectVolume: source device is empty")
+		}
+	} else {
+		var err error
+		device, _, err = ns.createLV(ctx, req)
+		if err != nil {
+			log.Error("publishDirectVolume - create logical volume failed: ", err.Error())
+			return status.Errorf(codes.Internal, "publishDirectVolume - create logical volume failed: %s", err.Error())
+		}
+	}
+
+	mount := false
+	volCap := req.GetVolumeCapability()
+	if volumeType == MountPointType {
+		mount = true
+	}
+
+	if _, ok := volCap.GetAccessType().(*csi.VolumeCapability_Mount); ok {
+		mount = true
+	}
+
+	if mount {
+		fsType := volCap.GetMount().FsType
+		if len(fsType) == 0 {
+			fsType = DefaultFs
+		}
+
+		if err := ns.addDirectVolume(req.GetTargetPath(), device, fsType); err != nil {
+			log.Error("addDirectVolume failed: ", err.Error())
+			return status.Errorf(codes.Internal, "addDirectVolume failed: %s", err.Error())
+		}
+
+		if err := utils.FormatBlockDevice(device, fsType); err != nil {
+			log.Error("FormatBlockDevice failed: ", err.Error())
+			return status.Errorf(codes.Internal, "FormatBlockDevice failed: %s", err.Error())
+		}
+	} else {
+		if err := ns.mountBlockDevice(device, req.GetTargetPath()); err != nil {
+			log.Error("mountBlockDevice failed: ", err.Error())
+			return status.Errorf(codes.Internal, "mountBlockDevice failed: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (ns *nodeServer) publishSpdkVolume(ctx context.Context, req *csi.NodePublishVolumeRequest, volumeType string) (err error) {
+	// the spdk vhost-user-blk block device file
+	device := ""
+	bdevName := ""
+
+	volumeID := req.GetVolumeId()
+	targetPath := req.GetTargetPath()
+
+	// in case publish volume failed, clean up the resources
+	defer func() {
+		if err != nil {
+			log.Error("publishSpdkVolume failed: ", err.Error())
+
+			bdev, exist := ns.ephemeralVolumeStore.GetDevice(volumeID)
+			if exist && bdev != "" {
+				if err := ns.spdkclient.CleanBdev(bdev); err != nil {
+					log.Error("NodePublishVolume - CleanBdev failed")
+				}
+			}
+
+			if err := volume.Remove(targetPath); err != nil {
+				log.Warn("NodePublishVolume - direct volume remove failed:", err.Error())
+			}
+		}
+	}()
+
+	// create block device
+	if volumeType != LvmVolumeType {
+		if sourceDevice, exists := req.VolumeContext[DeviceVolumeType]; exists {
+			bdevName = "bdev-aio" + strings.Replace(sourceDevice, "/", "_", -1)
+			if _, err := ns.spdkclient.CreateBdev(bdevName, sourceDevice); err != nil {
+				return status.Errorf(codes.Internal, "create bdev failed: %s", err.Error())
+			}
+
+			device, _ = ns.spdkclient.FindVhostDevice(bdevName)
+			if device == "" {
+				var err error
+				device, err = ns.spdkclient.CreateVhostDevice("ctrlr-"+uuid.New().String(), bdevName)
+				if err != nil {
+					_ = ns.spdkclient.DeleteBdev(bdevName)
+					return status.Errorf(codes.Internal, "create vhost device failed: %s", err.Error())
+				}
+			}
+
+			ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+			if ephemeralVolume {
+				if err := ns.ephemeralVolumeStore.AddVolume(volumeID, bdevName); err != nil {
+					if err := ns.spdkclient.CleanBdev(bdevName); err != nil {
+						log.Error("NodePublishVolume - CleanBdev failed")
+					}
+					return status.Errorf(codes.Internal, "fail to add volume: %s", err.Error())
+				}
+			}
+		}
+	} else {
+		var err error
+		device, bdevName, err = ns.createLV(ctx, req)
+		if err != nil {
+			return status.Errorf(codes.Internal, "NodePublishVolume - create logical volume failed: %s", err.Error())
+		}
+	}
+
+	mount := false
+	volCap := req.GetVolumeCapability()
+	if volumeType == MountPointType {
+		mount = true
+	}
+
+	if _, ok := volCap.GetAccessType().(*csi.VolumeCapability_Mount); ok {
+		mount = true
+	}
+
+	fsType := DefaultFs
+	if mount {
+		fsType = volCap.GetMount().FsType
+		if len(fsType) == 0 {
+			fsType = DefaultFs
+		}
+
+		if err := ns.addDirectVolume(targetPath, device, fsType); err != nil {
+			return status.Errorf(codes.Internal, "addDirectVolume failed: %s", err.Error())
+		}
+	}
+
+	if mount && bdevName != "" {
+		// ensure the block device is formatted
+		if !ns.spdkclient.MakeFs(bdevName, fsType) {
+			return status.Error(codes.Internal, "MakeFs failed")
+		}
+	} else { // handle block volume
+		// there isn't a real device attached to the device file. k8s doesn'
+		// take this situation into consider, it maps the device as usual. device
+		// mapping will failed. We create a small image file and attach it to a loop
+		// device. the loop device will be replaced by vhost-user-blk device when
+		// create container.
+		device, err := spdk.GenerateDeviceTempBackingFile(device)
+		if err != nil {
+			return status.Errorf(codes.Internal, "GenerateDeviceTempBackingFile failed: %s", err.Error())
+		}
+
+		if err := ns.mountBlockDevice(device, targetPath); err != nil {
+			return status.Errorf(codes.Internal, "mountBlockDevice failed: %s", err.Error())
+		}
+	}
+
+	return nil
 }
 
 // volume_id: yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866
@@ -148,6 +387,39 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}()
 
 	volCap := req.GetVolumeCapability()
+
+	// check if the volume is a direct-assigned volume, direct volume will be used as virtio-blk
+	direct := false
+	if val, ok := req.VolumeContext[DirectTag]; ok {
+		var err error
+		direct, err = strconv.ParseBool(val)
+		if err != nil {
+			direct = false
+		}
+	}
+
+	if ns.spdkSupported || direct {
+		if volumeType == MountPointType {
+			log.Error("The volume type should not be MountPointType")
+			return nil, status.Errorf(codes.InvalidArgument, "The volume type should not be MountPointType")
+		}
+
+		var err error
+		if ns.spdkSupported {
+			err = ns.publishSpdkVolume(ctx, req, volumeType)
+		} else {
+			err = ns.publishDirectVolume(ctx, req, volumeType)
+		}
+
+		if err != nil {
+			log.Errorf("NodePublishVolume(%s to %s) failed: %s", volumeID, targetPath, err.Error())
+			return nil, status.Errorf(codes.Internal, "NodePublishVolume: volume %s with error: %s", volumeID, err.Error())
+		} else {
+			log.Infof("NodePublishVolume: Successful add local volume %s to %s", volumeID, targetPath)
+			return &csi.NodePublishVolumeResponse{}, nil
+		}
+	}
+
 	switch volumeType {
 	case LvmVolumeType:
 		switch volCap.GetAccessType().(type) {
@@ -209,6 +481,10 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		ns.inFlight.Delete(volumeID)
 	}()
 
+	if err := volume.Remove(targetPath); err != nil {
+		log.Warn("NodeUnpublishVolume - direct volume remove failed:", err.Error())
+	}
+
 	isMnt, err := ns.mounter.IsMounted(targetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to check if targetPath %s is mounted", targetPath)
@@ -220,10 +496,15 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
-	ephemeralDevice := ns.ephemeralVolumeStore.GetDevice(volumeID)
-	if ephemeralDevice != "" {
+	ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(volumeID)
+	if exist && ephemeralDevice != "" {
 		// /dev/mapper/yoda--pool0-yoda--5c523416--7288--4138--95e0--f9392995959f
-		err := removeLVMByDevicePath(ephemeralDevice)
+		if ns.spdkSupported {
+			err = ns.spdkclient.CleanBdev(ephemeralDevice)
+		} else {
+			err = removeLVMByDevicePath(ephemeralDevice)
+		}
+
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -251,8 +532,14 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	volumeID := req.VolumeId
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes
-	if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
-		return nil, status.Errorf(codes.Internal, "NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
+	if !ns.spdkSupported {
+		if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
+			return nil, status.Errorf(codes.Internal, "NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
+		}
+	} else {
+		//TODO: call kata-runtime to resize the volume
+		//Resize(targetPath, expectSize)
+		log.Warn("Warning: direct volume resize is to be implemented")
 	}
 
 	log.Infof("NodeExpandVolume: Successful expand local volume: %v to %d", req.VolumeId, expectSize)
@@ -427,7 +714,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		log.Debugf("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 		// get lv lvpath
 		// todo: not support device kind
-		lvpath, err := ns.createLV(ctx, req)
+		lvpath, _, err := ns.createLV(ctx, req)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get lv path %s: %s", volumeID, err.Error())
 		}
@@ -465,4 +752,27 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		}
 	}
 	return nil
+}
+func (ns *nodeServer) checkSPDKSupport() {
+	for {
+		nls, err := ns.localclient.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), ns.nodeID, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Infof("node local storage %s not found, waiting for the controller to create the resource", ns.nodeID)
+			} else {
+				log.Errorf("get NodeLocalStorages failed: %s", err.Error())
+			}
+		} else {
+			if nls.Spec.SpdkConfig.DeviceType != "" {
+				if ns.spdkclient == nil {
+					if ns.spdkclient = spdk.NewSpdkClient(nls.Spec.SpdkConfig.RpcSocket); ns.spdkclient != nil {
+						ns.spdkSupported = true
+						break
+					}
+				}
+			}
+		}
+
+		time.Sleep(time.Millisecond * 100)
+	}
 }

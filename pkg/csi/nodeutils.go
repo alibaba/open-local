@@ -60,7 +60,11 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 			return "", "", status.Error(codes.Internal, err.Error())
 		}
 
+		if ns.spdkSupported {
 		return newDev, bdevName, nil
+		} else {
+			return devicePath, "", nil
+		}
 	}
 
 	return devicePath, "", nil

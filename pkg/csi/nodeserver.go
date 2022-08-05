@@ -190,7 +190,25 @@ func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
 	return nil
 }
 
-func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePublishVolumeRequest, volumeType string) error {
+func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePublishVolumeRequest, volumeType string) (err error) {
+	// in case publish volume failed, clean up the resources
+	defer func() {
+		if err != nil {
+			log.Error("publishDirectVolume failed: ", err.Error())
+
+			ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(req.VolumeId)
+			if exist && ephemeralDevice != "" {
+				if err := removeLVMByDevicePath(ephemeralDevice); err != nil {
+					log.Errorf("fail to remove lvm device (%s): %s", ephemeralDevice, err.Error())
+				}
+			}
+
+			if err := volume.Remove(req.GetTargetPath()); err != nil {
+				log.Warn("NodePublishVolume - direct volume remove failed:", err.Error())
+			}
+		}
+	}()
+
 	device := ""
 	if volumeType != LvmVolumeType {
 		if value, ok := req.VolumeContext[DeviceVolumeType]; ok {
@@ -205,6 +223,13 @@ func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePubl
 		if err != nil {
 			log.Error("publishDirectVolume - create logical volume failed: ", err.Error())
 			return status.Errorf(codes.Internal, "publishDirectVolume - create logical volume failed: %s", err.Error())
+		}
+
+		ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+		if ephemeralVolume {
+			if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, device); err != nil {
+				log.Warningf("fail to add volume: %s", err.Error())
+			}
 		}
 	}
 

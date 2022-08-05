@@ -201,7 +201,7 @@ func (client *SpdkClient) CreateBdev(name, filename string) (string, error) {
 	}{
 		Name:      name,
 		Filename:  filename,
-		BlockSize: 4096,
+		BlockSize: 512,
 	}
 
 	var result string

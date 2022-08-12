@@ -726,15 +726,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		}
 		// pod qosClass and blkioPath
 		qosClass := pod.Status.QOSClass
-		blkioPath := fmt.Sprintf("%s/fs/cgroup/blkio/kubepods.slice", ns.sysPath)
-		switch qosClass {
-		case v1.PodQOSGuaranteed:
-			blkioPath = path.Join(blkioPath, fmt.Sprintf("kubepods-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
-		case v1.PodQOSBurstable:
-			blkioPath = path.Join(blkioPath, "kubepods-burstable.slice", fmt.Sprintf("kubepods-burstable-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
-		case v1.PodQOSBestEffort:
-			blkioPath = path.Join(blkioPath, "kubepods-besteffort.slice", fmt.Sprintf("kubepods-besteffort-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
-		}
+		blkioPath := path.Join(fmt.Sprintf("%s/fs/cgroup/blkio/%s", ns.sysPath, utils.CgroupPathFormatter.ParentDir), utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
 		log.Debugf("pod(volume id %s) qosClass: %s", volumeID, qosClass)
 		log.Debugf("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 		// get lv lvpath
@@ -751,28 +743,28 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		log.Debugf("volume %s path: %s", volumeID, lvpath)
 		if iopsExist {
 			log.Debugf("volume %s iops: %s", volumeID, iops)
-			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
+			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s%s", blkioPath, localtype.IOPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
-				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile), err.Error())
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.IOPSReadFile), err.Error())
 			}
-			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSWriteFile))
+			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s%s", blkioPath, localtype.IOPSWriteFile))
 			_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
-				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSWriteFile), err.Error())
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.IOPSWriteFile), err.Error())
 			}
 		}
 		if bpsExist {
 			log.Debugf("volume %s bps: %s", volumeID, bps)
-			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile))
+			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
-				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile), err.Error())
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.BPSReadFile), err.Error())
 			}
-			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSWriteFile))
+			cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSWriteFile))
 			_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
-				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s/%s", blkioPath, localtype.BPSWriteFile), err.Error())
+				return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.BPSWriteFile), err.Error())
 			}
 		}
 	}

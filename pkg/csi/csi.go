@@ -17,12 +17,13 @@ limitations under the License.
 package csi
 
 import (
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/version"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
-func NewDriver(driverName, nodeID, endpoint, sysPath string, grpcConnectionTimeout int) *CSIPlugin {
+func NewDriver(driverName, nodeID, endpoint, sysPath, cgroupDriver string, grpcConnectionTimeout int) *CSIPlugin {
 	plugin := &CSIPlugin{}
 	plugin.endpoint = endpoint
 
@@ -38,6 +39,7 @@ func NewDriver(driverName, nodeID, endpoint, sysPath string, grpcConnectionTimeo
 
 	plugin.idServer = newIdentityServer(csiDriver)
 	plugin.nodeServer = newNodeServer(csiDriver, driverName, nodeID, sysPath)
+	utils.SetupCgroupPathFormatter(utils.CgroupDriverType(cgroupDriver))
 	plugin.controllerServer = newControllerServer(csiDriver, grpcConnectionTimeout)
 
 	return plugin

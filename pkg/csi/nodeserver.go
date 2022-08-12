@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -726,7 +725,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		}
 		// pod qosClass and blkioPath
 		qosClass := pod.Status.QOSClass
-		blkioPath := path.Join(fmt.Sprintf("%s/fs/cgroup/blkio/%s", ns.sysPath, utils.CgroupPathFormatter.ParentDir), utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
+		blkioPath := fmt.Sprintf("%s/fs/cgroup/blkio/%s%s%s", ns.sysPath, utils.CgroupPathFormatter.ParentDir, utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
 		log.Debugf("pod(volume id %s) qosClass: %s", volumeID, qosClass)
 		log.Debugf("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 		// get lv lvpath

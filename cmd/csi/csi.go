@@ -53,7 +53,7 @@ func Start(opt *csiOption) error {
 	// GRPC server to provide volume manage
 	go lvmserver.Start(opt.LVMDPort)
 
-	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.GrpcConnectionTimeout)
+	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.CgroupDriver, opt.GrpcConnectionTimeout)
 	driver.Run()
 
 	return nil

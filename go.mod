@@ -14,8 +14,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kata-containers/kata-containers/src/runtime v0.0.0-20220630231315-c29038a2e2ec
-	github.com/kubernetes-csi/csi-lib-utils v0.9.1 // indirect
-	github.com/kubernetes-csi/drivers v1.0.2
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2
@@ -33,6 +31,7 @@ require (
 	k8s.io/client-go v0.22.5
 	k8s.io/code-generator v0.20.5
 	k8s.io/component-base v0.22.5
+	k8s.io/klog/v2 v2.30.0
 	k8s.io/kube-scheduler v0.20.5
 	k8s.io/kubernetes v1.20.5
 	k8s.io/mount-utils v0.21.0-beta.0

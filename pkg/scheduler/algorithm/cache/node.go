@@ -325,30 +325,22 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 	defer nc.rwLock.Unlock()
 	vgName := utils.GetVGNameFromCsiPV(pv)
 	if len(vgName) == 0 {
-		log.Debugf("pv %s is not a valid open-local lvm pv", pv.Name)
+		log.Infof("pv %s is not a valid open-local lvm pv", pv.Name)
 	} else {
-		existing, ok := nc.LocalPVs[pv.Name]
-		if ok {
-			if existing.UID == pv.UID {
-				log.Debugf("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
-				nc.LocalPVs[pv.Name] = *pv
-				return nil
-			}
-		}
 		if vg, ok := nc.VGs[ResourceName(vgName)]; ok {
 			// because it is already in cache, we only recalculate vg requested size and PV object
 			oldRequest := vg.Requested
 			newPVsize := pv.Spec.Capacity[corev1.ResourceStorage]
 			oldPVsize := old.Spec.Capacity[corev1.ResourceStorage]
-			vg.Requested = oldRequest - oldPVsize.Value() + newPVsize.Value()
+			vg.Requested = oldRequest + newPVsize.Value() - oldPVsize.Value()
 			nc.VGs[ResourceName(vgName)] = vg
-			log.Debugf("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
+			log.Infof("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)
 		} else {
 			// ideally, this path should never be reached
 			// log.Errorf("[UpdateLVM]no vg %s found in node cache when updating pv %s", vgName, pv.Name)
 			nc.AllocatedNum += 1
-			log.Debugf("[UpdateLVM]vg %s not found in NodeCache", vgName)
+			log.Infof("[UpdateLVM]vg %s not found in NodeCache", vgName)
 		}
 		nc.LocalPVs[pv.Name] = *pv
 	}

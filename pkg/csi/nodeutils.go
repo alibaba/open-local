@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -17,7 +18,10 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
 )
@@ -61,7 +65,7 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 		}
 
 		if ns.spdkSupported {
-		return newDev, bdevName, nil
+			return newDev, bdevName, nil
 		} else {
 			return devicePath, "", nil
 		}
@@ -186,7 +190,7 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	sourcePath := ""
 	targetPath := req.TargetPath
-	if value, ok := req.VolumeContext[MountPointType]; ok {
+	if value, ok := req.VolumeContext[string(pkg.VolumeTypeMountPoint)]; ok {
 		sourcePath = value
 	}
 	if sourcePath == "" {
@@ -232,7 +236,7 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	sourceDevice := ""
 	targetPath := req.TargetPath
-	if value, ok := req.VolumeContext[DeviceVolumeType]; ok {
+	if value, ok := req.VolumeContext[string(pkg.VolumeTypeDevice)]; ok {
 		sourceDevice = value
 	}
 	if sourceDevice == "" {
@@ -280,7 +284,7 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	// Step 1: get targetPath and sourceDevice
 	targetPath := req.GetTargetPath()
-	sourceDevice, exists := req.VolumeContext[DeviceVolumeType]
+	sourceDevice, exists := req.VolumeContext[string(pkg.VolumeTypeDevice)]
 	if !exists {
 		return status.Error(codes.InvalidArgument, "Device path not provided")
 	}
@@ -333,7 +337,10 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 
 // create lvm volume
 func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vgName, lvmType string) (string, string, error) {
-	pvSize, unit, _ := getPvInfo(ns.client, volumeID)
+	pvSize, unit, _, err := getPvInfo(ns.client, volumeID)
+	if err != nil {
+		return "", "", err
+	}
 
 	if pvSize == 0 {
 		ephemeralVolume := volumeContext["csi.storage.k8s.io/ephemeral"] == "true" ||
@@ -354,7 +361,6 @@ func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vg
 			return "", "", status.Errorf(codes.Internal, "createVolume: Volume: %s, VG: %s, parse pv Size zero or snapshot lv is deleted", volumeID, vgName)
 		}
 	}
-	var err error
 
 	// check vg exist
 	if !ns.spdkSupported {
@@ -467,4 +473,21 @@ func IsBlockDevice(fullPath string) (bool, error) {
 	}
 
 	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
+}
+
+// get pvSize, pvSizeUnit, pvObject
+func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1.PersistentVolume, error) {
+	pv, err := client.CoreV1().PersistentVolumes().Get(context.Background(), volumeID, metav1.GetOptions{})
+	if err != nil {
+		return 0, "", nil, err
+	}
+	pvQuantity := pv.Spec.Capacity["storage"]
+	pvSize := pvQuantity.Value()
+	//pvSizeGB := pvSize / (1024 * 1024 * 1024)
+
+	//if pvSizeGB == 0 {
+	pvSizeMB := pvSize / (1024 * 1024)
+	return pvSizeMB, "m", pv, nil
+	//}
+	//return pvSizeGB, "g", pv
 }

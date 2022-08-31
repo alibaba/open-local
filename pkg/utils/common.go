@@ -186,7 +186,7 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 	return requested
 }
 
-//CheckDiskOptions excludes mp which is readyonly or with unsupported fs type
+// CheckDiskOptions excludes mp which is readyonly or with unsupported fs type
 func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 	if mp == nil {
 		return false
@@ -731,4 +731,14 @@ func FormatBlockDevice(dev, fsType string) error {
 	}
 
 	return nil
+}
+
+// GetAccessModes returns a slice containing all of the access modes defined
+// in the passed in VolumeCapabilities.
+func GetAccessModes(caps []*csilib.VolumeCapability) *[]string {
+	modes := []string{}
+	for _, c := range caps {
+		modes = append(modes, c.AccessMode.GetMode().String())
+	}
+	return &modes
 }

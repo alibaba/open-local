@@ -387,9 +387,6 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 }
 
 func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
-	//e.Ctx.CtxLock.Lock()
-	//defer e.Ctx.CtxLock.Unlock()
-	//NOTE: no need lock as not modifying cache
 	//var old *corev1.Pod
 	var pod *corev1.Pod
 	switch t := newObj.(type) {
@@ -416,6 +413,8 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		log.Infof("no open-local pvc found for %s", podName)
 		return
 	}
+	e.Ctx.CtxLock.Lock()
+	defer e.Ctx.CtxLock.Unlock()
 	e.Ctx.ClusterNodeCache.PvcMapping.PutPod(podName, pvcs)
 	// if a pvcs is pending, remove the selected node in a goroutine
 	// so that to avoid ErrVolumeBindConflict(means the selected-node(on pvc)

@@ -19,8 +19,8 @@ package csi
 import (
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	log "k8s.io/klog/v2"
 )
 
 type identityServer struct {
@@ -36,7 +36,7 @@ func newIdentityServer(d *csicommon.CSIDriver) *identityServer {
 
 // GetPluginCapabilities returns available capabilities of the plugin
 func (is *identityServer) GetPluginCapabilities(ctx context.Context, req *csilib.GetPluginCapabilitiesRequest) (*csilib.GetPluginCapabilitiesResponse, error) {
-	log.Debugf("GetPluginCapabilities is called with req: %+v", req)
+	log.V(6).Infof("GetPluginCapabilities is called with req: %+v", req)
 	resp := &csilib.GetPluginCapabilitiesResponse{
 		Capabilities: []*csilib.PluginCapability{
 			{

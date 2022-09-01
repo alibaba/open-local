@@ -23,7 +23,7 @@ import (
 	"os"
 
 	"github.com/alibaba/open-local/pkg/csi/client"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 // BindingInfo represents the pvc and disk/lvm mapping
@@ -79,7 +79,7 @@ func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*
 		return nil, err
 	}
 
-	log.Debugf("Schedule Volume with Url(%s) Finished, get result: %v, %v", url, bindingInfo, string(respBody))
+	log.V(6).Infof("Schedule Volume with Url(%s) Finished, get result: %v, %v", url, bindingInfo, string(respBody))
 	return bindingInfo, nil
 }
 
@@ -95,7 +95,7 @@ func ExpandVolume(pvcNameSpace, pvcName string, newSize int) error {
 		return err
 	}
 
-	log.Debugf("Volume Expand with Url(%s) Finished, get result: %s", url, string(respBody))
+	log.V(6).Infof("Volume Expand with Url(%s) Finished, get result: %s", url, string(respBody))
 	return nil
 }
 

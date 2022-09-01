@@ -2,95 +2,217 @@ package plugin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"k8s.io/klog/v2"
 	"math"
-	"os"
-	"sort"
+	"sync"
 
-	"github.com/alibaba/open-local/pkg"
-	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	localtype "github.com/alibaba/open-local/pkg"
+	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
-	"github.com/alibaba/open-local/pkg/scheduler/errors"
+	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
+
+	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	volumesnapshotinformersfactory "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kubeinformers "k8s.io/client-go/informers"
-	corelisters "k8s.io/client-go/listers/core/v1"
+	corev1informers "k8s.io/client-go/informers/core/v1"
+	storagev1informers "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/client-go/kubernetes"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	clientgocache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
 
+const (
+	stateKey framework.StateKey = PluginName
+)
+
+type stateData struct {
+	podVolumeInfo       *PodLocalVolumeInfo
+	allocateStateByNode map[string] /*nodeName*/ *cache.NodeAllocateState
+	locker              sync.RWMutex
+}
+
+func (state *stateData) Clone() framework.StateData {
+	return state
+}
+
+//by score
+func (state *stateData) GetAllocateState(nodeName string) *cache.NodeAllocateState {
+	state.locker.RLock()
+	defer state.locker.RUnlock()
+	if state.allocateStateByNode == nil {
+		return nil
+	}
+	return state.allocateStateByNode[nodeName]
+}
+
+//add by filter
+func (state *stateData) AddAllocateState(nodeName string, allocate *cache.NodeAllocateState) {
+	state.locker.Lock()
+	defer state.locker.Unlock()
+	if state.allocateStateByNode == nil {
+		state.allocateStateByNode = map[string]*cache.NodeAllocateState{}
+	}
+	state.allocateStateByNode[nodeName] = allocate
+}
+
+type LVMPVCInfo struct {
+	vgName  string
+	request int64
+	pvc     *corev1.PersistentVolumeClaim
+}
+
+type DevicePVCInfo struct {
+	mediaType localtype.MediaType
+	request   int64
+	pvc       *corev1.PersistentVolumeClaim
+}
+
+/*
+	calculate by preFilter to prevent double calculating in filter
+*/
+type PodLocalVolumeInfo struct {
+	lvmPVCsWithVgNameNotAllocated    []*LVMPVCInfo //local lvm PVC have vgName and  had not allocated before
+	lvmPVCsSnapshot                  []*LVMPVCInfo
+	lvmPVCsWithoutVgNameNotAllocated []*LVMPVCInfo    //local lvm PVC have no vgName and had not allocated before
+	hddDevicePVCsNotAllocated        []*DevicePVCInfo //hdd type pvc had not allocated before
+	ssdDevicePVCsNotAllocated        []*DevicePVCInfo //ssd type pvc had not allocated before
+	inlineVolumes                    []*cache.InlineVolumeAllocated
+}
+
+func (info *PodLocalVolumeInfo) HaveLocalVolumes() bool {
+	if info == nil {
+		return false
+	}
+	return len(info.lvmPVCsWithVgNameNotAllocated)+len(info.lvmPVCsWithoutVgNameNotAllocated)+
+		len(info.lvmPVCsSnapshot)+len(info.hddDevicePVCsNotAllocated)+len(info.ssdDevicePVCsNotAllocated)+len(info.inlineVolumes) > 0
+}
+
 type LocalPlugin struct {
-	handle    framework.Handle
-	pvcLister corelisters.PersistentVolumeClaimLister
-	scLister  storagelisters.StorageClassLister
-	// localStorageClient clientset.Interface
-	// snapClient         volumesnapshotinformers.Interface
-	cache *cache.NodeLocalStorageCache
+	handle                 framework.Handle
+	args                   OpenLocalArg
+	allocateStrategy       AllocateStrategy
+	nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight
+
+	scLister           storagelisters.StorageClassLister
+	coreV1Informers    corev1informers.Interface
+	storageV1Informers storagev1informers.Interface
+	localInformers     nodelocalstorageinformer.Interface
+	snapshotInformers  volumesnapshotinformers.Interface
+
+	kubeClientSet  kubernetes.Interface
+	localClientSet localclientset.Interface
+	snapClientSet  volumesnapshot.Interface
+
+	cache *cache.NodeStorageAllocatedCache
 }
 
 const PluginName = "Open-Local"
 
+type OpenLocalArg struct {
+	KubeConfigPath       string `json:"kubeConfigPath,omitempty"`
+	SchedulerStrategy    string `json:"schedulerStrategy,omitempty"`
+	NodeAntiAffinityConf string `json:"nodeAntiAffinityConf,omitempty"`
+}
+
+var _ = framework.PreFilterPlugin(&LocalPlugin{})
 var _ = framework.FilterPlugin(&LocalPlugin{})
 var _ = framework.ScorePlugin(&LocalPlugin{})
 var _ = framework.ReservePlugin(&LocalPlugin{})
+var _ = framework.PreBindPlugin(&LocalPlugin{})
 
 // NewLocalPlugin
 func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
-	// TODO: kubeConfigPath can be gotten from allocArgs
-	cfg, err := clientcmd.BuildConfigFromFlags("", "/etc/kubernetes/scheduler.conf")
+
+	unknownObj, ok := configuration.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", configuration)
+	}
+	args := OpenLocalArg{}
+	if err := frameworkruntime.DecodeInto(unknownObj, &args); err != nil {
+		return nil, err
+	}
+	nodeAntiAffinityWeight, err := utils.ParseWeight(args.NodeAntiAffinityConf)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", args.KubeConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("error building kubeconfig: %s", err.Error())
 	}
 	// client
-	kubeClient := f.ClientSet()
-	localClient, err := clientset.NewForConfig(cfg)
+	localClient, err := localclientset.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error building yoda clientset: %s", err.Error())
 	}
-	// snapClient, err := volumesnapshotinformers.NewForConfig(cfg)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error building snapshot clientset: %s", err.Error())
-	// }
+	snapClient, err := volumesnapshot.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error building snapshot clientset: %s", err.Error())
+	}
 
 	// cache
-	cxt := context.TODO()
-	nodeCache := cache.NewNodeLocalStorageCache()
+	cxt := context.Background()
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
-	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
-	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
-		AddFunc:    nodeCache.OnNodeLocalStorageAdd,
-		UpdateFunc: nodeCache.OnNodeLocalStorageUpdate,
-	})
+	snapshotInformerFactory := volumesnapshotinformersfactory.NewSharedInformerFactory(snapClient, 0)
+
+	nodeCache := cache.NewNodeStorageAllocatedCache(f.SharedInformerFactory().Core().V1(), localStorageInformerFactory.Csi().V1alpha1())
+
+	localPlugin := &LocalPlugin{
+		handle:                 f,
+		allocateStrategy:       GetAllocateStrategy(&args),
+		nodeAntiAffinityWeight: nodeAntiAffinityWeight,
+
+		cache:              nodeCache,
+		coreV1Informers:    f.SharedInformerFactory().Core().V1(),
+		scLister:           f.SharedInformerFactory().Storage().V1().StorageClasses().Lister(),
+		storageV1Informers: f.SharedInformerFactory().Storage().V1(),
+		localInformers:     localStorageInformerFactory.Csi().V1alpha1(),
+		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
+
+		kubeClientSet:  f.ClientSet(),
+		localClientSet: localClient,
+		snapClientSet:  snapClient,
+	}
+
 	localStorageInformerFactory.Start(cxt.Done())
 	localStorageInformerFactory.WaitForCacheSync(cxt.Done())
+	snapshotInformerFactory.Start(cxt.Done())
+	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, 0)
-	pvInformer := kubeInformerFactory.Core().V1().PersistentVolumes().Informer()
+	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
+	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
+		AddFunc:    localPlugin.OnNodeLocalStorageAdd,
+		UpdateFunc: localPlugin.OnNodeLocalStorageUpdate,
+	})
+
+	pvInformer := f.SharedInformerFactory().Core().V1().PersistentVolumes().Informer()
 	pvInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
-		AddFunc:    nodeCache.OnPVAdd,
-		UpdateFunc: nodeCache.OnPVUpdate,
-		DeleteFunc: nodeCache.OnPVDelete,
+		AddFunc:    localPlugin.OnPVAdd,
+		UpdateFunc: localPlugin.OnPVUpdate,
+		DeleteFunc: localPlugin.OnPVDelete,
 	})
-	podInformer := kubeInformerFactory.Core().V1().Pods().Informer()
+	pvcInformer := f.SharedInformerFactory().Core().V1().PersistentVolumeClaims().Informer()
+	pvcInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
+		AddFunc:    localPlugin.OnPVCAdd,
+		UpdateFunc: localPlugin.OnPVCUpdate,
+		DeleteFunc: localPlugin.OnPVCDelete,
+	})
+	podInformer := f.SharedInformerFactory().Core().V1().Pods().Informer()
 	podInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
-		AddFunc:    nodeCache.OnPodAdd,
-		DeleteFunc: nodeCache.OnPodDelete,
+		AddFunc:    localPlugin.OnPodAdd,
+		UpdateFunc: localPlugin.OnPodUpdate,
+		DeleteFunc: localPlugin.OnPodDelete,
 	})
-	kubeInformerFactory.Start(cxt.Done())
-	kubeInformerFactory.WaitForCacheSync(cxt.Done())
 
-	return &LocalPlugin{
-		handle:    f,
-		cache:     nodeCache,
-		pvcLister: kubeInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
-		scLister:  kubeInformerFactory.Storage().V1().StorageClasses().Lister(),
-	}, nil
+	return localPlugin, nil
 }
 
 // Name returns name of the plugin. It is used in logs, etc.
@@ -105,205 +227,167 @@ type CacheUnit struct {
 	request  uint64
 }
 
-func (plugin *LocalPlugin) processLVM(pod *corev1.Pod, nodeName string, reserved bool) ([]CacheUnit, error) {
-	// 定义一个结构体，记录一个 Pod 申请多少存储卷（持久和临时）
-	// 用于返回
-	// 将 pvcs 分为有 VG 和 无VG
-	var cacheUnitWithPoolName []CacheUnit
-	var cacheUnitWithoutPoolName []CacheUnit
-	// 是否需要处理
-	// 获取 pod pvc/pv 信息
-	pvcs, err := plugin.getPodLocalPvcs(pod, true)
+func (plugin *LocalPlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
+	podVolumeInfo, err := plugin.getPodLocalVolumeInfos(pod)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get pod %s local pvcs: %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), err.Error())
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
-	for _, pvc := range pvcs {
-		vgName := utils.GetVGNameFromPVC(pvc, plugin.scLister)
-		size := utils.GetPVCRequested(pvc)
-		if vgName == "" {
-			// 里面没有 vg 信息
-			cacheUnitWithoutPoolName = append(cacheUnitWithoutPoolName, CacheUnit{
-				name:    fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
-				request: uint64(size),
-				kind:    cache.PoolKindLVM,
-			})
-		} else {
-			cacheUnitWithPoolName = append(cacheUnitWithPoolName, CacheUnit{
-				name:     fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
-				poolName: vgName,
-				request:  uint64(size),
-				kind:     cache.PoolKindLVM,
-			})
-		}
-	}
-	// 获取 pod 临时卷信息，必须只能有 VG
-	if containInlineVolume, _ := utils.ContainInlineVolumes(pod); containInlineVolume {
-		for _, volume := range pod.Spec.Volumes {
-			if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
-				vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
-				if vgName == "" {
-					return nil, fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
-				}
-				cacheUnitWithPoolName = append(cacheUnitWithPoolName, CacheUnit{
-					name:     fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, volume.Name),
-					poolName: vgName,
-					request:  uint64(size),
-					kind:     cache.PoolKindLVM,
-				})
-			}
-		}
-	}
-	if len(cacheUnitWithoutPoolName)+len(cacheUnitWithPoolName) == 0 {
-		return nil, nil
-	}
-
-	// 按照原 extender 的算法来处理
-	localStorageCache := plugin.cache.GetLocalStorageCache(nodeName)
-	// LVM
-	storagePools := localStorageCache.GetStoragePools(cache.PoolKindLVM)
-	// cacheUnitWithPoolName first
-	for _, unit := range cacheUnitWithPoolName {
-		// vg
-		storagePool := storagePools.GetStoragePool(unit.poolName)
-		if storagePool == nil {
-			return nil, fmt.Errorf("no pool %s in node", unit.poolName)
-		}
-		// free size
-		poolFreeSize := storagePool.Allocatable - storagePool.Requested
-		if poolFreeSize < unit.request {
-			return nil, errors.NewInsufficientLVMError(int64(unit.request), int64(storagePool.Requested), int64(storagePool.Allocatable), unit.poolName, nodeName)
-		}
-		// 更新临时 cache
-		storagePool.Requested += unit.request
-		storagePools.SetStoragePool(unit.poolName, storagePool)
-	}
-
-	// cacheUnitWithoutPoolName
-	// 获取 storage pool 列表以用作排序用
-	cacheVGList := storagePools.GetStoragePoolList()
-	if len(cacheVGList) <= 0 {
-		return nil, fmt.Errorf(errors.NewNoAvailableVGError(nodeName).GetReason())
-	}
-	// process pvcsWithoutVG
-	for i, unit := range cacheUnitWithoutPoolName {
-		// sort by free size
-		sort.Slice(cacheVGList, func(i, j int) bool {
-			return (cacheVGList[i].Allocatable - cacheVGList[i].Requested) < (cacheVGList[j].Allocatable - cacheVGList[j].Requested)
-		})
-
-		for j, vg := range cacheVGList {
-			poolFreeSize := vg.Allocatable - vg.Requested
-			log.Debugf("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vg.Name, poolFreeSize, unit.name, unit.request)
-
-			if poolFreeSize < unit.request {
-				if j == len(cacheVGList)-1 {
-					return nil, errors.NewInsufficientLVMError(int64(unit.request), int64(vg.Requested), int64(vg.Allocatable), unit.poolName, nodeName)
-				}
-				continue
-			}
-			cacheVGList[j].Requested += unit.request
-			cacheUnitWithoutPoolName[i].poolName = vg.Name
-			break
-		}
-	}
-
-	if reserved {
-		storagePools.SetStoragePoolList(cacheVGList)
-		localStorageCache.SetStoragePools(cache.PoolKindLVM, storagePools)
-		plugin.cache.SetLocalStorageCache(nodeName, localStorageCache)
-	}
-
-	return append(cacheUnitWithPoolName, cacheUnitWithoutPoolName...), nil
-}
-
-func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	nodeName := nodeInfo.Node().Name
-
-	_, err := plugin.processLVM(pod, nodeName, false)
-	if err != nil {
-		return framework.NewStatus(framework.Unschedulable, err.Error())
-	}
-
+	state.Write(stateKey, &stateData{podVolumeInfo: podVolumeInfo, allocateStateByNode: map[string]*cache.NodeAllocateState{}})
 	return framework.NewStatus(framework.Success)
 }
 
-const MinScore int64 = 0
-const MaxScore int64 = 10
-
-func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
-	units, err := plugin.processLVM(pod, nodeName, false)
-	if err != nil {
-		return 0, framework.NewStatus(framework.Unschedulable, err.Error())
-	}
-
-	// todo: 按照类别分类
-
-	if len(units) == 0 {
-		return MinScore, framework.NewStatus(framework.Success)
-	}
-
-	// make a map store VG size pvcs used
-	// key: VG name
-	// value: used size
-	scoreMap := make(map[string]uint64)
-	for _, unit := range units {
-		if size, ok := scoreMap[unit.poolName]; ok {
-			size += unit.request
-			scoreMap[unit.poolName] = size
-		} else {
-			scoreMap[unit.poolName] = unit.request
-		}
-	}
-
-	var scoref float64 = 0
-	count := 0
-	// todo
-	strategy := pkg.StrategyBinpack
-	// 获取调度策略
-	switch strategy {
-	case pkg.StrategyBinpack:
-		for vgName, used := range scoreMap {
-			scoref += float64(used) / float64(plugin.cache.GetLocalStorageCache(nodeName).GetStoragePools("LVM").GetStoragePool(vgName).Allocatable)
-			count++
-		}
-	case pkg.StrategySpread:
-		for vgName, used := range scoreMap {
-			scoref += (1.0 - float64(used)/float64(plugin.cache.GetLocalStorageCache(nodeName).GetStoragePools("LVM").GetStoragePool(vgName).Allocatable))
-			count++
-		}
-	}
-	score := int64(scoref / float64(count) * float64(MaxScore))
-	return score, framework.NewStatus(framework.Success)
-}
-
-// saveVolumeData persists parameter data as json file at the provided location
-func (plugin *LocalPlugin) saveCache(dataFilePath string) error {
-	file, err := os.Create(dataFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to save volume data file %s: %v", dataFilePath, err)
-	}
-	defer file.Close()
-	if err := json.NewEncoder(file).Encode(plugin.cache); err != nil {
-		return fmt.Errorf("failed to save volume data file: %s", err.Error())
-	}
+func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {
 	return nil
 }
 
-func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	_, err := plugin.processLVM(pod, nodeName, true)
+//TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
+func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	nodeName := nodeInfo.Node().Name
+
+	podVolumeInfo, err := plugin.getPodVolumeInfoFromState(state)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	//not use local pv, return success
+	if !podVolumeInfo.HaveLocalVolumes() {
+		return framework.NewStatus(framework.Success)
+	}
+
+	err = plugin.filterBySnapshot(nodeName, podVolumeInfo.lvmPVCsSnapshot)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+
+	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
-	if err := plugin.saveCache("/open-local-cache.txt"); err != nil {
-		log.Errorf("fail to save cache: %s", err.Error())
+	stateData, err := plugin.getState(state)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	stateData.AddAllocateState(nodeName, nodeAllocate)
+	return framework.NewStatus(framework.Success)
+}
+
+func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	allocateInfo, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
+	if err != nil {
+		return 0, framework.NewStatus(framework.Unschedulable, err.Error())
+	}
+	if allocateInfo == nil || !allocateInfo.Units.HaveLocalUnits() {
+		if plugin.cache.IsLocalNode(nodeName) {
+			return int64(utils.MinScore), framework.NewStatus(framework.Success)
+		}
+		return int64(utils.MaxScore), framework.NewStatus(framework.Success)
 	}
 
+	if allocateInfo.NodeStorageAllocatedByUnits == nil {
+		return int64(utils.MinScore), framework.NewStatus(framework.Success)
+	}
+
+	scoreByCapacity := plugin.scoreByCapacity(allocateInfo)
+
+	scoreByCount := plugin.scoreByCount(allocateInfo)
+
+	scoreByAntiAffinity := plugin.scoreByNodeAntiAffinity(allocateInfo)
+	return scoreByCapacity + scoreByCount + scoreByAntiAffinity, framework.NewStatus(framework.Success)
+}
+
+//PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
+func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+
+	stateData, err := plugin.getState(state)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	podVolumeInfo := stateData.podVolumeInfo
+	//not use local pv, return success
+	if podVolumeInfo == nil || !podVolumeInfo.HaveLocalVolumes() {
+		return framework.NewStatus(framework.Success)
+	}
+
+	//reset state for node
+	stateData.allocateStateByNode[nodeName] = &cache.NodeAllocateState{}
+
+	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Unschedulable, err.Error())
+	}
+
+	defer func() {
+		//update stateData
+		stateData.AddAllocateState(nodeName, preAllocate)
+	}()
+
+	//reset allocated size, and will re-allocate by assume;
+	preAllocate.Units.ResetAllocatedSize()
+	err = plugin.cache.Assume(preAllocate)
+	if err != nil {
+		return framework.NewStatus(framework.Unschedulable, err.Error())
+	}
 	return framework.NewStatus(framework.Success)
 }
 
 func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) {
-	log.Infof("here come pod %s and node %s, but function is not implemented", p.Name, nodeName)
+	reservedAllocate, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
+	if err != nil {
+		klog.Errorf("get AllocateUnitFromState for node %s error : %v", nodeName, err)
+		return
+	}
+	if reservedAllocate == nil {
+		return
+	}
+	// if allocated size
+	plugin.cache.Revert(reservedAllocate)
 	return
+}
+
+//TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to NLS.
+//TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
+//TODO 2) if Prebind step error, we will not revert patch info of nls, it can update next schedule cycle
+func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
+	reservedAllocate, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	if reservedAllocate == nil || reservedAllocate.Units == nil {
+		return framework.NewStatus(framework.Success)
+	}
+
+	lvmAllocates := reservedAllocate.Units.LVMPVCAllocateUnits
+	deviceAllocates := reservedAllocate.Units.DevicePVCAllocateUnits
+
+	var pvcInfos []localtype.NodeStoragePVCAllocateInfo
+	for _, allocate := range lvmAllocates {
+		if allocate.Allocated > 0 {
+			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
+				PVCNameSpace: allocate.PVCNamespace,
+				PVCName:      allocate.PVCName,
+				PVAllocatedInfo: localtype.PVAllocatedInfo{
+					VGName:     allocate.VGName,
+					VolumeType: string(localtype.VolumeTypeLVM),
+				},
+			})
+		}
+	}
+	for _, allocate := range deviceAllocates {
+		if allocate.DeviceName != "" {
+			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
+				PVCNameSpace: allocate.PVCNamespace,
+				PVCName:      allocate.PVCName,
+				PVAllocatedInfo: localtype.PVAllocatedInfo{
+					DeviceName: allocate.DeviceName,
+					VolumeType: string(localtype.VolumeTypeDevice),
+				},
+			})
+		}
+	}
+	err = plugin.addAllocatedInfoToNLS(nodeName, pvcInfos)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	return framework.NewStatus(framework.Success)
 }
 
 // ScoreExtensions of the Score plugin.
@@ -339,48 +423,30 @@ func (plugin *LocalPlugin) NormalizeScore(ctx context.Context, state *framework.
 	return nil
 }
 
-//GetPodPvcs returns the pending pvcs which are needed for scheduling
-func (plugin *LocalPlugin) getPodLocalPvcs(pod *corev1.Pod, skipBound bool) (pvcs []*corev1.PersistentVolumeClaim, err error) {
-
-	ns := pod.Namespace
-	for _, volume := range pod.Spec.Volumes {
-		if volume.PersistentVolumeClaim != nil {
-			name := volume.PersistentVolumeClaim.ClaimName
-			pvc, err := plugin.pvcLister.PersistentVolumeClaims(ns).Get(name)
-			if err != nil {
-				log.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
-				return nil, err
-			}
-			if pvc.Status.Phase == corev1.ClaimBound && skipBound {
-				log.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
-				continue
-			}
-			// 处理 bound 和 pending 的 pvc
-			scName := pvc.Spec.StorageClassName
-			if scName == nil {
-				continue
-			}
-			sc, err := plugin.scLister.Get(*scName)
-			if err != nil {
-				log.Errorf("failed to get storage class by name %s: %s", *scName, err.Error())
-				return nil, err
-			}
-			if !utils.ContainsProvisioner(sc.Provisioner) {
-				continue
-			}
-			pvType := utils.LocalPVType(sc)
-			switch pvType {
-			case pkg.VolumeTypeLVM:
-				log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
-				pvcs = append(pvcs, pvc)
-			case pkg.VolumeTypeMountPoint:
-				log.Infof("got pvc %s/%s as mount point pvc, skip...", pvc.Namespace, pvc.Name)
-			case pkg.VolumeTypeDevice:
-				log.Infof("got pvc %s/%s as device pvc, skip...", pvc.Namespace, pvc.Name)
-			default:
-				log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
-			}
-		}
+func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (*PodLocalVolumeInfo, error) {
+	state, err := plugin.getState(cs)
+	if err != nil {
+		return nil, err
 	}
-	return
+	return state.podVolumeInfo, nil
+}
+
+func (plugin *LocalPlugin) getNodeAllocateUnitFromState(cs *framework.CycleState, nodeName string) (*cache.NodeAllocateState, error) {
+	state, err := plugin.getState(cs)
+	if err != nil {
+		return nil, err
+	}
+	return state.GetAllocateState(nodeName), nil
+}
+
+func (plugin *LocalPlugin) getState(cs *framework.CycleState) (*stateData, error) {
+	state, err := cs.Read(stateKey)
+	if err != nil {
+		return nil, err
+	}
+	stateData, ok := state.(*stateData)
+	if !ok {
+		return nil, fmt.Errorf("unable to convert state into stateData")
+	}
+	return stateData, nil
 }

@@ -24,7 +24,7 @@ import (
 	"os/exec"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 // Mounter is responsible for formatting and mounting volumes
@@ -130,7 +130,7 @@ func (m *mounter) Format(source, fsType string) error {
 		mkfsArgs = []string{"-F", source}
 	}
 
-	log.Debugf("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
+	log.V(6).Infof("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
 	out, err := exec.Command(mkfsCmd, mkfsArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("formatting disk failed: %v cmd: '%s %s' output: %q",
@@ -162,7 +162,7 @@ func (m *mounter) MountBlock(source, target string, opts ...string) error {
 		return err
 	}
 
-	log.Debugf("Mount %s to %s, the command is %s %v", source, target, mountCmd, mountArgs)
+	log.V(6).Infof("Mount %s to %s, the command is %s %v", source, target, mountCmd, mountArgs)
 	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("mounting failed: %v cmd: '%s %s' output: %q",
@@ -202,7 +202,7 @@ func (m *mounter) Mount(source, target, fsType string, opts ...string) error {
 		return err
 	}
 
-	log.Debugf("Mount %s to %s with fsType %s, the command is %s %v", source, target, fsType, mountCmd, mountArgs)
+	log.V(6).Infof("Mount %s to %s with fsType %s, the command is %s %v", source, target, fsType, mountCmd, mountArgs)
 
 	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
 	if err != nil {
@@ -221,7 +221,7 @@ func (m *mounter) Unmount(target string) error {
 
 	umountArgs := []string{target}
 
-	log.Debugf("Unmount %s, the command is %s %v", target, umountCmd, umountArgs)
+	log.V(6).Infof("Unmount %s, the command is %s %v", target, umountCmd, umountArgs)
 
 	out, err := exec.Command(umountCmd, umountArgs...).CombinedOutput()
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/alibaba/open-local/pkg/utils"
 	"net/http"
 	"testing"
 	"time"
@@ -32,15 +33,14 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
-	log "github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -411,397 +411,53 @@ func newNode() (nodes []*corev1.Node) {
 	return nodes
 }
 
-type VGInfo struct {
-	Name  string
-	Total uint64
-}
-type MPInfo struct {
-	Name     string
-	Total    uint64
-	FsType   string
-	Options  []string
-	Device   string
-	ReadOnly bool
-}
-type DeviceInfo struct {
-	Name      string
-	MediaType localtype.MediaType
-	Total     uint64
-	ReadOnly  bool
-}
-type NodeInfo struct {
-	Name             string
-	WhitelistVGs     []string
-	WhitelistDevices []string
-	BlacklistMPs     []string
-	VGInfos          []VGInfo
-	MPInfos          []MPInfo
-	DeviceInfos      []DeviceInfo
-}
-
 func newNodeLocalStorage() (crds []*localv1alpha1.NodeLocalStorage) {
-	node1 := &localv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NodeName1,
-		},
-		Spec: localv1alpha1.NodeLocalStorageSpec{
-			NodeName: NodeName1,
-			ListConfig: localv1alpha1.ListConfig{
-				VGs: localv1alpha1.VGList{
-					Include: []string{VGHDD, VGSSD},
-				},
-				MountPoints: localv1alpha1.MountPointList{
-					Include: []string{"/mnt/open-local/testmnt-*"},
-				},
-			},
-		},
-		Status: localv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
-				VolumeGroups: []localv1alpha1.VolumeGroup{
-					{
-						Name:            VGSSD,
-						PhysicalVolumes: []string{},
-						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
-						Total:           100 * LocalGi,
-						Available:       100 * LocalGi,
-						Allocatable:     100 * LocalGi,
-					},
-					{
-						Name:            VGHDD,
-						PhysicalVolumes: []string{},
-						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
-						Total:           500 * LocalGi,
-						Available:       500 * LocalGi,
-						Allocatable:     500 * LocalGi,
-					},
-				},
-				MountPoints: []localv1alpha1.MountPoint{
-					{
-						Name:      "/mnt/open-local/testmnt-node1-a",
-						Total:     500 * LocalGi,
-						Available: 500 * LocalGi,
-						FsType:    "ext4",
-						Options:   []string{"rw", "ordered"},
-						Device:    "/dev/sdb",
-						ReadOnly:  false,
-					},
-				},
-				DeviceInfos: []localv1alpha1.DeviceInfo{
-					{
-						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     100 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdb",
-						MediaType: string(localtype.MediaTypeSSD),
-						Total:     500 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     150 * LocalGi,
-						ReadOnly:  false,
-					},
-				},
-			},
-			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
-				VolumeGroups: []string{VGHDD, VGSSD},
-				MountPoints:  []string{"/mnt/open-local/testmnt-node1-a"},
-			},
-		},
-	}
-	node2 := &localv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NodeName2,
-		},
-		Spec: localv1alpha1.NodeLocalStorageSpec{
-			NodeName: NodeName2,
-			ListConfig: localv1alpha1.ListConfig{
-				VGs: localv1alpha1.VGList{
-					Include: []string{VGHDD, VGSSD},
-				},
-				MountPoints: localv1alpha1.MountPointList{
-					Include: []string{"/mnt/open-local/testmnt-*"},
-					Exclude: []string{"/mnt/open-local/testmnt-node1-a"},
-				},
-			},
-		},
-		Status: localv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
-				VolumeGroups: []localv1alpha1.VolumeGroup{
-					{
-						Name:            VGSSD,
-						PhysicalVolumes: []string{},
-						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
-						Total:           200 * LocalGi,
-						Available:       200 * LocalGi,
-						Allocatable:     200 * LocalGi,
-					},
-					{
-						Name:            VGHDD,
-						PhysicalVolumes: []string{},
-						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
-						Total:           750 * LocalGi,
-						Available:       750 * LocalGi,
-						Allocatable:     750 * LocalGi,
-					},
-				},
-				MountPoints: []localv1alpha1.MountPoint{
-					{
-						Name:      "/mnt/open-local/testmnt-node1-a",
-						Total:     750 * LocalGi,
-						Available: 750 * LocalGi,
-						FsType:    "ext4",
-						Options:   []string{"rw", "ordered"},
-						Device:    "/dev/sdb",
-						ReadOnly:  false,
-					},
-				},
-				DeviceInfos: []localv1alpha1.DeviceInfo{
-					{
-						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     100 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdb",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     200 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     150 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdd",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     100 * LocalGi,
-						ReadOnly:  false,
-					},
-				},
-			},
-			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
-				VolumeGroups: []string{VGHDD, VGSSD},
-			},
-		},
-	}
-	node3 := &localv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NodeName3,
-		},
-		Spec: localv1alpha1.NodeLocalStorageSpec{
-			NodeName: NodeName3,
-			ListConfig: localv1alpha1.ListConfig{
-				VGs: localv1alpha1.VGList{
-					Include: []string{VGSSD},
-				},
-				MountPoints: localv1alpha1.MountPointList{
-					Include: []string{"/mnt/open-local/testmnt-*"},
-				},
-				Devices: localv1alpha1.DeviceList{
-					Include: []string{"/dev/sdc"},
-				},
-			},
-		},
-		Status: localv1alpha1.NodeLocalStorageStatus{
-			NodeStorageInfo: localv1alpha1.NodeStorageInfo{
-				VolumeGroups: []localv1alpha1.VolumeGroup{
-					{
-						Name:            VGSSD,
-						PhysicalVolumes: []string{},
-						LogicalVolumes:  []localv1alpha1.LogicalVolume{},
-						Total:           300 * LocalGi,
-						Available:       300 * LocalGi,
-						Allocatable:     300 * LocalGi,
-					},
-				},
-				MountPoints: []localv1alpha1.MountPoint{
-					{
-						Name:      "/mnt/open-local/testmnt-node1-a",
-						Total:     1000 * LocalGi,
-						Available: 1000 * LocalGi,
-						FsType:    "ext4",
-						Options:   []string{"rw", "ordered"},
-						Device:    "/dev/sdb",
-						ReadOnly:  false,
-					},
-				},
-				DeviceInfos: []localv1alpha1.DeviceInfo{
-					{
-						Name:      "/dev/sda",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     100 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdb",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     200 * LocalGi,
-						ReadOnly:  false,
-					},
-					{
-						Name:      "/dev/sdc",
-						MediaType: string(localtype.MediaTypeHDD),
-						Total:     150 * LocalGi,
-						ReadOnly:  false,
-					},
-				},
-			},
-			FilteredStorageInfo: localv1alpha1.FilteredStorageInfo{
-				VolumeGroups: []string{VGHDD, VGSSD},
-				MountPoints:  []string{"/mnt/open-local/testmnt-node1-a"},
-				Devices:      []string{"/dev/sdc"},
-			},
-		},
-	}
-	node4 := &localv1alpha1.NodeLocalStorage{
-		TypeMeta: metav1.TypeMeta{APIVersion: localv1alpha1.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: NodeName4,
-		},
-		Spec: localv1alpha1.NodeLocalStorageSpec{
-			NodeName: NodeName4,
-			ListConfig: localv1alpha1.ListConfig{
-				VGs: localv1alpha1.VGList{
-					Include: []string{VGSSD},
-				},
-			},
-		},
-		Status: localv1alpha1.NodeLocalStorageStatus{},
-	}
-	crds = append(crds, node1, node2, node3, node4)
-	return crds
-}
-
-type PVCInfo struct {
-	pvcName string
-	size    string
-	scName  string
+	return utils.CreateTestNodeLocalStorage()
 }
 
 func newPersistentVolumeClaim() (pvcs []*corev1.PersistentVolumeClaim) {
-	var pvcInfos []PVCInfo = []PVCInfo{
+	var pvcInfos = []utils.TestPVCInfo{
 		{
-			pvcName: PVCWithVG,
-			size:    "150Gi",
-			scName:  SCLVMWithVG,
+			PVCName:      PVCWithVG,
+			PVCNameSpace: LocalNameSpace,
+			Size:         "150Gi",
+			SCName:       SCLVMWithVG,
+			PVCStatus:    corev1.ClaimPending,
 		},
 		{
-			pvcName: PVCWithoutVG,
-			size:    "400Gi",
-			scName:  SCLVMWithoutVG,
+			PVCName:      PVCWithoutVG,
+			PVCNameSpace: LocalNameSpace,
+			Size:         "400Gi",
+			SCName:       SCLVMWithoutVG,
+			PVCStatus:    corev1.ClaimPending,
 		},
 		{
-			pvcName: PVCWithMountPoint,
-			size:    "500Gi",
-			scName:  SCWithMP,
+			PVCName:      PVCWithMountPoint,
+			PVCNameSpace: LocalNameSpace,
+			Size:         "500Gi",
+			SCName:       SCWithMP,
+			PVCStatus:    corev1.ClaimPending,
 		},
 		{
-			pvcName: PVCWithDevice,
-			size:    "100Gi",
-			scName:  SCWithDevice,
+			PVCName:      PVCWithDevice,
+			PVCNameSpace: LocalNameSpace,
+			Size:         "100Gi",
+			SCName:       SCWithDevice,
+			PVCStatus:    corev1.ClaimPending,
 		},
 		{
-			pvcName: PVCNoLocal,
-			size:    "100Gi",
-			scName:  SCNoLocal,
+			PVCName:      PVCNoLocal,
+			PVCNameSpace: LocalNameSpace,
+			Size:         "100Gi",
+			SCName:       SCNoLocal,
+			PVCStatus:    corev1.ClaimPending,
 		},
 	}
-
-	for i, pvcInfo := range pvcInfos {
-		pvc := &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pvcInfo.pvcName,
-				Namespace: LocalNameSpace,
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				StorageClassName: &pvcInfos[i].scName,
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(pvcInfo.size),
-					},
-				},
-			},
-			Status: corev1.PersistentVolumeClaimStatus{
-				Phase: corev1.ClaimPending,
-			},
-		}
-		pvcs = append(pvcs, pvc)
-	}
-	return pvcs
+	return utils.CreateTestPersistentVolumeClaim(pvcInfos)
 }
 
 func newStorageClass() (scs []*storagev1.StorageClass) {
-	// storage class: special vg
-	param1 := make(map[string]string)
-	param1["fs"] = "ext4"
-	param1["vgName"] = VGSSD
-	param1["volumeType"] = string(localtype.VolumeTypeLVM)
-	scLVMWithVG := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: SCLVMWithVG,
-		},
-		Provisioner: localtype.ProvisionerNameYoda,
-		Parameters:  param1,
-	}
-	// storage class: no vg
-	param2 := make(map[string]string)
-	param2["fs"] = "ext4"
-	param2["volumeType"] = string(localtype.VolumeTypeLVM)
-	scLVMWithoutVG := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: SCLVMWithoutVG,
-		},
-		Provisioner: localtype.ProvisionerNameYoda,
-		Parameters:  param2,
-	}
-
-	// storage class: mount point
-	param3 := make(map[string]string)
-	param3["volumeType"] = string(localtype.VolumeTypeMountPoint)
-	param3["mediaType"] = "hdd"
-	scWithMP := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: SCWithMP,
-		},
-		Provisioner: localtype.ProvisionerNameYoda,
-		Parameters:  param3,
-	}
-
-	// storage class: device
-	param4 := make(map[string]string)
-	param4["volumeType"] = string(localtype.VolumeTypeDevice)
-	param4["mediaType"] = "hdd"
-	scWithDevice := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: SCWithDevice,
-		},
-		Provisioner: localtype.ProvisionerNameYoda,
-		Parameters:  param4,
-	}
-
-	// storage class: device
-	scWithNoLocal := &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: SCNoLocal,
-		},
-		Provisioner: "kubernetes.io/no-provisioner",
-	}
-
-	scs = append(scs, scLVMWithVG, scLVMWithoutVG, scWithMP, scWithDevice, scWithNoLocal)
-
-	return scs
+	return utils.CreateTestStorageClass()
 }
 
 func (f *fixture) newExtender() (*server.ExtenderServer, kubeinformers.SharedInformerFactory, localinformers.SharedInformerFactory, volumesnapshotinformers.SharedInformerFactory) {

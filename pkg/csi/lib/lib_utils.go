@@ -6,7 +6,7 @@ import (
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 // EnsureFolder ...

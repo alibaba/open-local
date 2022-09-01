@@ -28,8 +28,8 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 // Scheduling is the interface for provisioner to request storage info
@@ -116,7 +116,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		return nil, err
 	}
 	var targetAllocateUnits []cache.AllocatedUnit
-	log.Debugf("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
+	log.V(6).Infof("allocatedUnits of pvc %s: %+v", pvcName, allocatedUnits)
 	for _, unit := range allocatedUnits {
 		newUnit := unit
 		ctx.ClusterNodeCache.BindingInfo[newUnit.PVCName] = &newUnit

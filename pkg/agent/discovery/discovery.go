@@ -33,12 +33,12 @@ import (
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	log "k8s.io/klog/v2"
 	"k8s.io/utils/mount"
 )
 
@@ -88,7 +88,7 @@ func (d *Discoverer) Discover() {
 			return
 		}
 	} else {
-		log.Debugf("update node local storage %s status", d.Nodename)
+		log.V(6).Infof("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
 		reservedVGInfos := make(map[string]ReservedVGInfo)

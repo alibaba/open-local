@@ -17,8 +17,11 @@ limitations under the License.
 package pkg
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 )
@@ -133,6 +136,20 @@ const (
 	EventCreateVGFailed = "CreateVGFailed"
 
 	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
+
+	/*
+		record: PVC->VG mapper
+		- update by schedulerFramework prebind
+		- read by schedulerFramework eventHandlers onNodeLocalStorageAdd/Update
+	*/
+	AnnotationNodeStorageAllocatedInfoKey = "csi.alibabacloud.com/allocated"
+
+	/*
+		record: vgName to PV
+		- update by nsl controller
+		- read by csi: nodeServer publishVolume
+	*/
+	AnnotationPVAllocatedInfoKey = "csi.alibabacloud.com/allocated"
 )
 
 var (
@@ -165,6 +182,58 @@ type StorageSpecUpdateStatus struct {
 	NewSpec  nodelocalstorage.NodeLocalStorageSpec `json:"newSpec"`
 }
 
+type NodeStoragePVCAllocateInfo struct {
+	PVCName         string `json:"pvcName"`
+	PVCNameSpace    string `json:"pvcNameSpace"`
+	PVAllocatedInfo `json:",inline"`
+}
+
+type NodeStorageAllocateInfo struct {
+	PvcAllocates map[string] /*PVCKey = PVCNameSpace/PVCName */ NodeStoragePVCAllocateInfo `json:"pvcAllocates"`
+}
+
+type PVAllocatedInfo struct {
+	VGName     string `json:"vgName"`
+	DeviceName string `json:"deviceName"`
+	VolumeType string `json:"volumeType"`
+}
+
+func GetAllocatedInfoFromPVAnnotation(pv *corev1.PersistentVolume) (*PVAllocatedInfo, error) {
+	if pv == nil || pv.Annotations == nil {
+		return nil, nil
+	}
+
+	infoJson, ok := pv.Annotations[AnnotationPVAllocatedInfoKey]
+	if !ok {
+		return nil, nil
+	}
+	info := PVAllocatedInfo{}
+	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func GetAllocateInfoFromNLS(nodeLocal *nodelocalstorage.NodeLocalStorage) (*NodeStorageAllocateInfo, error) {
+	infoJson := GetAllocateInfoJsonFromNLS(nodeLocal)
+	if infoJson == "" {
+		return nil, nil
+	}
+	info := NodeStorageAllocateInfo{}
+	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func GetAllocateInfoJsonFromNLS(nodeLocal *nodelocalstorage.NodeLocalStorage) string {
+	if nodeLocal == nil || nodeLocal.Annotations == nil {
+		return ""
+	}
+
+	return nodeLocal.Annotations[AnnotationNodeStorageAllocatedInfoKey]
+}
+
 func VolumeTypeFromString(s string) (VolumeType, error) {
 	for _, v := range ValidVolumeType {
 		if string(v) == s {
@@ -179,7 +248,7 @@ type NodeAntiAffinityWeight struct {
 }
 
 func NewNodeAntiAffinityWeight() *NodeAntiAffinityWeight {
-	return &NodeAntiAffinityWeight{}
+	return &NodeAntiAffinityWeight{weights: map[VolumeType]int{}}
 }
 
 func (w *NodeAntiAffinityWeight) Put(volumeType VolumeType, weight int) {

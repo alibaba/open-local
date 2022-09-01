@@ -23,8 +23,8 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 // ExpandPVC tries to reserve new size for PV regarding to the PVC
@@ -56,7 +56,7 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 	}
 
 	log.Infof("pvc %s/%s old size is %d, new size %d", pvc.Namespace, pvc.Name, oldSize, newSize)
-	nodeName := ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
+	nodeName := utils.NodeNameFromPV(pv)
 	nc := ctx.ClusterNodeCache.GetNodeCache(nodeName)
 	if nc == nil {
 		err := fmt.Errorf("error getting node cache via node %s", nodeName)
@@ -64,7 +64,7 @@ func ExpandPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeCla
 		return err
 	}
 	containReadonlySnapshot := false
-	isOpenLocal, localType := utils.IsOpenLocalPV(pv, ctx.StorageV1Informers, ctx.CoreV1Informers, containReadonlySnapshot)
+	isOpenLocal, localType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
 	if !isOpenLocal {
 		err := fmt.Errorf("unable to expand non-open-local PV %s", pv.Name)
 		log.Errorf(err.Error())

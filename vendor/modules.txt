@@ -171,6 +171,8 @@ github.com/opentracing/opentracing-go/log
 github.com/peter-wangxu/simple-golang-tools/pkg/httputil
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/prometheus/client_golang v1.7.1
 ## explicit
 github.com/prometheus/client_golang/prometheus
@@ -196,7 +198,6 @@ github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
 # github.com/sirupsen/logrus v1.6.0
-## explicit
 github.com/sirupsen/logrus
 # github.com/spf13/cobra v1.1.1
 ## explicit
@@ -205,6 +206,9 @@ github.com/spf13/cobra/doc
 # github.com/spf13/pflag v1.0.5
 ## explicit
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.6.1
+## explicit
+github.com/stretchr/testify/assert
 # go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
 go.etcd.io/etcd/auth/authpb
 go.etcd.io/etcd/clientv3
@@ -398,6 +402,7 @@ gopkg.in/square/go-jose.v2/json
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 ## explicit
+gopkg.in/yaml.v3
 # k8s.io/api v0.20.5 => k8s.io/api v0.20.5
 ## explicit
 k8s.io/api/admission/v1
@@ -843,6 +848,7 @@ k8s.io/client-go/util/connrotation
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
+k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
 # k8s.io/cloud-provider v0.20.5 => k8s.io/cloud-provider v0.20.5
 k8s.io/cloud-provider
@@ -922,6 +928,7 @@ k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
 # k8s.io/klog/v2 v2.5.0
+## explicit
 k8s.io/klog/v2
 # k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
 k8s.io/kube-openapi/cmd/openapi-gen/args

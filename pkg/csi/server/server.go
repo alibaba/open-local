@@ -21,7 +21,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	serverhelpers "github.com/google/go-microservice-helpers/server"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 var (

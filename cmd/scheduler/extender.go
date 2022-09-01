@@ -17,6 +17,7 @@ limitations under the License.
 package scheduler
 
 import (
+	"flag"
 	"fmt"
 
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -24,11 +25,11 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	log "k8s.io/klog/v2"
 	"k8s.io/sample-controller/pkg/signals"
 )
 
@@ -38,6 +39,7 @@ var (
 
 func init() {
 	opt.AddFlags(Cmd.Flags())
+	log.InitFlags(flag.CommandLine)
 }
 
 var Cmd = &cobra.Command{

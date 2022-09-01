@@ -146,11 +146,13 @@ func (f *fixture) newController() (*Controller, informers.SharedInformerFactory,
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 	snapI := snapshotinformers.NewSharedInformerFactory(f.snapclient, noResyncPeriodFunc())
-	c := NewController(f.kubeclient, f.client, f.snapclient, k8sI.Core().V1().Nodes(), i.Csi().V1alpha1().NodeLocalStorages(), i.Csi().V1alpha1().NodeLocalStorageInitConfigs(), snapI.Snapshot().V1().VolumeSnapshots(), snapI.Snapshot().V1().VolumeSnapshotContents(), snapI.Snapshot().V1().VolumeSnapshotClasses(), "open-local")
+	c := NewController(f.kubeclient, f.client, f.snapclient, k8sI, i, snapI, "open-local")
 
 	c.nlsSynced = alwaysReady
 	c.nlscSynced = alwaysReady
 	c.nodeSynced = alwaysReady
+	c.pvcSynced = alwaysReady
+	c.pvSynced = alwaysReady
 	c.snapshotSynced = alwaysReady
 	c.snapshotContentSynced = alwaysReady
 	c.snapshotClassSynced = alwaysReady
@@ -190,7 +192,7 @@ func (f *fixture) runController(nlscName string, startInformers bool, expectErro
 		k8sI.Start(stopCh)
 	}
 
-	err := c.syncHandler(WorkQueueItem{
+	err := c.syncHandler(SyncNLSItem{
 		nlscName: nlscName,
 		nlsName:  "",
 	})

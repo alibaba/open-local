@@ -25,12 +25,9 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
-
-const MinScore int = 0
-const MaxScore int = 10
 
 func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (int, error) {
 	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityMatch] %s/%s", pod.Namespace, pod.Name))
@@ -38,44 +35,44 @@ func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *core
 	containReadonlySnapshot := true
 	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	containInlineVolume, _ := utils.ContainInlineVolumes(pod)
 	// if pod has no open-local pvc, it should be scheduled to non Open-Local nodes
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {
 		log.Infof("no open-local volume request on pod %s, skipped", pod.Name)
 		if algorithm.IsLocalNode(node.Name, ctx) {
-			log.Infof("node %s is open-local node, so pod %s gets minimal score %d", node.Name, pod.Name, MinScore)
-			return MinScore, nil
+			log.Infof("node %s is open-local node, so pod %s gets minimal score %d", node.Name, pod.Name, utils.MinScore)
+			return utils.MinScore, nil
 		}
-		log.Infof("node %s is not open-local node, so pod %s gets max score %d", node.Name, pod.Name, MaxScore)
-		return MaxScore, nil
+		log.Infof("node %s is not open-local node, so pod %s gets max score %d", node.Name, pod.Name, utils.MaxScore)
+		return utils.MaxScore, nil
 	}
 
 	// if pod has snapshot pv, return MaxScore
 	if utils.ContainsSnapshotPVC(lvmPVCs) {
-		return MaxScore, nil
+		return utils.MaxScore, nil
 	}
 
 	trace.Step("Computing ScoreLVMVolume")
 	lvmScore, _, err := algo.ScoreLVMVolume(pod, lvmPVCs, node, ctx)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	trace.Step("Computing ScoreMountPointVolume")
 	mpScore, _, err := algo.ScoreMountPointVolume(pod, mpPVCs, node, ctx)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	trace.Step("Computing ScoreDeviceVolume")
 	deviceScore, _, err := algo.ScoreDeviceVolume(pod, devicePVCs, node, ctx)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	trace.Step("Computing ScoreDeviceVolume")
 	inlineScore, _, err := algo.ScoreInlineLVMVolume(pod, node, ctx)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 
 	score := lvmScore + mpScore + deviceScore + inlineScore

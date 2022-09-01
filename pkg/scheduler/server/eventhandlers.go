@@ -27,10 +27,10 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgocache "k8s.io/client-go/tools/cache"
+	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -54,9 +54,9 @@ func (e *ExtenderServer) onNodeLocalStorageAdd(obj interface{}) {
 	defer e.Ctx.CtxLock.Unlock()
 	if v := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName); v == nil {
 		// Create a new node cache
-		log.Debugf("[onNodeLocalStorageAdd]Created new node cache for %s", nodeName)
+		log.V(6).Infof("[onNodeLocalStorageAdd]Created new node cache for %s", nodeName)
 		e.Ctx.ClusterNodeCache.AddNodeCache(local)
-		log.Debugf("[onNodeLocalStorageAdd]Add new node cache %s completed.", nodeName)
+		log.V(6).Infof("[onNodeLocalStorageAdd]Add new node cache %s completed.", nodeName)
 	} else {
 		e.Ctx.ClusterNodeCache.UpdateNodeCache(local)
 	}
@@ -73,19 +73,19 @@ func (e *ExtenderServer) onNodeLocalStorageUpdate(oldObj, newObj interface{}) {
 		log.Errorf("cannot convert oldObj to *NodeLocalStorage: %v", oldObj)
 		return
 	}
-	log.Debugf("get update on node local cache %s", local.Name)
+	log.V(6).Infof("get update on node local cache %s", local.Name)
 
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	nodeName := local.Name
 	if v := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName); v == nil {
 		// Create a new node cache
-		log.Debugf("[onNodeLocalStorageUpdate]Created new node cache for %s", nodeName)
+		log.V(6).Infof("[onNodeLocalStorageUpdate]Created new node cache for %s", nodeName)
 		e.Ctx.ClusterNodeCache.AddNodeCache(local)
 	} else {
 		// if status changed, we need to update the storage
 		if utils.HashWithoutState(old) != utils.HashWithoutState(local) {
-			log.Debugf("spec of node local storage %s get changed, try to update", local.Name)
+			log.V(6).Infof("spec of node local storage %s get changed, try to update", local.Name)
 			e.Ctx.ClusterNodeCache.UpdateNodeCache(local)
 		}
 	}
@@ -105,7 +105,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	// check if PV is a Local PV
 	// if it is, check what type it is
 	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
 	if !isOpenLocalPV {
 		return
 	}
@@ -116,7 +116,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	// get node name
-	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
+	node := utils.NodeNameFromPV(pv)
 	if node == "" {
 		log.Infof("pv %s is not a valid open-local local pv, skipped", pv.Name)
 		return
@@ -125,10 +125,10 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	trace.Step("Computing get or set node cache")
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(node)
 	if nc == nil {
-		log.Debugf("no node cache %q found when adding pv %q", node, pv.Name)
+		log.V(6).Infof("no node cache %q found when adding pv %q", node, pv.Name)
 		nc = cache.NewNodeCache(node)
 		e.Ctx.ClusterNodeCache.SetNodeCache(nc)
-		log.Debugf("created new node cache %q when adding pv %q", node, pv.Name)
+		log.V(6).Infof("created new node cache %q when adding pv %q", node, pv.Name)
 	}
 	// handle according to types
 	switch pkg.VolumeType(pvType) {
@@ -154,7 +154,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 			return
 		}
 	default:
-		log.Debugf("not a open-local pv %s, type %s, not add to cache", pv.Name, pvType)
+		log.V(6).Infof("not a open-local pv %s, type %s, not add to cache", pv.Name, pvType)
 		return
 	}
 	pvcKey, err := algorithm.ExtractPVCKey(pv)
@@ -165,9 +165,9 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 	au, err := algorithm.ConvertAUFromPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers)
 	if err == nil {
 		e.Ctx.ClusterNodeCache.BindingInfo[pvcKey] = au
-		log.Debugf("%s was added into binding info", pvcKey)
+		log.V(6).Infof("%s was added into binding info", pvcKey)
 	}
-	log.Debugf("pv %s (type: %s) is added to node cache %s", pv.Name, pvType, nc.NodeName)
+	log.V(6).Infof("pv %s (type: %s) is added to node cache %s", pv.Name, pvType, nc.NodeName)
 	trace.Step("Computing set node cache")
 	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
@@ -191,11 +191,11 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 	log.Infof("[onPVDelete]pv %s is handling", pv.Name)
 
 	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
 	if !isOpenLocalPV {
 		return
 	}
-	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
+	node := utils.NodeNameFromPV(pv)
 	if node == "" {
 		log.Infof("pv %s is not a local pv, skipped", pv.Name)
 		return
@@ -233,11 +233,11 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 		log.Infof("not a open-local pv %s, volumeType %s, skipped", pv.Name, pvType)
 		return
 	}
-	log.Debugf("pv %s (type: %s) is deleted from node cache %s", pv.Name, pvType, nc.NodeName)
+	log.V(6).Infof("pv %s (type: %s) is deleted from node cache %s", pv.Name, pvType, nc.NodeName)
 	pvcName := utils.PVCName(pv)
 	if len(pvcName) > 0 {
 		delete(e.Ctx.ClusterNodeCache.BindingInfo, pvcName)
-		log.Debugf("%s was removed from binding info", pvcName)
+		log.V(6).Infof("%s was removed from binding info", pvcName)
 	}
 	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
@@ -257,7 +257,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		log.Infof("pv %s is in %s status, skipped", pv.Status.Phase, pv.Name)
 		return
 	}
-	node := e.Ctx.ClusterNodeCache.GetNodeNameFromPV(pv)
+	node := utils.NodeNameFromPV(pv)
 	if node == "" {
 		log.Infof("pv %s is not a local pv, skipped", pv.Name)
 		return
@@ -270,7 +270,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		return
 	}
 	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
 	if !isOpenLocalPV {
 		return
 	}
@@ -298,7 +298,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		log.Infof("not a open-local pv %s, volumeType %s, skipped", pv.Name, pvType)
 		return
 	}
-	log.Debugf("pv %s (type: %s) is updated in node cache %s", pv.Name, pvType, nc.NodeName)
+	log.V(6).Infof("pv %s (type: %s) is updated in node cache %s", pv.Name, pvType, nc.NodeName)
 	e.Ctx.ClusterNodeCache.SetNodeCache(nc)
 }
 
@@ -329,7 +329,7 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
 	if nc == nil {
 		// Create a new node cache
-		log.Debugf("[onPodAdd]Created new node cache for %s", nodeName)
+		log.V(6).Infof("[onPodAdd]Created new node cache for %s", nodeName)
 		nc = cache.NewNodeCache(nodeName)
 
 	}
@@ -376,7 +376,7 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
 	if nc == nil {
 		// Create a new node cache
-		log.Debugf("[onPodDelete]Created new node cache for %s", nodeName)
+		log.V(6).Infof("[onPodDelete]Created new node cache for %s", nodeName)
 		nc = cache.NewNodeCache(nodeName)
 	}
 	if err := nc.DeletePodInlineVolumeInfo(pod); err != nil {
@@ -456,7 +456,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 	nc := e.Ctx.ClusterNodeCache.GetNodeCache(nodeName)
 	if nc == nil {
 		// Create a new node cache
-		log.Debugf("[onPodUpdate]Created new node cache for %s", nodeName)
+		log.V(6).Infof("[onPodUpdate]Created new node cache for %s", nodeName)
 		nc = cache.NewNodeCache(nodeName)
 	}
 	if err := nc.UpdatePodInlineVolumeInfo(pod); err != nil {

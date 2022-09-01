@@ -23,9 +23,9 @@ require (
 	github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2
 	github.com/prometheus/client_golang v1.7.1
 	github.com/ricochet2200/go-disk-usage v0.0.0-20150921141558-f0d1b743428f
-	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68
 	google.golang.org/appengine v1.6.6 // indirect
@@ -37,6 +37,7 @@ require (
 	k8s.io/client-go v0.20.5
 	k8s.io/code-generator v0.20.5
 	k8s.io/component-base v0.20.5
+	k8s.io/klog/v2 v2.5.0
 	k8s.io/kube-scheduler v0.20.5
 	k8s.io/kubernetes v1.20.5
 	k8s.io/mount-utils v0.21.0-beta.0

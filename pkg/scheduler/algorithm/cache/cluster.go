@@ -22,9 +22,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 type ClusterInfo struct {
@@ -88,26 +86,18 @@ func (c *ClusterNodeCache) GetNodeCache(nodeName string) *NodeCache {
 
 func (c *ClusterNodeCache) SetNodeCache(nodeCache *NodeCache) *NodeCache {
 	if nodeCache == nil || nodeCache.NodeName == "" {
-		log.Debugf("not set node cache, it's nil or nodeName is nil")
+		log.V(6).Infof("not set node cache, it's nil or nodeName is nil")
 		return nil
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, ok := c.Nodes[nodeCache.NodeName]; ok {
 		c.Nodes[nodeCache.NodeName] = nodeCache
-		log.Debugf("node cache update")
+		log.V(6).Infof("node cache update")
 		return nodeCache
 	}
 	c.Nodes[nodeCache.NodeName] = nodeCache
 	return nodeCache
-}
-
-func (c *ClusterNodeCache) GetNodeNameFromPV(pv *corev1.PersistentVolume) string {
-	b, nodeName := utils.IsLocalPV(pv)
-	if b && nodeName != "" {
-		return nodeName
-	}
-	return ""
 }
 
 // Assume updates the allocated units into cache immediately
@@ -174,7 +164,7 @@ func (c *ClusterNodeCache) assumeLVMAllocatedUnit(unit AllocatedUnit, nodeCache 
 		Capacity:  vg.Capacity,
 		Requested: vg.Requested + unit.Requested,
 	}
-	log.Debugf("assume node cache successfully: node = %s, vg = %s", nodeCache.NodeName, vg.Name)
+	log.V(6).Infof("assume node cache successfully: node = %s, vg = %s", nodeCache.NodeName, vg.Name)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
 }
@@ -194,7 +184,7 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 		MediaType:   nodeCache.Devices[ResourceName(unit.Device)].MediaType,
 		IsAllocated: true,
 	}
-	log.Debugf("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
+	log.V(6).Infof("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
 }

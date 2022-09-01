@@ -28,7 +28,6 @@ import (
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	log "k8s.io/klog/v2"
 	mountutils "k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
 	k8smount "k8s.io/utils/mount"
@@ -247,7 +247,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (
 	*csi.NodeExpandVolumeResponse, error) {
-	log.Debugf("NodeExpandVolume: local node expand volume with: %v", req)
+	log.V(6).Infof("NodeExpandVolume: local node expand volume with: %v", req)
 	volumeID := req.VolumeId
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes
@@ -399,7 +399,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 			// /var/lib/kubelet/pods/2a7bbb9c-c915-4006-84d7-0e3ac9d8d70f/volumes/kubernetes.io~csi/yoda-70597cb6-c08b-4bbb-8d41-c4afcfa91866/mount
 			podUID = strings.Split(targetPath, "/")[5]
 		}
-		log.Debugf("pod(volume id %s) uuid is %s", volumeID, podUID)
+		log.V(6).Infof("pod(volume id %s) uuid is %s", volumeID, podUID)
 		namespace := req.VolumeContext[localtype.PVCNameSpace]
 		// set ResourceVersion to 0
 		// https://arthurchiao.art/blog/k8s-reliability-list-data-zh/
@@ -423,8 +423,8 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		case v1.PodQOSBestEffort:
 			blkioPath = path.Join(blkioPath, "kubepods-besteffort.slice", fmt.Sprintf("kubepods-besteffort-pod%s.slice", strings.Replace(podUID, "-", "_", -1)))
 		}
-		log.Debugf("pod(volume id %s) qosClass: %s", volumeID, qosClass)
-		log.Debugf("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
+		log.V(6).Infof("pod(volume id %s) qosClass: %s", volumeID, qosClass)
+		log.V(6).Infof("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 		// get lv lvpath
 		// todo: not support device kind
 		lvpath, err := ns.createLV(ctx, req)
@@ -435,10 +435,10 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		_ = syscall.Stat(lvpath, &stat)
 		maj := uint64(stat.Rdev / 256)
 		min := uint64(stat.Rdev % 256)
-		log.Debugf("volume %s maj:min: %d:%d", volumeID, maj, min)
-		log.Debugf("volume %s path: %s", volumeID, lvpath)
+		log.V(6).Infof("volume %s maj:min: %d:%d", volumeID, maj, min)
+		log.V(6).Infof("volume %s path: %s", volumeID, lvpath)
 		if iopsExist {
-			log.Debugf("volume %s iops: %s", volumeID, iops)
+			log.V(6).Infof("volume %s iops: %s", volumeID, iops)
 			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {
@@ -451,7 +451,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 			}
 		}
 		if bpsExist {
-			log.Debugf("volume %s bps: %s", volumeID, bps)
+			log.V(6).Infof("volume %s bps: %s", volumeID, bps)
 			cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s", maj, min, bps), fmt.Sprintf("%s/%s", blkioPath, localtype.BPSReadFile))
 			_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
 			if err != nil {

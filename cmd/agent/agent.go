@@ -17,6 +17,7 @@ limitations under the License.
 package agent
 
 import (
+	"flag"
 	"fmt"
 
 	"github.com/alibaba/open-local/pkg/agent/common"
@@ -25,7 +26,6 @@ import (
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	"github.com/alibaba/open-local/pkg/signals"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,6 +34,7 @@ import (
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -53,6 +54,7 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
+	log.InitFlags(flag.CommandLine)
 }
 
 // Start will start agent

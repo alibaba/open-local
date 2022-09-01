@@ -25,8 +25,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 const schedulingPVCPrefix = "/apis/scheduling/:namespace/persistentvolumeclaims/:name"

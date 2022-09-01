@@ -37,7 +37,6 @@ import (
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -45,6 +44,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -605,7 +605,7 @@ func (server *controllerServer) DeleteVolume(ctx context.Context, req *csi.Delet
 
 // CreateSnapshot create lvm snapshot
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	log.Debugf("Starting Create Snapshot %s with response: %v", req.Name, req)
+	log.V(6).Infof("Starting Create Snapshot %s with response: %v", req.Name, req)
 	// Step 1: check request
 	snapshotName := req.GetName()
 	if len(snapshotName) == 0 {
@@ -937,7 +937,7 @@ func getPvSpec(client kubernetes.Interface, volumeID, driverName string) (string
 		vgName = value
 	}
 
-	log.Debugf("Get Lvm Spec for volume %s, with VgName %s, Node %s", volumeID, pv.Spec.CSI.VolumeAttributes["vgName"], nodes[0])
+	log.V(6).Infof("Get Lvm Spec for volume %s, with VgName %s, Node %s", volumeID, pv.Spec.CSI.VolumeAttributes["vgName"], nodes[0])
 	return nodes[0], vgName, pv, nil
 }
 

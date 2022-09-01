@@ -17,11 +17,12 @@ limitations under the License.
 package csi
 
 import (
+	"flag"
 	"github.com/alibaba/open-local/pkg/csi"
 	lvmserver "github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/om"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -41,6 +42,7 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
+	log.InitFlags(flag.CommandLine)
 }
 
 // Start will start agent

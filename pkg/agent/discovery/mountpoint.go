@@ -24,7 +24,7 @@ import (
 	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/ricochet2200/go-disk-usage/du"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 	"k8s.io/utils/mount"
 )
 
@@ -40,7 +40,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *localv1alpha1.NodeLocalStora
 	}
 
 	if len(files) == 0 {
-		log.Debugf("No dir in mount path: %s", d.MountPath)
+		log.V(6).Infof("No dir in mount path: %s", d.MountPath)
 		return nil
 	}
 

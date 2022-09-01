@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"k8s.io/klog/v2"
 	"net/http"
 	"os/exec"
 	"reflect"
@@ -30,7 +31,6 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,9 +38,10 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1informers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	k8svol "k8s.io/kubernetes/pkg/volume"
@@ -94,6 +95,19 @@ func IsLocalPV(pv *corev1.PersistentVolume) (isLocalPV bool, node string) {
 	return isLocalPV, node
 }
 
+func IsPodNeedAllocate(pod *corev1.Pod) bool {
+	if pod == nil {
+		return false
+	}
+	if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return false
+	}
+	if pod.Spec.NodeName != "" {
+		return true
+	}
+	return false
+}
+
 func ContainInlineVolumes(pod *corev1.Pod) (contain bool, node string) {
 	if pod == nil {
 		return false, ""
@@ -127,6 +141,14 @@ func GetInlineVolumeInfoFromParam(attributes map[string]string) (vgName string, 
 // GetVGNameFromCsiPV extracts vgName from open-local csi PV via
 // VolumeAttributes
 func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
+
+	allocateInfo, err := localtype.GetAllocatedInfoFromPVAnnotation(pv)
+	if err != nil {
+		log.Warningf("Parse allocate info from PV %s error: %s", pv.Name, err.Error())
+	} else if allocateInfo != nil && allocateInfo.VGName != "" {
+		return allocateInfo.VGName
+	}
+
 	csi := pv.Spec.CSI
 	if csi == nil {
 		return ""
@@ -134,7 +156,7 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes["vgName"]; ok {
 		return v
 	}
-	log.Debugf("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
+	log.V(6).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
 
 	return ""
 }
@@ -142,6 +164,14 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 // GetDeviceNameFromCsiPV extracts Device Name from open-local csi PV via
 // VolumeAttributes
 func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
+
+	allocateInfo, err := localtype.GetAllocatedInfoFromPVAnnotation(pv)
+	if err != nil {
+		log.Warningf("Parse allocate info from PV %s error: %s", pv.Name, err.Error())
+	} else if allocateInfo != nil && allocateInfo.DeviceName != "" {
+		return allocateInfo.DeviceName
+	}
+
 	csi := pv.Spec.CSI
 	if csi == nil {
 		return ""
@@ -149,7 +179,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
 		return v
 	}
-	log.Debugf("PV %s has no csi volumeAttributes %q", pv.Name, "device")
+	log.V(6).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
 
 	return ""
 }
@@ -164,7 +194,7 @@ func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeMountPoint)]; ok {
 		return v
 	}
-	log.Debugf("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
+	log.V(6).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
 
 	return ""
 }
@@ -176,12 +206,12 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 		if vgNameFromPV == vgName {
 			v := pv.Spec.Capacity[corev1.ResourceStorage]
 			requested += v.Value()
-			log.Debugf("size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
+			log.V(6).Infof("Size of pv(%s) from VG(%s) is %d", pv.Name, vgNameFromPV, requested)
 		} else {
-			log.Debugf("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
+			log.V(6).Infof("pv(%s) is from VG(%s), not VG(%s)", pv.Name, vgNameFromPV, vgName)
 		}
 	}
-	log.Debugf("requested size of VG %s is %d", vgName, requested)
+	log.V(6).Infof("requested Size of VG %s is %d", vgName, requested)
 	return requested
 }
 
@@ -192,7 +222,7 @@ func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 	}
 
 	if StringsContains(localtype.SupportedFS, mp.FsType) == -1 {
-		log.Debugf("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
+		log.V(6).Infof("mount point fstype is %q, valid fstype is %s, skipped", mp.FsType, localtype.SupportedFS)
 		return false
 	}
 
@@ -221,7 +251,7 @@ func HttpResponse(w http.ResponseWriter, code int, msg []byte) {
 
 func HttpJSON(w http.ResponseWriter, code int, result interface{}) {
 	response, err := json.Marshal(result)
-	log.Debugf("json output: %s", response)
+	log.V(6).Infof("json output: %s", response)
 	if err != nil {
 		HttpResponse(w, 500, []byte(err.Error()))
 		return
@@ -317,19 +347,22 @@ func GetPVFromBoundPVC(pvc *corev1.PersistentVolumeClaim) (name string) {
 	return
 }
 
-func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) *storagev1.StorageClass {
+func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (*storagev1.StorageClass, error) {
 	var scName string
-	if pvc.Spec.StorageClassName == nil {
-		log.Infof("pvc %s/%s has no associated storage class", pvc.Namespace, pvc.Name)
-		return nil
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
+		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: scName is nil", scName, pvc.Namespace, pvc.Name)
+		klog.Errorf(err.Error())
+		return nil, err
 	}
 	scName = *pvc.Spec.StorageClassName
 	sc, err := scLister.Get(scName)
+
 	if err != nil {
-		log.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
-		return nil
+		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
+		klog.Errorf(err.Error())
+		return nil, err
 	}
-	return sc
+	return sc, nil
 }
 
 func GetStorageClassFromPV(pv *corev1.PersistentVolume, p storagev1informers.Interface) *storagev1.StorageClass {
@@ -347,34 +380,44 @@ func GetStorageClassFromPV(pv *corev1.PersistentVolume, p storagev1informers.Int
 	return sc
 }
 
-func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) string {
-	sc := GetStorageClassFromPVC(pvc, scLister)
+func GetVGNameFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (string, error) {
+	sc, err := GetStorageClassFromPVC(pvc, scLister)
+	if err != nil {
+		return "", err
+	}
 	if sc == nil {
-		return ""
+		return "", nil
 	}
 	vgName, ok := sc.Parameters["vgName"]
 	if !ok {
-		log.Debugf("storage class %s has no parameter %q set", sc.Name, "vgName")
-		return ""
+		log.V(6).Infof("storage class %s has no parameter %q set", sc.Name, "vgName")
+		return "", nil
 	}
-	return vgName
+	return vgName, nil
 }
 
-func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) localtype.MediaType {
-	sc := GetStorageClassFromPVC(pvc, scLister)
+func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (localtype.MediaType, error) {
+	sc, err := GetStorageClassFromPVC(pvc, scLister)
+	if err != nil {
+		return "", err
+	}
 	if sc == nil {
-		return ""
+		return "", nil
 	}
 	mediaType, ok := sc.Parameters["mediaType"]
 	if !ok {
-		log.Debugf("storage class %s has no parameter %q set", sc.Name, "mediaType")
-		return ""
+		log.V(6).Infof("storage class %s has no parameter %q set", sc.Name, "mediaType")
+		return "", nil
 	}
-	return localtype.MediaType(mediaType)
+	return localtype.MediaType(mediaType), nil
 }
 
 func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
-	sc := GetStorageClassFromPVC(claim, scLister)
+	sc, err := GetStorageClassFromPVC(claim, scLister)
+	if err != nil {
+		return false, ""
+	}
+
 	if sc == nil {
 		return false, ""
 	}
@@ -387,7 +430,7 @@ func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.Sto
 	return true, LocalPVType(sc)
 }
 
-func IsOpenLocalPV(pv *corev1.PersistentVolume, p storagev1informers.Interface, c corev1informers.Interface, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+func IsOpenLocalPV(pv *corev1.PersistentVolume, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
 	var isSnapshot, isSnapshotReadOnly bool = false, false
 
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
@@ -495,6 +538,25 @@ func PVCName(storageObj interface{}) string {
 
 }
 
+func GetPVCKey(pvcNameSpace, pvcName string) string {
+	return fmt.Sprintf("%s/%s", pvcNameSpace, pvcName)
+}
+
+func PVCNameFromPV(pv *corev1.PersistentVolume) (pvcName, pvcNamespace string) {
+	if pv == nil || pv.Spec.ClaimRef == nil {
+		return "", ""
+	}
+	return pv.Spec.ClaimRef.Name, pv.Spec.ClaimRef.Namespace
+}
+
+func NodeNameFromPV(pv *corev1.PersistentVolume) string {
+	b, nodeName := IsLocalPV(pv)
+	if b && nodeName != "" {
+		return nodeName
+	}
+	return ""
+}
+
 func PvcContainsSelectedNode(pvc *corev1.PersistentVolumeClaim) bool {
 	if pvc == nil {
 		return false
@@ -532,6 +594,32 @@ func PodPvcAllowReschedule(pvcs []*corev1.PersistentVolumeClaim, fakeNow *time.T
 		}
 	}
 	return false
+}
+
+func GeneratePVCPatch(oldPVC, newPVC *corev1.PersistentVolumeClaim) ([]byte, error) {
+	oldData, err := json.Marshal(oldPVC)
+	if err != nil {
+		return nil, err
+	}
+
+	newData, err := json.Marshal(newPVC)
+	if err != nil {
+		return nil, err
+	}
+	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.PersistentVolumeClaim{})
+}
+
+func GeneratePVPatch(oldPV, newPV *corev1.PersistentVolume) ([]byte, error) {
+	oldData, err := json.Marshal(oldPV)
+	if err != nil {
+		return nil, err
+	}
+
+	newData, err := json.Marshal(newPV)
+	if err != nil {
+		return nil, err
+	}
+	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.PersistentVolume{})
 }
 
 // IsFormatted checks whether the source device is formatted or not. It
@@ -590,7 +678,7 @@ func Format(source, fsType string) error {
 		mkfsArgs = []string{"-F", source}
 	}
 
-	log.Debugf("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
+	log.V(6).Infof("Format %s with fsType %s, the command is %s %v", source, fsType, mkfsCmd, mkfsArgs)
 	out, err := exec.Command(mkfsCmd, mkfsArgs...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("formatting disk failed: %v cmd: '%s %s' output: %q",

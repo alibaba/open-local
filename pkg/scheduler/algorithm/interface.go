@@ -23,7 +23,7 @@ import (
 
 	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
-	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1beta1"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"

@@ -42,6 +42,7 @@ spec:
         - "--nodename=$(KUBE_NODE_NAME)"
         - "--path.sysfs=/host_sys"
         - "--path.mount=/mnt/{{ .Values.name }}/"
+        - "--lvname={{ .Values.agent.volume_name_prefix }}"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -57,7 +58,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         resources:
           limits:
@@ -67,6 +68,8 @@ spec:
             cpu: 50m
             memory: 64Mi
         volumeMounts:
+        - mountPath: /var/tmp/
+          name: spdk
         - mountPath: /dev
           mountPropagation: "HostToContainer"
           name: host-dev
@@ -78,7 +81,7 @@ spec:
           name: localvolume
           mountPropagation: "Bidirectional"
       - name: driver-registrar
-        image: {{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
         imagePullPolicy: Always
         args:
         - "--v=5"
@@ -110,7 +113,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         args:
         - csi
@@ -133,6 +136,10 @@ spec:
           value: "true"
         - name: ISSUE_MESSAGE_FILE
           value: "true"
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
+        - name: EXTENDER_SVC_IP
+          value: "{{ .Values.globalconfig.YodaSchedulerSvcIP }}"
+{{- end }}
         resources:
           limits:
             cpu: 500m
@@ -140,7 +147,18 @@ spec:
           requests:
             cpu: 50m
             memory: 128Mi
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c",
+                        "/usr/sbin/iscsid || echo failed to start iscsid"]
         volumeMounts:
+        - mountPath: /var/tmp/
+          name: spdk
+        - mountPath: /var/run/kata-containers/vhost-user/block
+          name: vhost
+        - mountPath: /run/kata-containers/shared/direct-volumes
+          name: directvolume
         - name: pods-mount-dir
           mountPath: /var/lib/kubelet
           mountPropagation: "Bidirectional"
@@ -156,6 +174,15 @@ spec:
           mountPropagation: Bidirectional
           name: sys
       volumes:
+      - name: spdk
+        hostPath:
+          path: /var/tmp/
+      - name: vhost
+        hostPath:
+          path: /var/run/kata-containers/vhost-user/block
+      - name: directvolume
+        hostPath:
+          path: /run/kata-containers/shared/direct-volumes
       - name: host-dev
         hostPath:
           path: /dev

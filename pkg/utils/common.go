@@ -21,12 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"k8s.io/klog/v2"
 	"net/http"
 	"os/exec"
 	"reflect"
 	"strings"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
@@ -46,6 +47,8 @@ import (
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	k8svol "k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
+	utilexec "k8s.io/utils/exec"
+	k8smount "k8s.io/utils/mount"
 )
 
 // WordSepNormalizeFunc changes all flags that contain "_" separators
@@ -215,7 +218,7 @@ func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) 
 	return requested
 }
 
-//CheckDiskOptions excludes mp which is readyonly or with unsupported fs type
+// CheckDiskOptions excludes mp which is readyonly or with unsupported fs type
 func CheckMountPointOptions(mp *nodelocalstorage.MountPoint) bool {
 	if mp == nil {
 		return false
@@ -783,4 +786,49 @@ func NeedSkip(args schedulerapi.ExtenderArgs) bool {
 	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
 
 	return true
+}
+
+func FormatBlockDevice(dev, fsType string) error {
+	mounter := &k8smount.SafeFormatAndMount{Interface: k8smount.New(""), Exec: utilexec.New()}
+	existingFormat, err := mounter.GetDiskFormat(dev)
+	if err != nil {
+		log.Errorf("FormatBlockDevice - failed to get disk format of disk %s: %s", dev, err.Error())
+		return err
+	}
+
+	if existingFormat == "" {
+		log.Info("going to mkfs: ", fsType)
+		cmd := fmt.Sprintf("mkfs.%s %s", fsType, dev)
+		if fsType == "xfs" {
+			cmd = cmd + " -f"
+		} else {
+			cmd = cmd + " -F"
+		}
+		if out, err := exec.Command("sh", "-c", cmd).CombinedOutput(); err != nil {
+			log.Errorf("run cmd (%s) failed (%s): %s\n", cmd, string(out), err.Error())
+			return err
+		} else {
+			log.Info("FS create: ", fsType)
+		}
+	} else {
+		if fsType != existingFormat {
+			log.Warningf("disk %s current is %s but try to format as %s", dev, existingFormat, fsType)
+			log.Warning("To avoid data damage, Fs creating is skipped")
+			return errors.New("The block device is already formatted, to avoid data damage FS creating is skipped")
+		} else {
+			log.Info("FS exsits: ", fsType)
+		}
+	}
+
+	return nil
+}
+
+// GetAccessModes returns a slice containing all of the access modes defined
+// in the passed in VolumeCapabilities.
+func GetAccessModes(caps []*csilib.VolumeCapability) *[]string {
+	modes := []string{}
+	for _, c := range caps {
+		modes = append(modes, c.AccessMode.GetMode().String())
+	}
+	return &modes
 }

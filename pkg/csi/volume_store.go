@@ -25,7 +25,7 @@ import (
 type Store interface {
 	AddVolume(volumeID, device string) error
 	DeleteVolume(volumeID string) error
-	GetDevice(volumeID string) string
+	GetDevice(volumeID string) (string, bool)
 }
 
 type volumeStore struct {
@@ -71,11 +71,12 @@ func (store *volumeStore) DeleteVolume(volumeID string) error {
 	return nil
 }
 
-func (store *volumeStore) GetDevice(volumeID string) string {
+func (store *volumeStore) GetDevice(volumeID string) (string, bool) {
 	store.rwLock.RLock()
 	defer store.rwLock.RUnlock()
 
-	return store.volumeDeviceMapper[volumeID]
+	device, ok := store.volumeDeviceMapper[volumeID]
+	return device, ok
 }
 
 // saveVolumeData persists parameter data as json file at the provided location

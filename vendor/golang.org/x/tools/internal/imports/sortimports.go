@@ -9,13 +9,14 @@ package imports
 import (
 	"go/ast"
 	"go/token"
+	"log"
 	"sort"
 	"strconv"
 )
 
 // sortImports sorts runs of consecutive import lines in import blocks in f.
 // It also removes duplicate imports when it is possible to do so without data loss.
-func sortImports(env *ProcessEnv, fset *token.FileSet, f *ast.File) {
+func sortImports(localPrefix string, fset *token.FileSet, f *ast.File) {
 	for i, d := range f.Decls {
 		d, ok := d.(*ast.GenDecl)
 		if !ok || d.Tok != token.IMPORT {
@@ -40,11 +41,11 @@ func sortImports(env *ProcessEnv, fset *token.FileSet, f *ast.File) {
 		for j, s := range d.Specs {
 			if j > i && fset.Position(s.Pos()).Line > 1+fset.Position(d.Specs[j-1].End()).Line {
 				// j begins a new run.  End this one.
-				specs = append(specs, sortSpecs(env, fset, f, d.Specs[i:j])...)
+				specs = append(specs, sortSpecs(localPrefix, fset, f, d.Specs[i:j])...)
 				i = j
 			}
 		}
-		specs = append(specs, sortSpecs(env, fset, f, d.Specs[i:])...)
+		specs = append(specs, sortSpecs(localPrefix, fset, f, d.Specs[i:])...)
 		d.Specs = specs
 
 		// Deduping can leave a blank line before the rparen; clean that up.
@@ -60,7 +61,8 @@ func sortImports(env *ProcessEnv, fset *token.FileSet, f *ast.File) {
 
 // mergeImports merges all the import declarations into the first one.
 // Taken from golang.org/x/tools/ast/astutil.
-func mergeImports(env *ProcessEnv, fset *token.FileSet, f *ast.File) {
+// This does not adjust line numbers properly
+func mergeImports(fset *token.FileSet, f *ast.File) {
 	if len(f.Decls) <= 1 {
 		return
 	}
@@ -142,7 +144,7 @@ type posSpan struct {
 	End   token.Pos
 }
 
-func sortSpecs(env *ProcessEnv, fset *token.FileSet, f *ast.File, specs []ast.Spec) []ast.Spec {
+func sortSpecs(localPrefix string, fset *token.FileSet, f *ast.File, specs []ast.Spec) []ast.Spec {
 	// Can't short-circuit here even if specs are already sorted,
 	// since they might yet need deduplication.
 	// A lone import, however, may be safely ignored.
@@ -191,7 +193,7 @@ func sortSpecs(env *ProcessEnv, fset *token.FileSet, f *ast.File, specs []ast.Sp
 	// Reassign the import paths to have the same position sequence.
 	// Reassign each comment to abut the end of its spec.
 	// Sort the comments by new position.
-	sort.Sort(byImportSpec{env, specs})
+	sort.Sort(byImportSpec{localPrefix, specs})
 
 	// Dedup. Thanks to our sorting, we can just consider
 	// adjacent pairs of imports.
@@ -237,16 +239,25 @@ func sortSpecs(env *ProcessEnv, fset *token.FileSet, f *ast.File, specs []ast.Sp
 		p := s.Pos()
 		line := fset.File(p).Line(p)
 		for previousLine := line - 1; previousLine >= firstSpecLine; {
-			fset.File(p).MergeLine(previousLine)
-			previousLine--
+			// MergeLine can panic. Avoid the panic at the cost of not removing the blank line
+			// golang/go#50329
+			if previousLine > 0 && previousLine < fset.File(p).LineCount() {
+				fset.File(p).MergeLine(previousLine)
+				previousLine--
+			} else {
+				// try to gather some data to diagnose how this could happen
+				req := "Please report what the imports section of your go file looked like."
+				log.Printf("panic avoided: first:%d line:%d previous:%d max:%d. %s",
+					firstSpecLine, line, previousLine, fset.File(p).LineCount(), req)
+			}
 		}
 	}
 	return specs
 }
 
 type byImportSpec struct {
-	env   *ProcessEnv
-	specs []ast.Spec // slice of *ast.ImportSpec
+	localPrefix string
+	specs       []ast.Spec // slice of *ast.ImportSpec
 }
 
 func (x byImportSpec) Len() int      { return len(x.specs) }
@@ -255,8 +266,8 @@ func (x byImportSpec) Less(i, j int) bool {
 	ipath := importPath(x.specs[i])
 	jpath := importPath(x.specs[j])
 
-	igroup := importGroup(x.env, ipath)
-	jgroup := importGroup(x.env, jpath)
+	igroup := importGroup(x.localPrefix, ipath)
+	jgroup := importGroup(x.localPrefix, jpath)
 	if igroup != jgroup {
 		return igroup < jgroup
 	}

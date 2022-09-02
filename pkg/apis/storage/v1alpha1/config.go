@@ -46,6 +46,7 @@ type NodeLocalStorageInitConfigList struct {
 
 // GlobalConfig is configuration for agent to create default NodeLocalStorage
 type GlobalConfig struct {
+	SpdkConfig         SpdkConfig         `json:"spdkConfig,omitempty"`
 	ListConfig         ListConfig         `json:"listConfig,omitempty"`
 	ResourceToBeInited ResourceToBeInited `json:"resourceToBeInited,omitempty"`
 }
@@ -53,6 +54,7 @@ type GlobalConfig struct {
 // NodeConfig is configuration for agent to create NodeLocalStorage of specific node
 type NodeConfig struct {
 	Selector           *metav1.LabelSelector `json:"selector,omitempty"`
+	SpdkConfig         SpdkConfig            `json:"spdkConfig,omitempty"`
 	ListConfig         ListConfig            `json:"listConfig,omitempty"`
 	ResourceToBeInited ResourceToBeInited    `json:"resourceToBeInited,omitempty"`
 }

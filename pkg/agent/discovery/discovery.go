@@ -31,6 +31,7 @@ import (
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
+	"github.com/alibaba/open-local/pkg/utils/spdk"
 	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
@@ -52,6 +53,9 @@ type Discoverer struct {
 	// K8sMounter used to verify mountpoints
 	K8sMounter mount.Interface
 	recorder   record.EventRecorder
+	// 'spdk' indicate if use SPDK storage backend
+	spdk       bool
+	spdkclient *spdk.SpdkClient
 }
 
 type ReservedVGInfo struct {
@@ -74,21 +78,36 @@ func NewDiscoverer(config *common.Configuration, kubeclientset kubernetes.Interf
 		snapclient:     snapclient,
 		K8sMounter:     mount.New("" /* default mount path */),
 		recorder:       recorder,
+		spdk:           false,
 	}
+}
+
+func (d *Discoverer) getNodeLocalStorage() (*localv1alpha1.NodeLocalStorage, error) {
+	nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Infof("node local storage %s not found, waiting for the controller to create the resource", d.Nodename)
+		} else {
+			log.Errorf("get NodeLocalStorages failed: %s", err.Error())
+		}
+	} else {
+		if nls.Spec.SpdkConfig.DeviceType != "" {
+			if d.spdkclient == nil {
+				if d.spdkclient = spdk.NewSpdkClient(nls.Spec.SpdkConfig.RpcSocket); d.spdkclient != nil {
+					d.spdk = true
+				}
+			}
+		}
+	}
+	return nls, err
 }
 
 // Discover update local storage periodically
 func (d *Discoverer) Discover() {
-	if nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{}); err != nil {
-		if k8serr.IsNotFound(err) {
-			log.Infof("node local storage %s not found, waiting for the controller to create the resource", d.Nodename)
-			return
-		} else {
-			log.Errorf("get NodeLocalStorages failed: %s", err.Error())
-			return
-		}
+	if nls, err := d.getNodeLocalStorage(); err != nil {
+		return
 	} else {
-		log.V(6).Infof("update node local storage %s status", d.Nodename)
+		log.V(4).Infof("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
 		reservedVGInfos := make(map[string]ReservedVGInfo)
@@ -126,6 +145,10 @@ func (d *Discoverer) Discover() {
 		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.LastUpdateTime = &lastUpdateTime
 		nlsCopy.Status.FilteredStorageInfo.UpdateStatus.Reason = ""
 
+		if d.spdk {
+			d.createSpdkBdevs(&nlsCopy.Status.FilteredStorageInfo.Devices)
+		}
+
 		// only update status
 		log.Infof("update nls %s", nlsCopy.Name)
 		_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
@@ -136,23 +159,95 @@ func (d *Discoverer) Discover() {
 	}
 }
 
+// Create AIO bdevs
+func (d *Discoverer) createSpdkBdevs(devices *[]string) {
+	var found bool
+
+	bdevs, err := d.spdkclient.GetBdevs()
+	if err != nil {
+		log.Error("createSpdkBdevs - GetBdevs:", err.Error())
+		return
+	}
+
+	for _, dev := range *devices {
+		found = false
+		for _, bdev := range *bdevs {
+			if bdev.GetFilename() == dev {
+				found = true
+				break
+			}
+		}
+		if !found {
+			bdevName := "bdev-aio" + strings.Replace(dev, "/", "_", -1)
+			if _, err := d.spdkclient.CreateBdev(bdevName, dev); err != nil {
+				log.Error("createSpdkBdevs - CreateBdev failed:", err.Error())
+			}
+		}
+	}
+}
+
 // InitResource will create relevant resource
 func (d *Discoverer) InitResource() {
-	nls, err := d.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), d.Nodename, metav1.GetOptions{})
+	nls, err := d.getNodeLocalStorage()
 	if err != nil {
-		log.Errorf("get node local storage %s failed: %s", d.Nodename, err.Error())
+		log.Error("InitResource - getNodeLocalStorage:", err.Error())
 		return
 	}
 	vgs := nls.Spec.ResourceToBeInited.VGs
 	mountpoints := nls.Spec.ResourceToBeInited.MountPoints
-	for _, vg := range vgs {
+	if !d.spdk {
+		for _, vg := range vgs {
+			if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
+				err := d.createVG(vg.Name, vg.Devices)
+				if err != nil {
+					msg := fmt.Sprintf("create vg %s with device %v failed: %s. you can try command \"vgcreate %s %v --force\" manually on this node", vg.Name, vg.Devices, err.Error(), vg.Name, strings.Join(vg.Devices, " "))
+					log.Error(msg)
+					d.recorder.Event(nls, corev1.EventTypeWarning, localtype.EventCreateVGFailed, msg)
+				}
+			}
+		}
+	} else {
+		var found bool
+		bdevs, err := d.spdkclient.GetBdevs()
+		if err != nil {
+			log.Error("InitResource - GetBdevs failed:", err.Error())
+			return
+		}
 
-		if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
-			err := d.createVG(vg.Name, vg.Devices)
-			if err != nil {
-				msg := fmt.Sprintf("create vg %s with device %v failed: %s. you can try command \"vgcreate %s %v --force\" manually on this node", vg.Name, vg.Devices, err.Error(), vg.Name, strings.Join(vg.Devices, " "))
-				log.Error(msg)
-				d.recorder.Event(nls, corev1.EventTypeWarning, localtype.EventCreateVGFailed, msg)
+		lvss, err := d.spdkclient.GetLvStores()
+		if err != nil {
+			log.Error("InitResource - GetLvStores failed:", err.Error())
+			return
+		}
+
+		for _, vg := range vgs {
+			found = false
+			for _, lvs := range *lvss {
+				if vg.Name == lvs.Name {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				for _, bdev := range *bdevs {
+					if bdev.GetFilename() == vg.Devices[0] {
+						found = true
+						break
+					}
+				}
+
+				bdevName := "bdev-aio" + strings.Replace(vg.Devices[0], "/", "_", -1)
+				if !found {
+					if _, err := d.spdkclient.CreateBdev(bdevName, vg.Devices[0]); err != nil {
+						log.Error("InitResource - CreateBdev failed:", err.Error())
+						return
+					}
+				}
+
+				if _, err := d.spdkclient.CreateLvstore(bdevName, vg.Name); err != nil {
+					log.Error("InitResource - CreateLvstore failed:", err.Error())
+				}
 			}
 		}
 	}

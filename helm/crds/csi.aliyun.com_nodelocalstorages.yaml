@@ -156,6 +156,20 @@ spec:
                     maxItems: 50
                     type: array
                 type: object
+              spdkConfig:
+                description: SpdkConfig defines SPDK configuration
+                properties:
+                  deviceType:
+                    description: DeviceType is the type of SPDK block devices
+                    maxLength: 8
+                    minLength: 0
+                    type: string
+                  rpcSocket:
+                    description: RpcSocket is the unix domain socket for SPDK RPC
+                    maxLength: 128
+                    minLength: 0
+                    type: string
+                type: object
             type: object
           status:
             description: NodeLocalStorageStatus defines the observed state of NodeLocalStorage

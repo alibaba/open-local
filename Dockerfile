@@ -5,6 +5,6 @@ COPY . .
 RUN make build && chmod +x bin/open-local
 
 FROM centos:7 AS centos
-RUN yum install -y file xfsprogs e4fsprogs lvm2 util-linux
+RUN yum install -y xfsprogs e4fsprogs util-linux
 COPY --from=builder /go/src/github.com/alibaba/open-local/bin/open-local /bin/open-local
 ENTRYPOINT ["open-local"]

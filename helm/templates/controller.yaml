@@ -42,7 +42,9 @@ spec:
       containers:
       - args:
         - controller
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        - --initconfig={{ .Values.name }}
+        - --feature-gates=UpdateNLS={{ .Values.controller.update_nls }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         name: {{ .Values.name }}-controller
         resources:

@@ -8,8 +8,8 @@ metadata:
     app: {{ .Values.name }}
     component: {{ .Values.name }}-init-job
 spec:
-  completions: 3
-  parallelism: 3
+  completions: {{ or .Values.globalconfig.NumOfMasters 3 }}
+  parallelism: {{ or .Values.globalconfig.NumOfMasters 3 }}
   template:
     metadata:
       labels:
@@ -33,14 +33,14 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
-              - key: app
+              - key: component
                 operator: In
                 values:
                 - {{ .Values.name }}-init-job
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: init
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         command:
         - sh
         - "-c"

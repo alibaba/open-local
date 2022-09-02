@@ -45,7 +45,7 @@ spec:
         - scheduler
         - --port={{ .Values.extender.port }}
         - --scheduler-strategy={{ .Values.extender.strategy }}
-        image: {{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
         name: {{ .Values.name }}-scheduler-extender
         resources:
@@ -69,6 +69,9 @@ metadata:
   name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
 spec:
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
+  clusterIP: {{ .Values.globalconfig.YodaSchedulerSvcIP }}
+{{- end }}
   selector:
     app: {{ .Values.name }}
     component: {{ .Values.name }}-scheduler-extender

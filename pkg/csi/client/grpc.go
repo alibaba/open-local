@@ -27,6 +27,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 	log "k8s.io/klog/v2"
 )
 
@@ -52,7 +53,6 @@ type LVMOptions struct {
 	Striping    bool     `json:"striping,omitempty"`
 }
 
-//
 type workerConnection struct {
 	conn *grpc.ClientConn
 }
@@ -79,7 +79,7 @@ func (c *workerConnection) Close() error {
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	log.V(6).Infof("New Connecting to %s", address)
 	dialOptions := []grpc.DialOption{
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		// grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithUnaryInterceptor(logGRPC),
 	}

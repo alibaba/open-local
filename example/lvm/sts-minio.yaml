@@ -59,6 +59,10 @@ spec:
         env:
         - name: MINIO_PROMETHEUS_AUTH_TYPE
           value: public
+        - name: MINIO_ROOT_USER
+          value: minio
+        - name: MINIO_ROOT_PASSWORD
+          value: miniostorage
         image: minio/minio
         imagePullPolicy: Always
         livenessProbe:

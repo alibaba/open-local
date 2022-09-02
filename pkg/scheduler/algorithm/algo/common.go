@@ -668,6 +668,9 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 }
 
 func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Node, cacheVGsMap map[cache.ResourceName]cache.SharedResource) (fits bool, units []cache.AllocatedUnit, err error) {
+	if len(cacheVGsMap) == 0 {
+		return false, units, fmt.Errorf("no vg on node %s,", node.Name)
+	}
 	requestedSize := utils.GetPVCRequested(pvc)
 
 	// make a copy slice of cacheVGsMap
@@ -717,6 +720,9 @@ func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.No
 }
 
 func Spread(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Node, cacheVGsMap map[cache.ResourceName]cache.SharedResource) (fits bool, units []cache.AllocatedUnit, err error) {
+	if len(cacheVGsMap) == 0 {
+		return false, units, fmt.Errorf("no vg on node %s,", node.Name)
+	}
 	requestedSize := utils.GetPVCRequested(pvc)
 
 	// make a copy slice of cacheVGsMap

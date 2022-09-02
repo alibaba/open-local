@@ -28,15 +28,14 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: csi-provisioner
-          image: {{ .Values.images.provisioner.image }}:{{ .Values.images.provisioner.tag }}
+          image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.provisioner.image }}:{{ .Values.images.provisioner.tag }}
           args:
             - --csi-address=$(ADDRESS)
-            - --volume-name-prefix=local
+            - --volume-name-prefix={{ .Values.agent.volume_name_prefix }}
             - --feature-gates=Topology=True
             - --strict-topology=True
             - --extra-create-metadata=true
             - --timeout=10m
-            - --v=5
           env:
             - name: ADDRESS
               value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock

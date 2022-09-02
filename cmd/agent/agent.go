@@ -17,7 +17,6 @@ limitations under the License.
 package agent
 
 import (
-	"flag"
 	"fmt"
 
 	"github.com/alibaba/open-local/pkg/agent/common"
@@ -54,7 +53,6 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
-	log.InitFlags(flag.CommandLine)
 }
 
 // Start will start agent

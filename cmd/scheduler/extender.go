@@ -17,7 +17,7 @@ limitations under the License.
 package scheduler
 
 import (
-	"flag"
+	"context"
 	"fmt"
 
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -30,7 +30,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	log "k8s.io/klog/v2"
-	"k8s.io/sample-controller/pkg/signals"
 )
 
 var (
@@ -39,7 +38,6 @@ var (
 
 func init() {
 	opt.AddFlags(Cmd.Flags())
-	log.InitFlags(flag.CommandLine)
 }
 
 var Cmd = &cobra.Command{
@@ -55,8 +53,7 @@ var Cmd = &cobra.Command{
 }
 
 func Run(opt *extenderOption) error {
-	// set up signals so we handle the first shutdown signal gracefully
-	stopCh := signals.SetupSignalHandler()
+	cxt := context.TODO()
 
 	weights, err := opt.ParseWeight()
 	if err != nil {
@@ -93,10 +90,10 @@ func Run(opt *extenderOption) error {
 	extenderServer := server.NewExtenderServer(kubeClient, localClient, snapClient, kubeInformerFactory, localStorageInformerFactory, snapshotInformerFactory, opt.Port, weights)
 
 	log.Info("starting open-local scheduler extender")
-	kubeInformerFactory.Start(stopCh)
-	localStorageInformerFactory.Start(stopCh)
-	snapshotInformerFactory.Start(stopCh)
-	extenderServer.Start(stopCh)
+	kubeInformerFactory.Start(cxt.Done())
+	localStorageInformerFactory.Start(cxt.Done())
+	snapshotInformerFactory.Start(cxt.Done())
+	extenderServer.Start(cxt.Done())
 	log.Info("quitting now")
 	return nil
 }

@@ -32,6 +32,7 @@ func NewNodeCache(nodeName string) *NodeCache {
 	return &NodeCache{
 		rwLock: sync.RWMutex{},
 		NodeInfo: NodeInfo{NodeName: nodeName,
+			SupportSPDK:  false,
 			VGs:          make(map[ResourceName]SharedResource),
 			MountPoints:  make(map[ResourceName]ExclusiveResource),
 			Devices:      make(map[ResourceName]ExclusiveResource),
@@ -44,6 +45,10 @@ func NewNodeCache(nodeName string) *NodeCache {
 
 func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *NodeCache {
 	newNodeCache := NewNodeCache(nodeLocal.Name) // create a new node cache
+
+	if nodeLocal.Spec.SpdkConfig.DeviceType != "" {
+		newNodeCache.SupportSPDK = true
+	}
 
 	// VGs
 	vgInfoMap := make(map[string]nodelocalstorage.VolumeGroup, len(nodeLocal.Status.FilteredStorageInfo.VolumeGroups))
@@ -114,6 +119,11 @@ func NewNodeCacheFromStorage(nodeLocal *nodelocalstorage.NodeLocalStorage) *Node
 func (nc *NodeCache) UpdateNodeInfo(nodeLocal *nodelocalstorage.NodeLocalStorage) *NodeCache {
 	nc.rwLock.Lock()
 	defer nc.rwLock.Unlock()
+
+	if nodeLocal.Spec.SpdkConfig.DeviceType != "" {
+		nc.SupportSPDK = true
+	}
+
 	// make a copy first, we may need make a deepcopy
 	cacheNode := nc
 	// VG
@@ -317,20 +327,12 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 	if len(vgName) == 0 {
 		log.V(6).Infof("pv %s is not a valid open-local lvm pv", pv.Name)
 	} else {
-		existing, ok := nc.LocalPVs[pv.Name]
-		if ok {
-			if existing.UID == pv.UID {
-				log.V(6).Infof("pv %s(uid=%s) was already existed", pv.Name, pv.UID)
-				nc.LocalPVs[pv.Name] = *pv
-				return nil
-			}
-		}
 		if vg, ok := nc.VGs[ResourceName(vgName)]; ok {
 			// because it is already in cache, we only recalculate vg requested size and PV object
 			oldRequest := vg.Requested
 			newPVsize := pv.Spec.Capacity[corev1.ResourceStorage]
 			oldPVsize := old.Spec.Capacity[corev1.ResourceStorage]
-			vg.Requested = oldRequest - oldPVsize.Value() + newPVsize.Value()
+			vg.Requested = oldRequest + newPVsize.Value() - oldPVsize.Value()
 			nc.VGs[ResourceName(vgName)] = vg
 			log.V(6).Infof("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)

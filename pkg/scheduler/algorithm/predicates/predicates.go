@@ -45,6 +45,7 @@ var (
 	// Newly added predicates should be placed here
 	DefaultPredicateFuncs = []PredicateFunc{
 		//LuckyPredicate,
+		StorageTypePredicate,
 		CapacityPredicate,
 	}
 )

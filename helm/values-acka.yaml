@@ -1,0 +1,60 @@
+name: yoda
+namespace: kube-system
+driver: yodaplugin.csi.alibabacloud.com
+images:
+  local:
+    image: ecp_builder/open-local
+    tag: v0.5.5
+  registrar:
+    image: ecp_builder/csi-node-driver-registrar
+    tag: v2.3.0
+  provisioner:
+    image: ecp_builder/csi-provisioner
+    tag: v2.2.2
+  resizer:
+    image: ecp_builder/csi-resizer
+    tag: v1.3.0
+  snapshotter:
+    image: ecp_builder/csi-snapshotter
+    tag: v4.2.1
+  snapshot_controller:
+    image: ecp_builder/snapshot-controller
+    tag: v4.2.1
+agent:
+  name: yoda-agent
+  kubelet_dir: /var/lib/kubelet
+  volume_name_prefix: yoda
+extender:
+  name: yoda-scheduler-extender
+  # scheduling strategy: binpack/spread
+  strategy: spread
+  # scheduler extender http port
+  port: 23000
+  # you can also configure your kube-scheduler manually, see docs/user-guide/kube-scheduler-configuration.md to get more details
+  init_job: true
+controller:
+  update_nls: "false"
+storageclass:
+  lvm:
+    name: yoda-lvm-default
+  lvm_xfs:
+    name: yoda-lvm-xfs
+  lvm_io:
+    name: yoda-lvm-io-throttling
+  device_ssd:
+    name: yoda-device-ssd
+  device_hdd:
+    name: yoda-device-hdd
+  mountpoint_ssd:
+    name: yoda-mountpoint-ssd
+  mountpoint_hdd:
+    name: yoda-mountpoint-hdd
+monitor:
+  # install grafana dashboard
+  enabled: false
+  # grafana namespace
+  namespace: monitoring
+globalconfig:
+  YodaSchedulerSvcIP: 10.96.0.4
+  RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
+  NumOfMasters: 3

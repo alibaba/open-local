@@ -17,7 +17,6 @@ limitations under the License.
 package csi
 
 import (
-	"flag"
 	"github.com/alibaba/open-local/pkg/csi"
 	lvmserver "github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/om"
@@ -42,7 +41,6 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
-	log.InitFlags(flag.CommandLine)
 }
 
 // Start will start agent
@@ -55,7 +53,16 @@ func Start(opt *csiOption) error {
 	// GRPC server to provide volume manage
 	go lvmserver.Start(opt.LVMDPort)
 
-	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.GrpcConnectionTimeout)
+	driver := csi.NewDriver(
+		opt.Driver,
+		opt.NodeID,
+		opt.Endpoint,
+		csi.WithSysPath(opt.SysPath),
+		csi.WithCgroupDriver(opt.CgroupDriver),
+		csi.WithGrpcConnectionTimeout(opt.GrpcConnectionTimeout),
+		csi.WithExtenderSchedulerNames(opt.ExtenderSchedulerNames),
+		csi.WithFrameworkSchedulerNames(opt.FrameworkSchedulerNames),
+	)
 	driver.Run()
 
 	return nil

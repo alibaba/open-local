@@ -27,7 +27,52 @@ import (
 )
 
 func (d *Discoverer) discoverVGs(newStatus *localv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
+	if d.spdk {
+		return d.discoverLvstore(newStatus, reservedVGInfo)
+	} else {
+		return d.discoverLvmVGs(newStatus, reservedVGInfo)
+	}
+}
 
+func (d *Discoverer) discoverLvstore(newStatus *localv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
+	lvss, err := d.spdkclient.GetLvStores()
+	if err != nil {
+		return fmt.Errorf("List Lvstore error: %s", err.Error())
+	}
+
+	bdevs, err := d.spdkclient.GetBdevs()
+	if err != nil {
+		return fmt.Errorf("Get bdevs error: %s", err.Error())
+	}
+
+	for _, lvs := range *lvss {
+		var vgCrd localv1alpha1.VolumeGroup
+		vgCrd.Condition = localv1alpha1.StorageReady
+		vgCrd.Name = lvs.Name
+
+		for _, bdev := range *bdevs {
+			if bdev.Name == lvs.BaseBdev {
+				vgCrd.PhysicalVolumes = append(vgCrd.PhysicalVolumes, bdev.GetFilename())
+				break
+			}
+		}
+		vgCrd.Total = lvs.TotalClusters * lvs.ClusterSize
+
+		vgCrd.Available = lvs.FreeClusters * lvs.ClusterSize
+		if vgCrd.Available == 0 {
+			vgCrd.Condition = localv1alpha1.StorageFull
+		}
+
+		vgCrd.Allocatable = vgCrd.Available
+		//vgCrd.LogicalVolumes seems unused, skip it.
+
+		newStatus.NodeStorageInfo.VolumeGroups = append(newStatus.NodeStorageInfo.VolumeGroups, vgCrd)
+	}
+
+	return nil
+}
+
+func (d *Discoverer) discoverLvmVGs(newStatus *localv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {
 	vgnames, err := lvm.ListVolumeGroupNames()
 	if err != nil {
 		return fmt.Errorf("List volume group error: %s", err.Error())

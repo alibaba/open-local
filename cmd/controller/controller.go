@@ -17,7 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"flag"
 	"fmt"
 	"time"
 
@@ -51,7 +50,6 @@ var Cmd = &cobra.Command{
 
 func init() {
 	opt.addFlags(Cmd.Flags())
-	log.InitFlags(flag.CommandLine)
 }
 
 // Start will start controller

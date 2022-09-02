@@ -23,7 +23,8 @@ import (
 
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/spf13/cobra"
-	"k8s.io/klog/v2"
+	"github.com/spf13/pflag"
+	log "k8s.io/klog/v2"
 
 	"github.com/alibaba/open-local/cmd/agent"
 	"github.com/alibaba/open-local/cmd/controller"
@@ -42,7 +43,7 @@ var (
 )
 
 func main() {
-	klog.Infof("Version: %s, Commit: %s", VERSION, COMMITID)
+	log.Infof("Version: %s, Commit: %s", VERSION, COMMITID)
 	if err := MainCmd.Execute(); err != nil {
 		fmt.Printf("open-local start error: %+v\n", err)
 		os.Exit(1)
@@ -61,9 +62,13 @@ func addCommands() {
 }
 
 func init() {
-	flag.Parse()
-	klog.InitFlags(flag.CommandLine)
-	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
-	MainCmd.DisableAutoGenTag = true
 	addCommands()
+	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
+	MainCmd.Flags().AddGoFlagSet(flag.CommandLine)
+	MainCmd.DisableAutoGenTag = true
+
+	pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	_ = flag.CommandLine.Parse([]string{})
 }

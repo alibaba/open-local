@@ -4,7 +4,9 @@ WORKDIR /go/src/github.com/alibaba/open-local
 COPY . .
 RUN make build && chmod +x bin/open-local
 
-FROM centos:7@sha256:864a7acea4a5e8fa7a4d83720fbcbadbe38b183f46f3600e04a3f8c1d961ed87 AS centos
-RUN yum install -y xfsprogs e4fsprogs util-linux
+FROM alpine:3.16.2@sha256:ed73e2bee79b3428995b16fce4221fc715a849152f364929cdccdc83db5f3d5c
+LABEL maintainers="Alibaba Cloud Authors"
+LABEL description="open-local is a local disk management system"
+RUN apk update && apk upgrade && apk add util-linux coreutils xfsprogs e2fsprogs
 COPY --from=builder /go/src/github.com/alibaba/open-local/bin/open-local /bin/open-local
 ENTRYPOINT ["open-local"]

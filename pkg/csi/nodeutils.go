@@ -28,10 +28,12 @@ import (
 
 func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRequest) (string, string, error) {
 	// parse vgname, consider invalid if empty
-	vgName := ""
-	if _, ok := req.VolumeContext[VgNameTag]; ok {
-		vgName = req.VolumeContext[VgNameTag]
+	pvName := req.VolumeContext[pkg.PVName]
+	pv, err := ns.options.kubeclient.CoreV1().PersistentVolumes().Get(context.Background(), pvName, metav1.GetOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("createLV: fail to get pv: %s", err.Error())
 	}
+	vgName := utils.GetVGNameFromCsiPV(pv)
 	if vgName == "" {
 		log.Errorf("createLV: request with empty vgName in volume: %s", req.VolumeId)
 		return "", "", status.Error(codes.Internal, "error with input vgName is empty")
@@ -42,7 +44,6 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 	if _, ok := req.VolumeContext[LvmTypeTag]; ok {
 		lvmType = req.VolumeContext[LvmTypeTag]
 	}
-
 	log.Infof("createLV: vg %s, volume %s, LVM Type %s", vgName, req.GetVolumeId(), lvmType)
 
 	volumeID := req.GetVolumeId()
@@ -337,7 +338,7 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 
 // create lvm volume
 func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vgName, lvmType string) (string, string, error) {
-	pvSize, unit, _, err := getPvInfo(ns.client, volumeID)
+	pvSize, unit, _, err := getPvInfo(ns.options.kubeclient, volumeID)
 	if err != nil {
 		return "", "", err
 	}

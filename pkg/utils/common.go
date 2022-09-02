@@ -144,7 +144,6 @@ func GetInlineVolumeInfoFromParam(attributes map[string]string) (vgName string, 
 // GetVGNameFromCsiPV extracts vgName from open-local csi PV via
 // VolumeAttributes
 func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
-
 	allocateInfo, err := localtype.GetAllocatedInfoFromPVAnnotation(pv)
 	if err != nil {
 		log.Warningf("Parse allocate info from PV %s error: %s", pv.Name, err.Error())

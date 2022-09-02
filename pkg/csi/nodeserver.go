@@ -29,7 +29,6 @@ import (
 
 	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
-	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/utils"
 	spdk "github.com/alibaba/open-local/pkg/utils/spdk"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -42,8 +41,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	log "k8s.io/klog/v2"
 	mountutils "k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
@@ -52,8 +49,6 @@ import (
 
 type nodeServer struct {
 	mounter              utils.Mounter
-	client               kubernetes.Interface
-	localclient          clientset.Interface
 	k8smounter           k8smount.Interface
 	ephemeralVolumeStore Store
 	inFlight             *InFlight
@@ -64,21 +59,6 @@ type nodeServer struct {
 }
 
 func newNodeServer(options *driverOptions) *nodeServer {
-	cfg, err := clientcmd.BuildConfigFromFlags("", "")
-	if err != nil {
-		log.Fatalf("Error building kubeconfig: %s", err.Error())
-	}
-
-	kubeClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
-	}
-
-	localclient, err := clientset.NewForConfig(cfg)
-	if err != nil {
-		log.Fatalf("Error building local clientset: %s", err.Error())
-	}
-
 	mounter := k8smount.New("")
 
 	store, err := NewVolumeStore(DefaultEphemeralVolumeDataFilePath)
@@ -89,8 +69,6 @@ func newNodeServer(options *driverOptions) *nodeServer {
 	ns := &nodeServer{
 		mounter:              utils.NewMounter(),
 		k8smounter:           mounter,
-		client:               kubeClient,
-		localclient:          localclient,
 		ephemeralVolumeStore: store,
 		inFlight:             NewInFlight(),
 		spdkSupported:        false,
@@ -212,7 +190,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 }
 
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	log.Infof("NodeUnpublishVolume: called with args %+v", *req)
+	log.V(4).Infof("NodeUnpublishVolume: called with args %+v", *req)
 	// Step 1: check
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -271,16 +249,18 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 }
 
 func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+	log.V(4).Infof("NodeStageVolume: called with args %+v", *req)
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+	log.V(4).Infof("NodeUnstageVolume: called with args %+v", *req)
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (
 	*csi.NodeExpandVolumeResponse, error) {
-	log.V(4).Infof("NodeExpandVolume: local node expand volume with: %v", req)
+	log.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
 	volumeID := req.VolumeId
 	targetPath := req.VolumePath
 	expectSize := req.CapacityRange.RequiredBytes
@@ -299,10 +279,12 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+	log.V(4).Infof("NodeGetCapabilities: called with args %+v", *req)
 	return &csi.NodeGetCapabilitiesResponse{Capabilities: NodeCaps}, nil
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+	log.V(4).Infof("NodeGetInfo: called with args %+v", *req)
 	return &csi.NodeGetInfoResponse{
 		NodeId: ns.options.nodeID,
 		// make sure that the driver works on this particular node only
@@ -316,6 +298,7 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 
 // NodeGetVolumeStats used for csi metrics
 func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	log.V(4).Infof("NodeGetVolumeStats: called with args %+v", *req)
 	targetPath := req.GetVolumePath()
 	if targetPath == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "NodeGetVolumeStats target local path %v is empty", targetPath)
@@ -569,7 +552,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 
 	// Get volumeType
 	volumeType := string(pkg.VolumeTypeLVM)
-	_, _, pv, err := getPvInfo(ns.client, volumeID)
+	_, _, pv, err := getPvInfo(ns.options.kubeclient, volumeID)
 	if err != nil {
 		return err
 	}
@@ -632,7 +615,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 		namespace := req.VolumeContext[localtype.PVCNameSpace]
 		// set ResourceVersion to 0
 		// https://arthurchiao.art/blog/k8s-reliability-list-data-zh/
-		pods, err := ns.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{ResourceVersion: "0"})
+		pods, err := ns.options.kubeclient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{ResourceVersion: "0"})
 		for _, podItem := range pods.Items {
 			if podItem.UID == types.UID(podUID) {
 				pod = podItem
@@ -689,7 +672,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 }
 func (ns *nodeServer) checkSPDKSupport() {
 	for {
-		nls, err := ns.localclient.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), ns.options.nodeID, metav1.GetOptions{})
+		nls, err := ns.options.localclient.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), ns.options.nodeID, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Infof("node local storage %s not found, waiting for the controller to create the resource", ns.options.nodeID)

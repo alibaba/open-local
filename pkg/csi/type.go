@@ -17,6 +17,9 @@ limitations under the License.
 package csi
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 )
@@ -97,3 +100,69 @@ var (
 		},
 	}
 )
+
+type PvcPodSchedulerMap struct {
+	mux  *sync.RWMutex
+	info map[string]string
+}
+
+func newPvcPodSchedulerMap() *PvcPodSchedulerMap {
+	return &PvcPodSchedulerMap{
+		mux:  &sync.RWMutex{},
+		info: make(map[string]string),
+	}
+}
+
+func (infoMap *PvcPodSchedulerMap) Add(pvcNamespace, pvcName, schedulerName string) {
+	infoMap.mux.Lock()
+	defer infoMap.mux.Unlock()
+
+	infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)] = schedulerName
+}
+
+func (infoMap *PvcPodSchedulerMap) Get(pvcNamespace, pvcName string) string {
+	infoMap.mux.RLock()
+	defer infoMap.mux.RUnlock()
+
+	return infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)]
+}
+
+func (infoMap *PvcPodSchedulerMap) Remove(pvcNamespace, pvcName string) {
+	infoMap.mux.Lock()
+	defer infoMap.mux.Unlock()
+
+	delete(infoMap.info, fmt.Sprintf("%s/%s", pvcNamespace, pvcName))
+}
+
+type SchedulerArch string
+
+var (
+	SchedulerArchExtender  SchedulerArch = "extender"
+	SchedulerArchFramework SchedulerArch = "scheduling-framework"
+	SchedulerArchUnknown   SchedulerArch = "unknown"
+)
+
+type SchedulerArchMap struct {
+	info map[string]SchedulerArch
+}
+
+func newSchedulerArchMap(extenderSchedulerNames []string, frameworkSchedulerNames []string) *SchedulerArchMap {
+	info := make(map[string]SchedulerArch)
+	for _, name := range extenderSchedulerNames {
+		info[name] = SchedulerArchExtender
+	}
+	for _, name := range frameworkSchedulerNames {
+		info[name] = SchedulerArchFramework
+	}
+	return &SchedulerArchMap{
+		info: info,
+	}
+}
+
+func (archMap *SchedulerArchMap) Get(schedulerName string) SchedulerArch {
+	arch, exist := archMap.info[schedulerName]
+	if !exist {
+		return SchedulerArchUnknown
+	}
+	return arch
+}

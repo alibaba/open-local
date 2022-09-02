@@ -24,10 +24,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog/v2"
 )
 
@@ -41,6 +44,10 @@ type driverOptions struct {
 	mode                    string
 	extenderSchedulerNames  []string
 	frameworkSchedulerNames []string
+
+	kubeclient  kubernetes.Interface
+	localclient clientset.Interface
+	snapclient  snapshot.Interface
 }
 
 var defaultDriverOptions = driverOptions{
@@ -163,6 +170,24 @@ func WithExtenderSchedulerNames(extenderSchedulerNames []string) Option {
 func WithFrameworkSchedulerNames(frameworkSchedulerNames []string) Option {
 	return func(o *driverOptions) {
 		o.frameworkSchedulerNames = frameworkSchedulerNames
+	}
+}
+
+func WithKubeClient(kubeclient kubernetes.Interface) Option {
+	return func(o *driverOptions) {
+		o.kubeclient = kubeclient
+	}
+}
+
+func WithLocalClient(localclient clientset.Interface) Option {
+	return func(o *driverOptions) {
+		o.localclient = localclient
+	}
+}
+
+func WithSnapshotClient(snapclient snapshot.Interface) Option {
+	return func(o *driverOptions) {
+		o.snapclient = snapclient
 	}
 }
 

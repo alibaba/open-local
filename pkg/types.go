@@ -67,6 +67,7 @@ const (
 	IOPSReadFile  = "blkio.throttle.read_iops_device"
 	IOPSWriteFile = "blkio.throttle.write_iops_device"
 
+	PVName       = "csi.storage.k8s.io/pv/name"
 	PVCName      = "csi.storage.k8s.io/pvc/name"
 	PVCNameSpace = "csi.storage.k8s.io/pvc/namespace"
 	VGName       = "vgName"
@@ -135,7 +136,7 @@ const (
 	// EVENT
 	EventCreateVGFailed = "CreateVGFailed"
 
-	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
+	NsenterCmd = "nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
 
 	/*
 		record: PVC->VG mapper

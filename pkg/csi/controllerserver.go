@@ -22,7 +22,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alibaba/open-local/pkg"
@@ -43,21 +42,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	log "k8s.io/klog/v2"
 )
 
 type controllerServer struct {
-	// todo: use snap informer
-	kubeclient            kubernetes.Interface
-	snapclient            snapshot.Interface
-	grpcConnectionTimeout time.Duration
-	inFlight              *InFlight
-	pvcPodSchedulerMap    *PvcPodSchedulerMap
-	schedulerArchMap      *SchedulerArchMap
+	inFlight           *InFlight
+	pvcPodSchedulerMap *PvcPodSchedulerMap
+	schedulerArchMap   *SchedulerArchMap
 
 	nodeLister corelisters.NodeLister
 	podLister  corelisters.PodLister
@@ -67,88 +60,9 @@ type controllerServer struct {
 	options *driverOptions
 }
 
-type PvcPodSchedulerMap struct {
-	mux  *sync.RWMutex
-	info map[string]string
-}
-
-func newPvcPodSchedulerMap() *PvcPodSchedulerMap {
-	return &PvcPodSchedulerMap{
-		mux:  &sync.RWMutex{},
-		info: make(map[string]string),
-	}
-}
-
-func (infoMap *PvcPodSchedulerMap) Add(pvcNamespace, pvcName, schedulerName string) {
-	infoMap.mux.Lock()
-	defer infoMap.mux.Unlock()
-
-	infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)] = schedulerName
-}
-
-func (infoMap *PvcPodSchedulerMap) Get(pvcNamespace, pvcName string) string {
-	infoMap.mux.RLock()
-	defer infoMap.mux.RUnlock()
-
-	return infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)]
-}
-
-func (infoMap *PvcPodSchedulerMap) Remove(pvcNamespace, pvcName string) {
-	infoMap.mux.Lock()
-	defer infoMap.mux.Unlock()
-
-	delete(infoMap.info, fmt.Sprintf("%s/%s", pvcNamespace, pvcName))
-}
-
-type SchedulerArch string
-
-var (
-	SchedulerArchExtender  SchedulerArch = "extender"
-	SchedulerArchFramework SchedulerArch = "scheduling-framework"
-	SchedulerArchUnknown   SchedulerArch = "unknown"
-)
-
-type SchedulerArchMap struct {
-	info map[string]SchedulerArch
-}
-
-func newSchedulerArchMap(extenderSchedulerNames []string, frameworkSchedulerNames []string) *SchedulerArchMap {
-	info := make(map[string]SchedulerArch)
-	for _, name := range extenderSchedulerNames {
-		info[name] = SchedulerArchExtender
-	}
-	for _, name := range frameworkSchedulerNames {
-		info[name] = SchedulerArchFramework
-	}
-	return &SchedulerArchMap{
-		info: info,
-	}
-}
-
-func (archMap *SchedulerArchMap) Get(schedulerName string) SchedulerArch {
-	arch, exist := archMap.info[schedulerName]
-	if !exist {
-		return SchedulerArchUnknown
-	}
-	return arch
-}
-
 func newControllerServer(options *driverOptions) *controllerServer {
-	cfg, err := clientcmd.BuildConfigFromFlags("", "")
-	if err != nil {
-		log.Fatalf("Error building kubeconfig: %s", err.Error())
-	}
-	kubeClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
-	}
-	snapClient, err := snapshot.NewForConfig(cfg)
-	if err != nil {
-		log.Fatalf("Error building snapshot clientset: %s", err.Error())
-	}
-
 	pvcPodSchedulerMap := newPvcPodSchedulerMap()
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(options.kubeclient, time.Second*30)
 	kubeInformerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
@@ -187,8 +101,6 @@ func newControllerServer(options *driverOptions) *controllerServer {
 		},
 	)
 	cm := &controllerServer{
-		kubeclient:         kubeClient,
-		snapclient:         snapClient,
 		inFlight:           NewInFlight(),
 		nodeLister:         kubeInformerFactory.Core().V1().Nodes().Lister(),
 		podLister:          kubeInformerFactory.Core().V1().Pods().Lister(),
@@ -252,7 +164,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	defer func() {
 		cs.inFlight.Delete(volumeID)
 	}()
-	selectedVG := ""
 	isSnapshot := false
 	paramMap := map[string]string{}
 	// handle snapshot first
@@ -271,14 +182,14 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			snapshotID := sourceSnapshot.GetSnapshotId()
 			log.Infof("CreateVolume: snapshotID of volume %s is %s", volumeID, snapshotID)
 			// get src volume ID
-			snapContent, err := getVolumeSnapshotContent(cs.snapclient, snapshotID)
+			snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotID)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get snapshot content: %s", err.Error())
 			}
 			srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 			log.Infof("CreateVolume: srcVolumeID of snapshot %s(volumeID %s) is %s", volumeID, snapshotID, srcVolumeID)
 			// check if is readonly snapshot
-			class, err := getVolumeSnapshotClass(cs.snapclient, *snapContent.Spec.VolumeSnapshotClassName)
+			class, err := getVolumeSnapshotClass(cs.options.snapclient, *snapContent.Spec.VolumeSnapshotClassName)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get snapshot class: %s", err.Error())
 			}
@@ -291,7 +202,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
 			}
-			_, selectedVG, err = getInfoFromPV(pv)
+			_, selectedVG, err := getInfoFromPV(pv)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv spec: %s", err.Error())
 			}
@@ -311,7 +222,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			switch volumeType {
 			case string(pkg.VolumeTypeLVM):
 				// extender scheduling
-				paramMap, err = scheduleLVM(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -319,7 +230,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 					}
 					return nil, status.Errorf(code, "CreateVolume: fail to schedule LVM %s: %s", volumeID, err.Error())
 				}
-				selectedVG = paramMap[VgNameTag]
+				selectedVG := paramMap[VgNameTag]
 				log.Infof("CreateVolume: schedule LVM %s with %s, %s", volumeID, nodeSelected, selectedVG)
 
 				if selectedVG == "" {
@@ -357,7 +268,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				}
 			case string(pkg.VolumeTypeMountPoint):
 				var err error
-				paramMap, err = scheduleMountpoint(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -369,7 +280,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			case string(pkg.VolumeTypeDevice):
 				var err error
 				// Node and Storage have been scheduled
-				paramMap, err = scheduleDevice(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -540,7 +451,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 // CreateSnapshot create lvm snapshot
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	log.V(4).Infof("Starting Create Snapshot %s with response: %v", req.Name, req)
+	log.V(4).Infof("CreateSnapshot: called with args %+v", *req)
 	// Step 1: check request
 	snapshotName := req.GetName()
 	if len(snapshotName) == 0 {
@@ -563,7 +474,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	// Step 3: get nodeName and vgName
 	srcPV, err := cs.pvLister.Get(srcVolumeID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get pv: %s", err.Error())
 	}
 	nodeName, vgName, err := getInfoFromPV(srcPV)
 	if err != nil {
@@ -614,7 +525,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 // DeleteSnapshot delete lvm snapshot
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	log.Infof("Starting Delete Snapshot %s with response: %v", req.SnapshotId, req)
+	log.Infof("DeleteSnapshot: called with args %+v", *req)
 	// Step 1: check req
 	// snapshotName is name of snapshot lv
 	snapshotName := req.GetSnapshotId()
@@ -624,7 +535,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	}
 
 	// Step 2: get volumeID from snapshot
-	snapContent, err := getVolumeSnapshotContent(cs.snapclient, snapshotName)
+	snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotName)
 	if err != nil {
 		log.Errorf("DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
@@ -634,7 +545,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	// Step 3: get nodeName and vgName
 	pv, err := cs.pvLister.Get(srcVolumeID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get pv: %s", err.Error())
 	}
 	nodeName, vgName, err := getInfoFromPV(pv)
 	if err != nil {
@@ -810,7 +721,7 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 		log.Errorf("CreateVolume: Get node %s address with error: %s", nodeSelected, err.Error())
 		return nil, err
 	}
-	conn, err := client.NewGrpcConnection(addr, cs.grpcConnectionTimeout)
+	conn, err := client.NewGrpcConnection(addr, time.Duration(cs.options.grpcConnectionTimeout*int(time.Second)))
 	return conn, err
 }
 
@@ -927,7 +838,7 @@ func getInfoFromPV(pv *v1.PersistentVolume) (string, string, error) {
 	return nodes[0], vgName, nil
 }
 
-func scheduleLVM(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	vgName := ""
 	paraList := map[string]string{}
 	if value, ok := parameters[VgNameTag]; ok {
@@ -948,7 +859,7 @@ func scheduleLVM(nodeSelected, pvcName, pvcNameSpace string, parameters map[stri
 	return paraList, nil
 }
 
-func scheduleMountpoint(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	paraList := map[string]string{}
 	volumeInfo, err := adapter.ScheduleVolume(string(pkg.VolumeTypeMountPoint), pvcName, pvcNameSpace, "", nodeSelected)
 	if err != nil {
@@ -962,7 +873,7 @@ func scheduleMountpoint(nodeSelected, pvcName, pvcNameSpace string, parameters m
 	return paraList, nil
 }
 
-func scheduleDevice(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	paraList := map[string]string{}
 	volumeInfo, err := adapter.ScheduleVolume(string(pkg.VolumeTypeDevice), pvcName, pvcNameSpace, "", nodeSelected)
 	if err != nil {

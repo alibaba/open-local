@@ -486,7 +486,7 @@ func (c *Controller) deletePVC(obj interface{}) {
 		klog.Errorf("can't convert obj to pvc %+v", obj)
 		return
 	}
-	nodeName := pvc.Annotations[localtype.AnnoSelectedNode]
+	nodeName := utils.NodeNameFromPVC(pvc)
 	if nodeName == "" {
 		return
 	}

@@ -36,6 +36,7 @@ const (
 type stateData struct {
 	podVolumeInfo       *PodLocalVolumeInfo
 	allocateStateByNode map[string] /*nodeName*/ *cache.NodeAllocateState
+	reservedState       *cache.NodeAllocateState
 	locker              sync.RWMutex
 }
 
@@ -163,7 +164,7 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
 	snapshotInformerFactory := volumesnapshotinformersfactory.NewSharedInformerFactory(snapClient, 0)
 
-	nodeCache := cache.NewNodeStorageAllocatedCache(f.SharedInformerFactory().Core().V1(), localStorageInformerFactory.Csi().V1alpha1())
+	nodeCache := cache.NewNodeStorageAllocatedCache(f.SharedInformerFactory().Core().V1())
 
 	localPlugin := &LocalPlugin{
 		handle:                 f,
@@ -181,11 +182,6 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		localClientSet: localClient,
 		snapClientSet:  snapClient,
 	}
-
-	localStorageInformerFactory.Start(cxt.Done())
-	localStorageInformerFactory.WaitForCacheSync(cxt.Done())
-	snapshotInformerFactory.Start(cxt.Done())
-	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
@@ -211,6 +207,11 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		UpdateFunc: localPlugin.OnPodUpdate,
 		DeleteFunc: localPlugin.OnPodDelete,
 	})
+
+	localStorageInformerFactory.Start(cxt.Done())
+	localStorageInformerFactory.WaitForCacheSync(cxt.Done())
+	snapshotInformerFactory.Start(cxt.Done())
+	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
 	return localPlugin, nil
 }
@@ -307,22 +308,15 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 		return framework.NewStatus(framework.Success)
 	}
 
-	//reset state for node
-	stateData.allocateStateByNode[nodeName] = &cache.NodeAllocateState{}
-
 	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
 
-	defer func() {
-		//update stateData
-		stateData.AddAllocateState(nodeName, preAllocate)
-	}()
-
 	//reset allocated size, and will re-allocate by assume;
 	preAllocate.Units.ResetAllocatedSize()
-	err = plugin.cache.Assume(preAllocate)
+	err = plugin.cache.Reserve(preAllocate)
+	stateData.reservedState = preAllocate
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
@@ -330,7 +324,7 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 }
 
 func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) {
-	reservedAllocate, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
+	reservedAllocate, err := plugin.getReserveState(state, nodeName)
 	if err != nil {
 		klog.Errorf("get AllocateUnitFromState for node %s error : %v", nodeName, err)
 		return
@@ -339,7 +333,7 @@ func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.Cycle
 		return
 	}
 	// if allocated size
-	plugin.cache.Revert(reservedAllocate)
+	plugin.cache.Unreserve(reservedAllocate)
 	return
 }
 
@@ -347,7 +341,7 @@ func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.Cycle
 //TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
 //TODO 2) if Prebind step error, we will not revert patch info of nls, it can update next schedule cycle
 func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
-	reservedAllocate, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
+	reservedAllocate, err := plugin.getReserveState(state, nodeName)
 	if err != nil {
 		return framework.AsStatus(err)
 	}
@@ -429,6 +423,14 @@ func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (
 		return nil, err
 	}
 	return state.podVolumeInfo, nil
+}
+
+func (plugin *LocalPlugin) getReserveState(cs *framework.CycleState, nodeName string) (*cache.NodeAllocateState, error) {
+	state, err := plugin.getState(cs)
+	if err != nil {
+		return nil, err
+	}
+	return state.reservedState, nil
 }
 
 func (plugin *LocalPlugin) getNodeAllocateUnitFromState(cs *framework.CycleState, nodeName string) (*cache.NodeAllocateState, error) {

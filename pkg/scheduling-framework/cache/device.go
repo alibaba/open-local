@@ -97,13 +97,18 @@ func (s DeviceStates) DeepCopy() DeviceStates {
 	return copy
 }
 
-func (s DeviceStates) AllocateDevice(deviceName string) {
+func (s DeviceStates) AllocateDevice(deviceName string, requestSize int64) {
 	state, ok := s[deviceName]
 	if !ok {
 		state = NewDeviceResourcePoolForAllocate(deviceName)
 		s[deviceName] = state
 	}
-	state.Requested = state.Allocatable
+	if state.Allocatable > 0 {
+		state.Requested = state.Allocatable
+	} else {
+		state.Requested = requestSize
+	}
+
 	state.IsAllocated = true
 }
 

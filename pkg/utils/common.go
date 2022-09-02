@@ -557,6 +557,13 @@ func NodeNameFromPV(pv *corev1.PersistentVolume) string {
 	return ""
 }
 
+func NodeNameFromPVC(pvc *corev1.PersistentVolumeClaim) string {
+	if pvc.Annotations == nil {
+		return ""
+	}
+	return pvc.Annotations[localtype.AnnoSelectedNode]
+}
+
 func PvcContainsSelectedNode(pvc *corev1.PersistentVolumeClaim) bool {
 	if pvc == nil {
 		return false

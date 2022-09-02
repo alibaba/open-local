@@ -90,7 +90,7 @@ func (controller *Controller) patchPVByPVEvent(pvName string, pvcNameSpace, pvcN
 		return err
 	}
 
-	nodeName := pvc.Annotations[localtype.AnnoSelectedNode]
+	nodeName := utils.NodeNameFromPVC(pvc)
 	if nodeName == "" {
 		return nil
 	}

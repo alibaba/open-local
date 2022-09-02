@@ -17,15 +17,9 @@ package cache
 
 import (
 	"context"
-	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	"time"
 
-	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
-	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
-
-	corev1 "k8s.io/api/core/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -39,64 +33,16 @@ var (
 	}
 )
 
-func CreateTestCache() (*NodeStorageAllocatedCache, localclientset.Interface, kubeclientset.Interface) {
+func CreateTestCache() (*NodeStorageAllocatedCache, kubeclientset.Interface) {
 	kubeclient := k8sfake.NewSimpleClientset()
-	localclient := localfake.NewSimpleClientset()
 
 	k8sInformerFactory := kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
-	localInformerFactory := localinformers.NewSharedInformerFactory(localclient, noResyncPeriodFunc())
 
 	k8sInformerFactory.Start(context.Background().Done())
-	localInformerFactory.Start(context.Background().Done())
 
 	k8sInformerFactory.WaitForCacheSync(context.Background().Done())
-	localInformerFactory.WaitForCacheSync(context.Background().Done())
 
-	return NewNodeStorageAllocatedCache(k8sInformerFactory.Core().V1(), localInformerFactory.Csi().V1alpha1()), localclient, kubeclient
-}
-
-func CreateTestPVAllocatedDetailsFromPVs(pvsBound []*corev1.PersistentVolume) *PVAllocatedDetails {
-	details := NewPVAllocatedDetails()
-	for _, pv := range pvsBound {
-		isLocalPV, volumeType := utils.IsOpenLocalPV(pv, false)
-		if !isLocalPV {
-			continue
-		}
-		_, nodeName := utils.IsLocalPV(pv)
-		if nodeName == "" {
-			continue
-		}
-
-		switch volumeType {
-		case pkg.VolumeTypeLVM:
-			vgName := utils.GetVGNameFromCsiPV(pv)
-			if vgName == "" {
-				continue
-			}
-			details.AssumeByPV(NewLVMPVAllocatedFromPV(pv, vgName, nodeName))
-		case pkg.VolumeTypeDevice:
-			deviceName := utils.GetDeviceNameFromCsiPV(pv)
-			if deviceName == "" {
-				continue
-			}
-			details.AssumeByPV(NewDeviceTypePVAllocatedFromPV(pv, deviceName, nodeName))
-		}
-	}
-	return details
-}
-
-func AddPVDetails(details *PVAllocatedDetails, pvDetails []PVAllocated) *PVAllocatedDetails {
-	for _, detail := range pvDetails {
-		details.AssumeByPV(detail)
-	}
-	return details
-}
-
-func AddPVCDetails(details *PVAllocatedDetails, pvcDetails []PVAllocated) *PVAllocatedDetails {
-	for _, detail := range pvcDetails {
-		details.AssumeByPVC(detail)
-	}
-	return details
+	return NewNodeStorageAllocatedCache(k8sInformerFactory.Core().V1()), kubeclient
 }
 
 func CreateInlineVolumes(podName, volumeName string, volumeSize int64) *InlineVolumeAllocated {

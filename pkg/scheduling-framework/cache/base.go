@@ -19,6 +19,8 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 type NodeStorageState struct {
@@ -82,12 +84,48 @@ func (b *BasePVAllocated) DeepCopy() *BasePVAllocated {
 
 /*
 	allocated details
-	if pvc pv bound,then add to pvAllocated and remove pvcAllocated
+
+	1)if pvc scheduling and have no pv, then record allocateSize by pvcDetail
+	2)if pvc pv bound,then record allocateSize by pvDetail and reset allocateSize record by pvcDetail
+
 */
 
+type PVCInfo struct {
+	PVCNamespace string
+	PVCName      string
+	VolumeName   string
+	NodeName     string
+	Requested    int64
+}
+
+func (info *PVCInfo) DeepCopy() *PVCInfo {
+	if info == nil {
+		return nil
+	}
+	return &PVCInfo{
+		PVCNamespace: info.PVCNamespace,
+		PVCName:      info.PVCName,
+		VolumeName:   info.VolumeName,
+		NodeName:     info.NodeName,
+		Requested:    info.Requested,
+	}
+}
+
+func NewPVCInfo(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) *PVCInfo {
+	return &PVCInfo{
+		PVCNamespace: pvc.Namespace,
+		PVCName:      pvc.Name,
+		VolumeName:   volumeName,
+		NodeName:     nodeName,
+		Requested:    int64(utils.GetPVCRequested(pvc)),
+	}
+}
+
 type PVAllocatedDetails struct {
+	// scheduler will make pvc allocatedSize > 0 , and if bound will reset by eventHandler
 	pvcAllocated map[string] /*pvc namespace && name*/ PVAllocated
-	pvAllocated  map[string] /*volume name*/ PVAllocated
+	// eventHandler will update pvc allocateSize to pv
+	pvAllocated map[string] /*volume name*/ PVAllocated
 }
 
 func NewPVAllocatedDetails() *PVAllocatedDetails {
@@ -109,21 +147,6 @@ func (l *PVAllocatedDetails) GetByPV(volumeName string) PVAllocated {
 	pvAllocated, ok := l.pvAllocated[volumeName]
 	if ok {
 		return pvAllocated
-	}
-	return nil
-}
-
-func (l *PVAllocatedDetails) Get(query PVAllocated) PVAllocated {
-	baseInfo := query.GetBasePVAllocated()
-	if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
-		allocated := l.GetByPVC(baseInfo.PVCNamespace, baseInfo.PVCName)
-		if allocated != nil {
-			return allocated
-		}
-	}
-
-	if baseInfo.VolumeName != "" {
-		return l.GetByPV(baseInfo.VolumeName)
 	}
 	return nil
 }
@@ -150,13 +173,6 @@ func (l *PVAllocatedDetails) DeleteByPV(remove PVAllocated) {
  */
 func (l *PVAllocatedDetails) AssumeByPVC(newAllocated PVAllocated) {
 	baseInfo := newAllocated.GetBasePVAllocated()
-	if baseInfo.VolumeName != "" {
-		l.pvAllocated[baseInfo.VolumeName] = newAllocated
-		if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
-			delete(l.pvcAllocated, utils.GetPVCKey(baseInfo.PVCNamespace, baseInfo.PVCName))
-		}
-		return
-	}
 	if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
 		l.pvcAllocated[utils.GetPVCKey(baseInfo.PVCNamespace, baseInfo.PVCName)] = newAllocated
 	}
@@ -164,18 +180,24 @@ func (l *PVAllocatedDetails) AssumeByPVC(newAllocated PVAllocated) {
 }
 
 /*
-	assumeByPV will remove pvcAssumeInfo
+	pvEvent must use this, may add pvcNameSpace/pvcName
 */
-func (l *PVAllocatedDetails) AssumeByPV(newAllocated PVAllocated) bool {
+func (l *PVAllocatedDetails) AssumeByPVEvent(newAllocated PVAllocated) bool {
 	baseInfo := newAllocated.GetBasePVAllocated()
 	if baseInfo.VolumeName == "" {
 		return false
 	}
 
 	l.pvAllocated[baseInfo.VolumeName] = newAllocated
-
-	if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
-		delete(l.pvcAllocated, utils.GetPVCKey(baseInfo.PVCNamespace, baseInfo.PVCName))
-	}
 	return true
+}
+
+func (l *PVAllocatedDetails) AssumeAllocateSizeToPVDetail(volumeName string, allocateSize int64) bool {
+	detail := l.pvAllocated[volumeName]
+	if detail != nil {
+		l.pvAllocated[volumeName].GetBasePVAllocated().Allocated = allocateSize
+		return true
+	}
+
+	return false
 }

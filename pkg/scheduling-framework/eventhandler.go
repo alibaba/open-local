@@ -109,30 +109,18 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 	if pvc.Status.Phase != corev1.ClaimBound {
 		return
 	}
-	name := utils.GetPVFromBoundPVC(pvc)
-	if len(name) == 0 {
+	pvName := utils.GetPVFromBoundPVC(pvc)
+	if len(pvName) == 0 {
 		klog.Errorf("failed to get PV for pvc %s/%s", pvc.Namespace, pvc.Name)
 		return
 	}
-	pv, err := plugin.coreV1Informers.PersistentVolumes().Lister().Get(name)
-	if err != nil {
-		klog.Errorf(err.Error())
-		return
-	}
 
-	isOpenLocal, volumeType := utils.IsOpenLocalPV(pv, false)
-	if !isOpenLocal {
-		klog.Errorf("unable to allocate non-open-local PV %s", pv.Name)
-		return
-	}
-
-	nodeName := utils.NodeNameFromPV(pv)
+	nodeName := utils.NodeNameFromPVC(pvc)
 	if nodeName == "" {
-		klog.Errorf("get nodeName fail, unable to allocate PV %s", pv.Name)
 		return
 	}
 
-	plugin.allocatedByPVCEvent(nodeName, pvc, pv, volumeType)
+	plugin.allocatedByPVCEvent(nodeName, pvc, pvName)
 
 	klog.Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }
@@ -188,16 +176,20 @@ func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
 }
 
 // for lvm type pvc expand
-func (plugin *LocalPlugin) allocatedByPVCEvent(nodeName string, pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, volumeType localtype.VolumeType) error {
-
-	switch localtype.VolumeType(volumeType) {
+func (plugin *LocalPlugin) allocatedByPVCEvent(nodeName string, pvc *corev1.PersistentVolumeClaim, volumeName string) error {
+	plugin.cache.AddPVCInfo(pvc, nodeName, volumeName)
+	pvDetail := plugin.cache.GetPVAllocatedDetailCopy(volumeName)
+	if pvDetail == nil {
+		return nil
+	}
+	switch pvDetail.GetVolumeType() {
 	case localtype.VolumeTypeLVM:
-		plugin.cache.AllocateLVM(pvc, pv, nodeName)
+		plugin.cache.AllocateLVMByPVCEvent(pvc, volumeName, nodeName)
 	case localtype.VolumeTypeDevice:
-		klog.V(6).Infof("device type pv %s, type %s, have added by pv", pv.Name, volumeType)
+		klog.V(6).Infof("device type pvc %s, type %s, have added by pv", volumeName, pvDetail.GetVolumeType())
 		return nil
 	default:
-		klog.V(6).Infof("not a open-local pv %s, type %s, not add to cache", pv.Name, volumeType)
+		klog.V(6).Infof("not a open-local pv %s, type %s, not add to cache", volumeName, pvDetail.GetVolumeType())
 		return nil
 	}
 	return nil
@@ -221,7 +213,7 @@ func (plugin *LocalPlugin) updatePV(pv *corev1.PersistentVolume) {
 
 	switch localtype.VolumeType(pvType) {
 	case localtype.VolumeTypeLVM:
-		plugin.cache.AllocateLVM(nil, pv, nodeName)
+		plugin.cache.AllocateLVMByPV(pv, nodeName)
 	case localtype.VolumeTypeDevice:
 		plugin.cache.AllocateDevice(pv, nodeName)
 	default:

@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -144,20 +143,20 @@ type NodeStorageAllocatedCache struct {
 	states                       map[string] /*nodeName*/ *NodeStorageState
 	inlineVolumeAllocatedDetails map[string] /*nodeName*/ NodeInlineVolumeAllocatedDetails
 	pvAllocatedDetails           *PVAllocatedDetails
+	pvcInfosMap                  map[string] /*pvcKey*/ *PVCInfo
 	sync.RWMutex
 
 	coreV1Informers corev1informers.Interface
-	localInformers  nodelocalstorageinformer.Interface
 }
 
-func NewNodeStorageAllocatedCache(coreV1Informers corev1informers.Interface, localInformers nodelocalstorageinformer.Interface) *NodeStorageAllocatedCache {
+func NewNodeStorageAllocatedCache(coreV1Informers corev1informers.Interface) *NodeStorageAllocatedCache {
 
 	return &NodeStorageAllocatedCache{
 		states:                       map[string]*NodeStorageState{},
 		inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+		pvcInfosMap:                  map[string]*PVCInfo{},
 		pvAllocatedDetails:           NewPVAllocatedDetails(),
 		coreV1Informers:              coreV1Informers,
-		localInformers:               localInformers,
 	}
 }
 
@@ -216,7 +215,7 @@ func (c *NodeStorageAllocatedCache) IsLocalNode(nodeName string) bool {
 /*
 	assume by cache, should record unit.allocated , allocated size will use by plugin Unreserve to revert cache
 */
-func (c *NodeStorageAllocatedCache) Assume(preAllocateState *NodeAllocateState) error {
+func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState) error {
 	if preAllocateState == nil || preAllocateState.Units == nil {
 		return nil
 	}
@@ -230,17 +229,17 @@ func (c *NodeStorageAllocatedCache) Assume(preAllocateState *NodeAllocateState) 
 		return err
 	}
 
-	err := c.assumeLVMPVC(preAllocateState.NodeName, preAllocateState.Units, nodeState)
+	err := c.reserveLVMPVC(preAllocateState.NodeName, preAllocateState.Units, nodeState)
 	if err != nil {
 		return err
 	}
 
-	err = c.assumeInlineVolumes(preAllocateState.NodeName, preAllocateState.PodUid, preAllocateState.Units, nodeState)
+	err = c.reserveInlineVolumes(preAllocateState.NodeName, preAllocateState.PodUid, preAllocateState.Units, nodeState)
 	if err != nil {
 		return err
 	}
 
-	err = c.assumeDevicePVC(preAllocateState.NodeName, preAllocateState.Units, nodeState)
+	err = c.reserveDevicePVC(preAllocateState.NodeName, preAllocateState.Units, nodeState)
 	if err != nil {
 		return err
 	}
@@ -248,7 +247,7 @@ func (c *NodeStorageAllocatedCache) Assume(preAllocateState *NodeAllocateState) 
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) Revert(reservedAllocateState *NodeAllocateState) {
+func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocateState) {
 	if reservedAllocateState == nil || reservedAllocateState.Units == nil {
 		return
 	}
@@ -259,12 +258,12 @@ func (c *NodeStorageAllocatedCache) Revert(reservedAllocateState *NodeAllocateSt
 		klog.Errorf("revert fail for node(%s), storage not init by NLS", reservedAllocateState.NodeName)
 		return
 	}
-	c.revertLVMPVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
-	c.revertInlineVolumes(reservedAllocateState.NodeName, reservedAllocateState.PodUid, reservedAllocateState.Units, nodeState)
-	c.revertDevicePVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
+	c.unreserveLVMPVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
+	c.unreserveInlineVolumes(reservedAllocateState.NodeName, reservedAllocateState.PodUid, reservedAllocateState.Units, nodeState)
+	c.unreserveDevicePVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
 }
 
-func (c *NodeStorageAllocatedCache) assumeLVMPVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
+func (c *NodeStorageAllocatedCache) reserveLVMPVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
 	if len(units.LVMPVCAllocateUnits) == 0 {
 		return nil
 	}
@@ -272,7 +271,7 @@ func (c *NodeStorageAllocatedCache) assumeLVMPVC(nodeName string, units *NodeAll
 	for i, unit := range units.LVMPVCAllocateUnits {
 
 		allocateExist := c.pvAllocatedDetails.GetByPVC(unit.PVCNamespace, unit.PVCName)
-		if allocateExist != nil {
+		if allocateExist != nil { //add by eventhandler for pvcBound
 			continue
 		}
 		pvc, err := c.coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(unit.PVCNamespace).Get(unit.PVCName)
@@ -280,23 +279,23 @@ func (c *NodeStorageAllocatedCache) assumeLVMPVC(nodeName string, units *NodeAll
 			return err
 		}
 		if pvc.Status.Phase == corev1.ClaimBound {
-			klog.Infof("skip assumeLVMPVC for bound pvc %s/%s", pvc.Namespace, pvc.Name)
+			klog.Infof("skip reserveLVMPVC for bound pvc %s/%s", pvc.Namespace, pvc.Name)
 			continue
 		}
 
 		if currentStorageState.VGStates == nil {
-			err := fmt.Errorf("assumeLVMPVC fail, no VG found on node %s", nodeName)
+			err := fmt.Errorf("reserveLVMPVC fail, no VG found on node %s", nodeName)
 			return err
 		}
 
 		vgState, ok := currentStorageState.VGStates[unit.VGName]
 		if !ok {
-			err := fmt.Errorf("assumeLVMPVC fail, volumeGroup(%s) have not found for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not found for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
 		if vgState.Allocatable < vgState.Requested+unit.Requested {
-			err := fmt.Errorf("assumeLVMPVC fail, volumeGroup(%s) have not enough space for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not enough space for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
@@ -307,7 +306,7 @@ func (c *NodeStorageAllocatedCache) assumeLVMPVC(nodeName string, units *NodeAll
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) revertLVMPVCs(nodeName string, units *NodeAllocateUnits) {
+func (c *NodeStorageAllocatedCache) unreserveLVMPVCs(nodeName string, units *NodeAllocateUnits) {
 	if len(units.LVMPVCAllocateUnits) == 0 {
 		return
 	}
@@ -318,12 +317,12 @@ func (c *NodeStorageAllocatedCache) revertLVMPVCs(nodeName string, units *NodeAl
 			continue
 		}
 
-		c.revertLVMByPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName)
+		c.revertLVMPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName)
 		units.LVMPVCAllocateUnits[i].Allocated = 0
 	}
 }
 
-func (c *NodeStorageAllocatedCache) assumeInlineVolumes(nodeName string, podUid string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
+func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
 	if len(units.InlineVolumeAllocateUnits) == 0 {
 		return nil
 	}
@@ -337,7 +336,7 @@ func (c *NodeStorageAllocatedCache) assumeInlineVolumes(nodeName string, podUid 
 	//allocated return
 	allocateExist, exist := nodeDetails[podUid]
 	if exist && len(*allocateExist) > 0 {
-		err := fmt.Errorf("assumeInlineVolumes fail, pod(%s) inlineVolume had allocated on node %s", podUid, nodeName)
+		err := fmt.Errorf("reserveInlineVolumes fail, pod(%s) inlineVolume had allocated on node %s", podUid, nodeName)
 		return err
 	}
 
@@ -345,18 +344,18 @@ func (c *NodeStorageAllocatedCache) assumeInlineVolumes(nodeName string, podUid 
 	for i, unit := range units.InlineVolumeAllocateUnits {
 
 		if currentStorageState.VGStates == nil {
-			err := fmt.Errorf("assumeInlineVolumes fail, no VG found on node %s", nodeName)
+			err := fmt.Errorf("reserveInlineVolumes fail, no VG found on node %s", nodeName)
 			return err
 		}
 
 		vgState, ok := currentStorageState.VGStates[unit.VgName]
 		if !ok {
-			err := fmt.Errorf("assumeInlineVolumes fail, volumeGroup(%s) have not found for pod(%s) on node %s", unit.VgName, podUid, nodeName)
+			err := fmt.Errorf("reserveInlineVolumes fail, volumeGroup(%s) have not found for pod(%s) on node %s", unit.VgName, podUid, nodeName)
 			return err
 		}
 
 		if vgState.Allocatable < vgState.Requested+unit.VolumeSize {
-			err := fmt.Errorf("assumeInlineVolumes fail, volumeGroup(%s) have not enough space for pod(%s) on node %s", unit.VgName, podUid, nodeName)
+			err := fmt.Errorf("reserveInlineVolumes fail, volumeGroup(%s) have not enough space for pod(%s) on node %s", unit.VgName, podUid, nodeName)
 			return err
 		}
 
@@ -369,7 +368,7 @@ func (c *NodeStorageAllocatedCache) assumeInlineVolumes(nodeName string, podUid 
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) revertInlineVolumes(nodeName, podUid string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) {
+func (c *NodeStorageAllocatedCache) unreserveInlineVolumes(nodeName, podUid string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) {
 	if len(units.InlineVolumeAllocateUnits) == 0 {
 		return
 	}
@@ -391,13 +390,13 @@ func (c *NodeStorageAllocatedCache) revertInlineVolumes(nodeName, podUid string,
 	for _, detail := range *podInlineDetails {
 
 		if currentStorageState.VGStates == nil {
-			klog.Errorf("revertInlineVolumes fail, no VG found on node %s", nodeName)
+			klog.Errorf("unreserveInlineVolumes fail, no VG found on node %s", nodeName)
 			continue
 		}
 
 		vgState, ok := currentStorageState.VGStates[detail.VgName]
 		if !ok {
-			klog.Errorf("revertInlineVolumes fail, volumeGroup(%s) have not found for pod(%s) on node %s", detail.VgName, podUid, nodeName)
+			klog.Errorf("unreserveInlineVolumes fail, volumeGroup(%s) have not found for pod(%s) on node %s", detail.VgName, podUid, nodeName)
 			continue
 		}
 
@@ -407,7 +406,7 @@ func (c *NodeStorageAllocatedCache) revertInlineVolumes(nodeName, podUid string,
 	nodeDetails[podUid] = &PodInlineVolumeAllocatedDetails{}
 }
 
-func (c *NodeStorageAllocatedCache) assumeDevicePVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
+func (c *NodeStorageAllocatedCache) reserveDevicePVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
 	if len(units.DevicePVCAllocateUnits) == 0 {
 		return nil
 	}
@@ -423,23 +422,23 @@ func (c *NodeStorageAllocatedCache) assumeDevicePVC(nodeName string, units *Node
 			return err
 		}
 		if pvc.Status.Phase == corev1.ClaimBound {
-			klog.Infof("skip assumeDevicePVC for bound pvc %s/%s", pvc.Namespace, pvc.Name)
+			klog.Infof("skip reserveDevicePVC for bound pvc %s/%s", pvc.Namespace, pvc.Name)
 			continue
 		}
 
 		deviceState, ok := currentStorageState.DeviceStates[unit.DeviceName]
 		if !ok {
-			err := fmt.Errorf("assumeDevicePVC fail, device(%s) have not found for pvc(%s) on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveDevicePVC fail, device(%s) have not found for pvc(%s) on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
 		if deviceState.IsAllocated {
-			err := fmt.Errorf("assumeDevicePVC fail, device(%s) have allocated on node %s", unit.DeviceName, nodeName)
+			err := fmt.Errorf("reserveDevicePVC fail, device(%s) have allocated on node %s", unit.DeviceName, nodeName)
 			return err
 		}
 
 		if deviceState.Allocatable < unit.Requested {
-			err := fmt.Errorf("assumeDevicePVC fail, device(%s) allocatable small than pvc(%s) request on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveDevicePVC fail, device(%s) allocatable small than pvc(%s) request on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
@@ -452,7 +451,7 @@ func (c *NodeStorageAllocatedCache) assumeDevicePVC(nodeName string, units *Node
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) revertDevicePVCs(nodeName string, units *NodeAllocateUnits) {
+func (c *NodeStorageAllocatedCache) unreserveDevicePVCs(nodeName string, units *NodeAllocateUnits) {
 	if len(units.DevicePVCAllocateUnits) == 0 {
 		return
 	}
@@ -462,7 +461,7 @@ func (c *NodeStorageAllocatedCache) revertDevicePVCs(nodeName string, units *Nod
 		if unit.Allocated == 0 {
 			continue
 		}
-		c.revertDeviceByPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName)
+		c.revertDeviceByPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName, true)
 		units.DevicePVCAllocateUnits[i].Allocated = 0
 	}
 }
@@ -503,6 +502,7 @@ func (c *NodeStorageAllocatedCache) DeleteByPVC(pvc *corev1.PersistentVolumeClai
 	c.Lock()
 	defer c.Unlock()
 
+	delete(c.pvcInfosMap, utils.PVCName(pvc))
 	c.pvAllocatedDetails.DeleteByPVC(utils.PVCName(pvc))
 }
 
@@ -603,7 +603,69 @@ func (c *NodeStorageAllocatedCache) DeletePod(pod *corev1.Pod) {
 	klog.V(6).Infof("allocate inlineVolumes for pod(%s) success", pod.Name)
 }
 
-func (c *NodeStorageAllocatedCache) AllocateLVM(pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, nodeName string) {
+func (c *NodeStorageAllocatedCache) AddPVCInfo(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.pvcInfosMap[utils.PVCName(pvc)] = NewPVCInfo(pvc, nodeName, volumeName)
+}
+
+//allocateSize must record on pvDetail
+func (c *NodeStorageAllocatedCache) AllocateLVMByPVCEvent(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) {
+	if pvc == nil {
+		return
+	}
+	if pvc.Status.Phase != corev1.ClaimBound {
+		klog.Infof("pv %s is in %s status, skipped", utils.PVCName(pvc), pvc.Status.Phase)
+		return
+	}
+
+	c.Lock()
+	defer c.Unlock()
+
+	oldPVCDetail := c.pvAllocatedDetails.GetByPVC(pvc.Namespace, pvc.Name)
+
+	//if local pvc, update request
+	if oldPVCDetail != nil {
+		oldPVCDetail.GetBasePVAllocated().Requested = utils.GetPVCRequested(pvc)
+	}
+
+	oldPVDetail := c.pvAllocatedDetails.GetByPV(volumeName)
+	if oldPVDetail == nil {
+		//plugin starting and receive pvc event first, so can allocate by pv event later
+		return
+	}
+
+	maxRequest := utils.GetPVCRequested(pvc)
+	//max(pvcRequest,pvRequest)
+	if maxRequest < oldPVDetail.GetBasePVAllocated().Requested {
+		maxRequest = oldPVDetail.GetBasePVAllocated().Requested
+	}
+
+	deltaAllocate := maxRequest - oldPVDetail.GetBasePVAllocated().Allocated
+	if deltaAllocate <= 0 {
+		return
+	}
+
+	lvmAllocated, ok := oldPVDetail.(*LVMPVAllocated)
+	if !ok {
+		klog.Errorf("can not convert pv(%s) AllocateInfo to LVMPVAllocated", volumeName)
+		return
+	}
+
+	vgState, initedByNLS := c.initIfNeedAndGetVGState(nodeName, lvmAllocated.VGName)
+
+	if vgState.Allocatable < vgState.Requested+deltaAllocate {
+		klog.Warningf("volumeGroup(%s) have not enough space or not init by NLS(init:%v) for pvc(%s) on node %s", lvmAllocated.VGName, initedByNLS, utils.PVCName(pvc), nodeName)
+	}
+
+	vgState.Requested = vgState.Requested + deltaAllocate
+	c.pvAllocatedDetails.AssumeAllocateSizeToPVDetail(volumeName, maxRequest)
+
+	return
+}
+
+func (c *NodeStorageAllocatedCache) AllocateLVMByPV(pv *corev1.PersistentVolume, nodeName string) {
 	if pv == nil {
 		return
 	}
@@ -619,51 +681,67 @@ func (c *NodeStorageAllocatedCache) AllocateLVM(pvc *corev1.PersistentVolumeClai
 		return
 	}
 
-	new := NewLVMAllocated(pvc, pv, vgName, nodeName)
+	new := NewLVMPVAllocatedFromPV(pv, vgName, nodeName)
 
 	c.Lock()
 	defer c.Unlock()
 
+	pvcRequest := c.getRequestFromPVCInfos(pv)
+
+	maxRequest := pvcRequest //pv may resize small, so can update pv request
+	//max(pvcRequest,newPVRequest)
+	if maxRequest < new.Requested {
+		maxRequest = new.Requested
+	}
+
 	old := c.pvAllocatedDetails.GetByPV(pv.Name)
-	deltaAllocate := new.Requested
-	if old != nil { // pvc expand
-		deltaAllocate = new.Requested - old.GetBasePVAllocated().Allocated
+	deltaAllocate := maxRequest
+	if old != nil {
+		deltaAllocate = maxRequest - old.GetBasePVAllocated().Allocated
 	}
 
 	vgState, initedByNLS := c.initIfNeedAndGetVGState(nodeName, vgName)
 
 	// 	resolve allocated duplicate for allocate pvc by scheduler
-	c.revertLVMByPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName)
+	c.revertLVMPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName)
 
-	//Not change return
+	//request:pvc 100Gi pv 200Gi,allocate: 200Gi => request:pvc 100Gi pv 100Gi,allocate: 100Gi can success
 	if deltaAllocate == 0 {
 		return
 	}
 
 	if vgState.Allocatable < vgState.Requested+deltaAllocate {
-		klog.Warningf("volumeGroup(%s) have not enough space or not init by NLS(init:%v) for pvc(%s) on node %s", vgName, initedByNLS, utils.PVCName(pvc), nodeName)
+		klog.Warningf("volumeGroup(%s) have not enough space or not init by NLS(init:%v) for pv(%s) on node %s", vgName, initedByNLS, pv.Name, nodeName)
 	}
 
 	vgState.Requested = vgState.Requested + deltaAllocate
-	c.pvAllocatedDetails.AssumeByPV(new)
+	new.Allocated = maxRequest
+	c.pvAllocatedDetails.AssumeByPVEvent(new)
 
 	return
 }
 
-func (c *NodeStorageAllocatedCache) revertLVMByPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
+func (c *NodeStorageAllocatedCache) revertLVMPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
 	if pvcNameSpace == "" && pvcName == "" {
 		return
 	}
+
 	//pv allocated, then remove pvc allocated size
 	allocatedByPVC := c.pvAllocatedDetails.GetByPVC(pvcNameSpace, pvcName)
 	if allocatedByPVC == nil {
 		return
 	}
+
 	lvmAllocated, ok := allocatedByPVC.(*LVMPVAllocated)
 	if !ok {
 		klog.Errorf("can not convert pvc(%s) AllocateInfo to LVMPVAllocated", utils.GetPVCKey(pvcNameSpace, pvcName))
 		return
 	}
+	//add by pvc event, no vgName && allocateSize = 0
+	if lvmAllocated.VGName == "" || allocatedByPVC.GetBasePVAllocated().Allocated <= 0 {
+		return
+	}
+
 	nodeState, ok := c.states[nodeName]
 	if !ok || !nodeState.InitedByNLS {
 		klog.Errorf("revertLVMByPVCIfNeed fail for node(%s), storage not init by NLS", nodeName)
@@ -728,25 +806,23 @@ func (c *NodeStorageAllocatedCache) AllocateDevice(pv *corev1.PersistentVolume, 
 	defer c.Unlock()
 
 	deviceState, initNLS := c.initIfNeedAndGetDeviceState(nodeName, deviceName)
-	if !initNLS {
-		klog.Errorf("device(%s) have not not init by NLS(inti:%v) for pv(%s) on node %s", deviceName, initNLS, pv.Name, nodeName)
-	}
 
-	if initNLS && deviceState != nil {
+	if initNLS {
 		new.Allocated = deviceState.Allocatable
 	} else {
+		klog.Infof("device(%s) have not not init by NLS(inti:%v) for pv(%s) on node %s", deviceName, initNLS, pv.Name, nodeName)
 		new.Allocated = new.Requested
 	}
 
 	//resolve allocated duplicate for staticBounding by volumeBinding plugin may allocate pvc on on other device,so should revert
-	c.revertDeviceByPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName)
+	c.revertDeviceByPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName, false)
 
-	c.allocateDeviceForState(nodeName, deviceName)
-	c.pvAllocatedDetails.AssumeByPV(new)
+	c.allocateDeviceForState(nodeName, deviceName, new.Allocated)
+	c.pvAllocatedDetails.AssumeByPVEvent(new)
 	return
 }
 
-func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
+func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpace, pvcName string, needDeleted bool) {
 	if pvcNameSpace == "" && pvcName == "" {
 		return
 	}
@@ -759,8 +835,17 @@ func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpa
 		klog.Errorf("can not convert pvc(%s) AllocateInfo to DeviceTypePVAllocated", utils.GetPVCKey(pvcNameSpace, pvcName))
 		return
 	}
+
+	if deviceAllocated.Allocated == 0 || deviceAllocated.DeviceName == "" {
+		return
+	}
+
 	c.revertDeviceForState(nodeName, deviceAllocated.DeviceName)
-	c.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
+	deviceAllocated.Allocated = 0
+	deviceAllocated.DeviceName = ""
+	if needDeleted {
+		c.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
+	}
 }
 
 func (c *NodeStorageAllocatedCache) DeleteDevice(pv *corev1.PersistentVolume, nodeName string) {
@@ -807,22 +892,7 @@ func (c *NodeStorageAllocatedCache) initIfNeedAndGetNodeStoragePool(nodeName str
 		c.states[nodeName] = NewNodeStorageState()
 	}
 
-	if !c.states[nodeName].InitedByNLS {
-		err := c.initStateByNLS(nodeName)
-		if err != nil {
-			klog.Errorf("getVGStateIfNotExistInit fail, initState for node %s by NLS error!,error: %s", nodeName, err.Error())
-		}
-	}
 	return c.states[nodeName]
-}
-
-func (c *NodeStorageAllocatedCache) initStateByNLS(nodeName string) error {
-	nls, err := c.localInformers.NodeLocalStorages().Lister().Get(nodeName)
-	if err != nil {
-		return err
-	}
-	c.updateNodeStorage(nls)
-	return nil
 }
 
 func (c *NodeStorageAllocatedCache) updateVGRequestByDelta(nodeName string, vgName string, delta int64) {
@@ -843,14 +913,14 @@ func (c *NodeStorageAllocatedCache) updateVGRequestByDelta(nodeName string, vgNa
 
 }
 
-func (c *NodeStorageAllocatedCache) allocateDeviceForState(nodeName string, deviceName string) {
+func (c *NodeStorageAllocatedCache) allocateDeviceForState(nodeName string, deviceName string, requestSize int64) {
 	nodeStoragePool, ok := c.states[nodeName]
 	if !ok {
 		nodeStoragePool = NewNodeStorageState()
 		c.states[nodeName] = nodeStoragePool
 	}
 
-	nodeStoragePool.DeviceStates.AllocateDevice(deviceName)
+	nodeStoragePool.DeviceStates.AllocateDevice(deviceName, requestSize)
 }
 
 func (c *NodeStorageAllocatedCache) revertDeviceForState(nodeName string, deviceName string) {
@@ -874,4 +944,15 @@ func (c *NodeStorageAllocatedCache) getPodInlineVolumeDetails(nodeName, podUid s
 		return nil
 	}
 	return podDetails
+}
+
+func (c *NodeStorageAllocatedCache) getRequestFromPVCInfos(pv *corev1.PersistentVolume) int64 {
+	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
+	if pvcName != "" {
+		pvcInfo := c.pvcInfosMap[utils.GetPVCKey(pvcNamespace, pvcName)]
+		if pvcInfo != nil {
+			return pvcInfo.Requested
+		}
+	}
+	return int64(0)
 }

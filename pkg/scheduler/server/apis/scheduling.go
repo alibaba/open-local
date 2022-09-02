@@ -106,7 +106,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		log.Errorf("unexpected allocated unit number: %d", len(allocatedUnits))
 		return nil, err
 	}
-	trace.Step("Computing Assume")
+	trace.Step("Computing Reserve")
 
 	err = ctx.ClusterNodeCache.Assume(allocatedUnits)
 

@@ -154,20 +154,20 @@ type LVMPVAllocated struct {
 	VGName string
 }
 
-func NewLVMAllocated(pvc *corev1.PersistentVolumeClaim, pv *corev1.PersistentVolume, vgName string, nodeName string) *LVMPVAllocated {
-	new := NewLVMPVAllocatedFromPV(pv, vgName, nodeName)
-	if pvc == nil {
-		return new
+func NewLVMAllocatedFromPVC(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) *LVMPVAllocated {
+	return &LVMPVAllocated{
+		BasePVAllocated: BasePVAllocated{
+			PVCNamespace: pvc.Namespace,
+			PVCName:      pvc.Name,
+			VolumeName:   volumeName,
+			NodeName:     nodeName,
+			Requested:    int64(utils.GetPVCRequested(pvc)),
+			Allocated:    int64(0),
+		},
 	}
-	//update by pvc size
-	newSize := utils.GetPVCRequested(pvc)
-	if newSize > new.Allocated {
-		new.Requested = newSize
-		new.Allocated = newSize
-	}
-	return new
 }
 
+// pv bounding status: have pvcName, other status may have no pvcName
 func NewLVMPVAllocatedFromPV(pv *corev1.PersistentVolume, vgName, nodeName string) *LVMPVAllocated {
 
 	allocated := &LVMPVAllocated{BasePVAllocated: BasePVAllocated{

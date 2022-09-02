@@ -78,7 +78,7 @@ func CreateTestPlugin() *LocalPlugin {
 	snapshotInformerFactory.Start(cxt.Done())
 	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
-	nodeCache := cache.NewNodeStorageAllocatedCache(k8sInformerFactory.Core().V1(), localInformerFactory.Csi().V1alpha1())
+	nodeCache := cache.NewNodeStorageAllocatedCache(k8sInformerFactory.Core().V1())
 
 	localPlugin := &LocalPlugin{
 		allocateStrategy:       GetAllocateStrategy(nil),
@@ -587,7 +587,7 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 			gotStatus := plugin.Reserve(context.Background(), cycleState, tt.args.pod, tt.args.nodeName)
 			assert.Equal(t, tt.expectReserve.status, gotStatus, "check reserve status")
 
-			for _, detail := range tt.fields.stateData.allocateStateByNode[tt.args.nodeName].Units.LVMPVCAllocateUnits {
+			for _, detail := range tt.fields.stateData.reservedState.Units.LVMPVCAllocateUnits {
 				gotDetail := plugin.cache.GetPVCAllocatedDetailCopy(detail.PVCNamespace, detail.PVCName)
 				assert.Equal(t, detail, gotDetail, detail.PVCNamespace, detail.PVCName)
 			}
@@ -730,7 +730,7 @@ func Test_Reserve_inlineVolume(t *testing.T) {
 			assert.Equal(t, tt.expectReserve.status, gotStatus, "check reserve status")
 
 			gotDetail := plugin.cache.GetPodInlineVolumeDetailsCopy(tt.args.nodeName, string(tt.args.pod.UID))
-			assert.Equal(t, cache.PodInlineVolumeAllocatedDetails(tt.fields.stateData.allocateStateByNode[tt.args.nodeName].Units.InlineVolumeAllocateUnits), *gotDetail, tt.args.nodeName, string(tt.args.pod.UID))
+			assert.Equal(t, cache.PodInlineVolumeAllocatedDetails(tt.fields.stateData.reservedState.Units.InlineVolumeAllocateUnits), *gotDetail, tt.args.nodeName, string(tt.args.pod.UID))
 			gotNodeStorage := plugin.cache.GetNodeStorageStateCopy(tt.args.nodeName)
 			assert.Equal(t, tt.expectReserve.storage, gotNodeStorage, "check storage pool")
 		})
@@ -878,7 +878,7 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 			gotStatus := plugin.Reserve(context.Background(), cycleState, tt.args.pod, tt.args.nodeName)
 			assert.Equal(t, tt.expectReserve.status, gotStatus, "check reserve status")
 
-			for _, detail := range tt.fields.stateData.allocateStateByNode[tt.args.nodeName].Units.DevicePVCAllocateUnits {
+			for _, detail := range tt.fields.stateData.reservedState.Units.DevicePVCAllocateUnits {
 				gotDetail := plugin.cache.GetPVCAllocatedDetailCopy(detail.PVCNamespace, detail.PVCName)
 				assert.Equal(t, detail, gotDetail, detail.PVCNamespace, detail.PVCName)
 			}
@@ -886,4 +886,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 			assert.Equal(t, tt.expectReserve.storage, gotNodeStorage, "check storage pool")
 		})
 	}
+}
+
+func Test_Unreserve(t *testing.T) {
+
 }

@@ -21,15 +21,15 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Test_assumeLVMPVC(t *testing.T) {
+func Test_reserveLVMPVC(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	//pending
@@ -68,7 +68,7 @@ func Test_assumeLVMPVC(t *testing.T) {
 		expect expect
 	}{
 		{
-			name: "test assume success local lvm pvc pending",
+			name: "test reserve success local lvm pvc pending",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -148,7 +148,7 @@ func Test_assumeLVMPVC(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume fail for local lvm pvc bounding",
+			name: "test reserve fail for local lvm pvc bounding",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -217,7 +217,7 @@ func Test_assumeLVMPVC(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume fail for local lvm pvc too large",
+			name: "test reserve fail for local lvm pvc too large",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -288,21 +288,19 @@ func Test_assumeLVMPVC(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
-			err := cache.assumeLVMPVC(tt.args.nodeName, tt.args.units, currentStorageState)
+			err := cache.reserveLVMPVC(tt.args.nodeName, tt.args.units, currentStorageState)
 			assert.Equal(t, tt.expect.resultErr, err != nil, fmt.Sprintf("errInfo:%+v", err))
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
@@ -313,7 +311,7 @@ func Test_assumeLVMPVC(t *testing.T) {
 	}
 }
 
-func Test_revertLVMPVC(t *testing.T) {
+func Test_unreserveLVMPVC(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	pvcsWithVGPending := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCPending})[0]
@@ -577,23 +575,21 @@ func Test_revertLVMPVC(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cache.states = tt.fields.states
 			cache.pvAllocatedDetails = tt.fields.pvAllocatedDetails
 
-			cache.revertLVMPVCs(tt.args.nodeName, tt.args.units)
+			cache.unreserveLVMPVCs(tt.args.nodeName, tt.args.units)
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.inlineVolumeAllocatedDetails, cache.inlineVolumeAllocatedDetails)
@@ -603,7 +599,7 @@ func Test_revertLVMPVC(t *testing.T) {
 	}
 }
 
-func Test_assumeDevicePVC(t *testing.T) {
+func Test_reserveDevicePVC(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	pvcsDevicePending := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVDevice().PVCPending})[0]
@@ -639,7 +635,7 @@ func Test_assumeDevicePVC(t *testing.T) {
 		expect expect
 	}{
 		{
-			name: "test assume success device pvc pending",
+			name: "test reserve success device pvc pending",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -719,7 +715,7 @@ func Test_assumeDevicePVC(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume fail for device pvc bounding",
+			name: "test reserve fail for device pvc bounding",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -788,7 +784,7 @@ func Test_assumeDevicePVC(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume fail for device pvc bounding too large",
+			name: "test reserve fail for device pvc bounding too large",
 			args: args{
 				nodeName: utils.NodeName3,
 				units: &NodeAllocateUnits{
@@ -859,21 +855,19 @@ func Test_assumeDevicePVC(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
-			err := cache.assumeDevicePVC(tt.args.nodeName, tt.args.units, currentStorageState)
+			err := cache.reserveDevicePVC(tt.args.nodeName, tt.args.units, currentStorageState)
 			assert.Equal(t, tt.expect.resultErr, err != nil, fmt.Sprintf("errInfo:%+v", err))
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
@@ -884,7 +878,7 @@ func Test_assumeDevicePVC(t *testing.T) {
 	}
 }
 
-func Test_revertDevicePVC(t *testing.T) {
+func Test_unreserveDevicePVC(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	pvcsPending := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVDevice().PVCPending})[0]
@@ -1148,23 +1142,21 @@ func Test_revertDevicePVC(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cache.states = tt.fields.states
 			cache.pvAllocatedDetails = tt.fields.pvAllocatedDetails
 
-			cache.revertDevicePVCs(tt.args.nodeName, tt.args.units)
+			cache.unreserveDevicePVCs(tt.args.nodeName, tt.args.units)
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.inlineVolumeAllocatedDetails, cache.inlineVolumeAllocatedDetails)
@@ -1174,7 +1166,7 @@ func Test_revertDevicePVC(t *testing.T) {
 	}
 }
 
-func Test_assumeInlineVolumes(t *testing.T) {
+func Test_reserveInlineVolumes(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	podUid := "test_pod"
@@ -1213,7 +1205,7 @@ func Test_assumeInlineVolumes(t *testing.T) {
 		expect expect
 	}{
 		{
-			name: "test assume success  inlineVolume normal",
+			name: "test reserve success  inlineVolume normal",
 			args: args{
 				nodeName: utils.NodeName3,
 				podUid:   podUid,
@@ -1265,7 +1257,7 @@ func Test_assumeInlineVolumes(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume fail for inlineVolume too large",
+			name: "test reserve fail for inlineVolume too large",
 			args: args{
 				nodeName: utils.NodeName3,
 				podUid:   podUid,
@@ -1315,7 +1307,7 @@ func Test_assumeInlineVolumes(t *testing.T) {
 			},
 		},
 		{
-			name: "test inlineVolume normal assume success, pod cache not nil but empty",
+			name: "test inlineVolume normal reserve success, pod cache not nil but empty",
 			args: args{
 				nodeName: utils.NodeName3,
 				podUid:   podUid,
@@ -1373,17 +1365,15 @@ func Test_assumeInlineVolumes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, _ := CreateTestCache()
+			cache, _ := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			cache.inlineVolumeAllocatedDetails = tt.fields.inlineVolumeAllocatedDetails
 			currentStorageState := cache.states[tt.args.nodeName]
-			err := cache.assumeInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
+			err := cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
 			assert.Equal(t, tt.expect.resultErr, err != nil, fmt.Sprintf("errInfo:%+v", err))
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
@@ -1394,7 +1384,7 @@ func Test_assumeInlineVolumes(t *testing.T) {
 	}
 }
 
-func Test_revertInlineVolumes(t *testing.T) {
+func Test_unreserveInlineVolumes(t *testing.T) {
 
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
 	podUid := "test_pod"
@@ -1480,22 +1470,20 @@ func Test_revertInlineVolumes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, _ := CreateTestCache()
+			cache, _ := CreateTestCache()
 
 			for _, nodeLocal := range tt.fields.nodeLocals {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nodeLocal)
 				cache.AddNodeStorage(nodeLocal)
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
-			cache.assumeInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
+			cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
 			nodeDetails := cache.inlineVolumeAllocatedDetails[tt.args.nodeName]
 			assert.NotEmpty(t, nodeDetails)
 			podDetails := nodeDetails[tt.args.podUid]
 			assert.NotEmpty(t, podDetails)
 
-			cache.revertInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
+			cache.unreserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.inlineVolumeAllocatedDetails, cache.inlineVolumeAllocatedDetails)
@@ -1521,14 +1509,32 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 	pvcBounding := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCBounding})[0]
 	pvBounding := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*utils.GetTestPVCPVWithVG().PVBounding})[0]
 
+	//test pvc < pv
+	pvcBoundingExpandSmallInfo := *utils.GetTestPVCPVWithVG().PVCBounding
+	pvcBoundingExpandSmallInfo.Size = "100Gi"
+	pvcBoundingExpandSmall := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{pvcBoundingExpandSmallInfo})[0]
+	pvBoundingExpandSmallInfo := *utils.GetTestPVCPVWithVG().PVBounding
+	pvBoundingExpandSmallInfo.VolumeSize = "100Gi"
+	pvBoundingExpandSmall := utils.CreateTestPersistentVolume([]utils.TestPVInfo{pvBoundingExpandSmallInfo})[0]
+
+	//test pvc expand size too large
+	pvcBoundingExpandLargeInfo := *utils.GetTestPVCPVWithVG().PVCBounding
+	pvcBoundingExpandLargeInfo.Size = "100Gi"
+	pvcBoundingExpandLarge := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{pvcBoundingExpandSmallInfo})[0]
+	pvBoundingLargeInfo := *utils.GetTestPVCPVWithVG().PVBounding
+	pvBoundingLargeInfo.VolumeSize = "500Gi"
+	pvBoundingLarge := utils.CreateTestPersistentVolume([]utils.TestPVInfo{pvBoundingLargeInfo})[0]
+
 	type args struct {
 		nodeName string
-		pvc      *corev1.PersistentVolumeClaim
 		pv       *corev1.PersistentVolume
 	}
 
 	type fields struct {
+		pvc       *corev1.PersistentVolumeClaim
+		pvExist   *corev1.PersistentVolume
 		nodeLocal *nodelocalstorage.NodeLocalStorage
+		pvcDetail *LVMPVAllocated
 	}
 
 	type expect struct {
@@ -1549,10 +1555,10 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 			name: "test assume fail for pv is nil",
 			args: args{
 				nodeName: utils.NodeName3,
-				pvc:      pvcBounding,
 				pv:       nil,
 			},
 			fields: fields{
+				pvc:       pvcBounding,
 				nodeLocal: nodeLocal,
 			},
 			expect: expect{
@@ -1590,11 +1596,11 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 			name: "test assume fail for pending pv",
 			args: args{
 				nodeName: utils.NodeName3,
-				pvc:      nil,
 				pv:       pvPending,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
+				pvc:       nil,
 			},
 			expect: expect{
 				states: map[string]*NodeStorageState{
@@ -1631,11 +1637,11 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 			name: "test assume fail for pv have no vgName",
 			args: args{
 				nodeName: utils.NodeName3,
-				pvc:      nil,
 				pv:       pvBoundingHaveNoVG,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
+				pvc:       nil,
 			},
 			expect: expect{
 				states: map[string]*NodeStorageState{
@@ -1669,10 +1675,62 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 			},
 		},
 		{
-			name: "test assume success",
+			name: "test assume success, have got pvc event before",
 			args: args{
 				nodeName: utils.NodeName3,
-				pvc:      pvcBounding,
+				pv:       pvBounding,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvc:       pvcBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVSize(pvBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBounding),
+								Allocated:    utils.GetPVSize(pvBounding),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test assume success, have not got pvc event before",
+			args: args{
+				nodeName: utils.NodeName3,
 				pv:       pvBounding,
 			},
 			fields: fields{
@@ -1721,26 +1779,249 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "test assume success, have got pvc event before and localStorage not init",
+			args: args{
+				nodeName: utils.NodeName3,
+				pv:       pvBounding,
+			},
+			fields: fields{
+				pvc: pvcBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       0,
+								Allocatable: 0,
+								Requested:   utils.GetPVSize(pvBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{},
+						InitedByNLS:  false,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBounding),
+								Allocated:    utils.GetPVSize(pvBounding),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test expand PV success, pv expand small",
+			args: args{
+				nodeName: utils.NodeName3,
+				pv:       pvBoundingExpandSmall,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvc:       pvcBoundingExpandSmall,
+				pvExist:   pvBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVSize(pvBoundingExpandSmall),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBoundingExpandSmall),
+								Allocated:    utils.GetPVSize(pvBoundingExpandSmall),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test expand PV success, pv expand large",
+			args: args{
+				nodeName: utils.NodeName3,
+				pv:       pvBoundingLarge,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvc:       pvcBoundingExpandLarge,
+				pvExist:   pvBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVSize(pvBoundingLarge),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBoundingLarge),
+								Allocated:    utils.GetPVSize(pvBoundingLarge),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test assume and revert pvcDetail success, have reserve by scheduler before",
+			args: args{
+				nodeName: utils.NodeName3,
+				pv:       pvBounding,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvc:       pvcBounding,
+				pvcDetail: &LVMPVAllocated{
+					VGName: utils.VGSSD,
+					BasePVAllocated: BasePVAllocated{
+						PVCName:      pvcBounding.Name,
+						PVCNamespace: pvcBounding.Namespace,
+						VolumeName:   pvBounding.Name,
+						NodeName:     utils.NodeName3,
+						Requested:    utils.GetPVSize(pvBounding),
+						Allocated:    0,
+					},
+				},
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVSize(pvBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBounding),
+								Allocated:    utils.GetPVSize(pvBounding),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
-			cache.AddNodeStorage(tt.fields.nodeLocal)
-
-			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
+			if tt.fields.nodeLocal != nil {
+				cache.AddNodeStorage(tt.fields.nodeLocal)
 			}
 
-			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
+			if tt.fields.pvc != nil {
+				cache.AddPVCInfo(tt.fields.pvc, tt.args.nodeName, tt.fields.pvc.Spec.VolumeName)
+				cache.AllocateLVMByPVCEvent(tt.fields.pvc, tt.args.nodeName, tt.fields.pvc.Spec.VolumeName)
 			}
 
-			cache.AllocateLVM(nil, tt.args.pv, tt.args.nodeName)
+			if tt.fields.pvcDetail != nil {
+				pendingPVC := tt.fields.pvc.DeepCopy()
+				pendingPVC.Status.Phase = corev1.ClaimPending
+				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvc.Namespace).Create(context.Background(), pendingPVC, metav1.CreateOptions{})
+				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pendingPVC)
+				cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
+				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
+			}
+
+			if tt.fields.pvExist != nil {
+				cache.AllocateLVMByPV(tt.fields.pvExist, tt.args.nodeName)
+			}
+
+			cache.AllocateLVMByPV(tt.args.pv, tt.args.nodeName)
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.inlineVolumeAllocatedDetails, cache.inlineVolumeAllocatedDetails)
 			assert.Equal(t, tt.expect.pvAllocatedDetails, cache.pvAllocatedDetails, "check pv details")
@@ -1751,6 +2032,8 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 
 func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 	nodeLocal := utils.CreateTestNodeLocalStorage3()
+
+	pvcPending := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCPending})[0]
 
 	pvcBounding := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCBounding})[0]
 	pvBounding := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*utils.GetTestPVCPVWithVG().PVBounding})[0]
@@ -1775,13 +2058,14 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 	type args struct {
 		nodeName string
 		pvc      *corev1.PersistentVolumeClaim
-		pv       *corev1.PersistentVolume
+		pvName   string
 	}
 
 	type fields struct {
 		nodeLocal *nodelocalstorage.NodeLocalStorage
 		pvcExist  *corev1.PersistentVolumeClaim
 		pvExist   *corev1.PersistentVolume
+		pvcDetail *LVMPVAllocated
 	}
 
 	type expect struct {
@@ -1799,11 +2083,255 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 		expect expect
 	}{
 		{
-			name: "test expand pvc large: allocate success, and store requested > allocatable",
+			name: "test allocate pvc pending",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcPending,
+				pvName:   "",
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   0,
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated:  map[string]PVAllocated{},
+				},
+			},
+		},
+		{
+			name: "test allocate normal and have allocated by pv before",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBounding,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvExist:   pvBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVCRequested(pvcBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVCRequested(pvcBounding),
+								Allocated:    utils.GetPVCRequested(pvcBounding),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test expand normal and have not allocated by pv before",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBoundingExpand,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   0,
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated:  map[string]PVAllocated{},
+				},
+			},
+		},
+		{
+			name: "test pvc scheduled and expand normal and have not allocated by pv before",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBoundingExpand,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvcDetail: &LVMPVAllocated{
+					VGName: utils.VGSSD,
+					BasePVAllocated: BasePVAllocated{
+						PVCName:      pvcBounding.Name,
+						PVCNamespace: pvcBounding.Namespace,
+						VolumeName:   pvBounding.Name,
+						NodeName:     utils.NodeName3,
+						Requested:    utils.GetPVCRequested(pvcBounding),
+						Allocated:    0,
+					},
+				},
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   utils.GetPVCRequested(pvcBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{
+						utils.GetPVCKey(pvcBounding.Namespace, pvcBounding.Name): &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVCRequested(pvcBoundingExpand),
+								Allocated:    utils.GetPVSize(pvBounding),
+							},
+						},
+					},
+					pvAllocated: map[string]PVAllocated{},
+				},
+			},
+		},
+		{
+			name: "test allocate normal and have allocated by pv before and nodeLocal not init",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBounding,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				pvExist: pvBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(0),
+								Allocatable: int64(0),
+								Requested:   utils.GetPVCRequested(pvcBounding),
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{},
+						InitedByNLS:  false,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &LVMPVAllocated{
+							VGName: utils.VGSSD,
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVCRequested(pvcBounding),
+								Allocated:    utils.GetPVCRequested(pvcBounding),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test expand pvc too large and pv had allocated before: allocate success, and store requested > allocatable",
 			args: args{
 				nodeName: utils.NodeName3,
 				pvc:      pvcBoundingTooLarge,
-				pv:       pvBounding,
+				pvName:   pvBounding.Name,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
@@ -1845,7 +2373,7 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 								PVCNamespace: pvcBounding.Namespace,
 								VolumeName:   pvBounding.Name,
 								NodeName:     utils.NodeName3,
-								Requested:    utils.GetPVCRequested(pvcBoundingTooLarge),
+								Requested:    utils.GetPVCRequested(pvcBounding),
 								Allocated:    utils.GetPVCRequested(pvcBoundingTooLarge),
 							},
 						},
@@ -1854,11 +2382,53 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "test expand pvc small then pv: allocate by pv",
+			name: "test expand pvc too large and pv had not allocated before: allocate success, and store requested > allocatable",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBoundingTooLarge,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvcExist:  pvcBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   0,
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated:  map[string]PVAllocated{},
+				},
+			},
+		},
+		{
+			name: "test expand pvc small then pv and pv have allocated before: allocate by pv",
 			args: args{
 				nodeName: utils.NodeName3,
 				pvc:      pvcBoundingExpandSmall,
-				pv:       pvBounding,
+				pvName:   pvBounding.Name,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
@@ -1909,16 +2479,15 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "test expand (pvcExsist > pv, and pvcExpand change small)",
+			name: "test expand pvc small then pv and pv have not allocated before: allocate by pv",
 			args: args{
 				nodeName: utils.NodeName3,
-				pvc:      pvcBoundingExpand,
-				pv:       pvBounding,
+				pvc:      pvcBoundingExpandSmall,
+				pvName:   pvBounding.Name,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
-				pvcExist:  pvcBoundingTooLarge,
-				pvExist:   pvBounding,
+				pvcExist:  pvcBounding,
 			},
 			expect: expect{
 				states: map[string]*NodeStorageState{
@@ -1928,7 +2497,7 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 								Name:        utils.VGSSD,
 								Total:       int64(300 * utils.LocalGi),
 								Allocatable: int64(300 * utils.LocalGi),
-								Requested:   utils.GetPVCRequested(pvcBoundingExpand),
+								Requested:   0,
 							},
 						},
 						DeviceStates: map[string]*DeviceResourcePool{
@@ -1947,28 +2516,16 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
 				pvAllocatedDetails: &PVAllocatedDetails{
 					pvcAllocated: map[string]PVAllocated{},
-					pvAllocated: map[string]PVAllocated{
-						pvBounding.Name: &LVMPVAllocated{
-							VGName: utils.VGSSD,
-							BasePVAllocated: BasePVAllocated{
-								PVCName:      pvcBounding.Name,
-								PVCNamespace: pvcBounding.Namespace,
-								VolumeName:   pvBounding.Name,
-								NodeName:     utils.NodeName3,
-								Requested:    utils.GetPVCRequested(pvcBoundingExpand),
-								Allocated:    utils.GetPVCRequested(pvcBoundingExpand),
-							},
-						},
-					},
+					pvAllocated:  map[string]PVAllocated{},
 				},
 			},
 		},
 		{
-			name: "test expand normal",
+			name: "test expand normal and have allocated by pv before",
 			args: args{
 				nodeName: utils.NodeName3,
 				pvc:      pvcBoundingExpand,
-				pv:       pvBounding,
+				pvName:   pvBounding.Name,
 			},
 			fields: fields{
 				nodeLocal: nodeLocal,
@@ -2010,7 +2567,7 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 								PVCNamespace: pvcBounding.Namespace,
 								VolumeName:   pvBounding.Name,
 								NodeName:     utils.NodeName3,
-								Requested:    utils.GetPVCRequested(pvcBoundingExpand),
+								Requested:    utils.GetPVCRequested(pvcBounding),
 								Allocated:    utils.GetPVCRequested(pvcBoundingExpand),
 							},
 						},
@@ -2018,30 +2575,75 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "test expand normal and have not allocated by pv before",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBoundingExpand,
+				pvName:   pvBounding.Name,
+			},
+			fields: fields{
+				nodeLocal: nodeLocal,
+				pvcExist:  pvcBounding,
+			},
+			expect: expect{
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{
+							utils.VGSSD: {
+								Name:        utils.VGSSD,
+								Total:       int64(300 * utils.LocalGi),
+								Allocatable: int64(300 * utils.LocalGi),
+								Requested:   0,
+							},
+						},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(150 * utils.LocalGi),
+								Allocatable: int64(150 * utils.LocalGi),
+								Requested:   0,
+								MediaType:   localtype.MediaTypeHDD,
+								IsAllocated: false,
+							},
+						},
+						InitedByNLS: true,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated:  map[string]PVAllocated{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
-			cache.AddNodeStorage(tt.fields.nodeLocal)
-
-			if tt.fields.pvcExist != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcExist.Namespace).Create(context.Background(), tt.fields.pvcExist, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.fields.pvcExist)
+			if tt.fields.nodeLocal != nil {
+				cache.AddNodeStorage(tt.fields.nodeLocal)
 			}
 
 			if tt.fields.pvExist != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvExist, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvExist)
+				cache.AllocateLVMByPV(tt.fields.pvExist, tt.args.nodeName)
 			}
-			cache.AllocateLVM(tt.fields.pvcExist, tt.fields.pvExist, tt.args.nodeName)
+			if tt.fields.pvcExist != nil {
+				cache.AddPVCInfo(tt.fields.pvcExist, tt.args.nodeName, tt.fields.pvcExist.Spec.VolumeName)
+				cache.AllocateLVMByPVCEvent(tt.fields.pvcExist, tt.args.nodeName, tt.fields.pvcExist.Spec.VolumeName)
+			}
 
-			kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcExist.Namespace).Update(context.Background(), tt.args.pvc, v1.UpdateOptions{})
-			cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.args.pvc)
+			if tt.fields.pvcDetail != nil {
+				kubeClientSet.CoreV1().PersistentVolumeClaims(pvcPending.Namespace).Create(context.Background(), pvcPending, metav1.CreateOptions{})
+				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvcPending)
+				cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
+				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
+			}
 
-			cache.AllocateLVM(tt.args.pvc, tt.args.pv, tt.args.nodeName)
+			cache.AddPVCInfo(tt.args.pvc, tt.args.nodeName, tt.args.pvName)
+			cache.AllocateLVMByPVCEvent(tt.args.pvc, tt.args.nodeName, tt.args.pvName)
+
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.inlineVolumeAllocatedDetails, cache.inlineVolumeAllocatedDetails)
 			assert.Equal(t, tt.expect.pvAllocatedDetails, cache.pvAllocatedDetails, "check pv details")
@@ -2125,24 +2727,22 @@ func Test_DeleteLVM(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
 			}
 
 			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
 			}
 
 			//prepare data
-			cache.AllocateLVM(nil, tt.args.pv, tt.args.nodeName)
+			cache.AllocateLVMByPV(tt.args.pv, tt.args.nodeName)
 
 			//check
 			cache.DeleteLVM(tt.args.pv, tt.args.nodeName)
@@ -2453,24 +3053,58 @@ func Test_AllocateDevice(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "test assume success and nodeLocal not init",
+			args: args{
+				nodeName: utils.NodeName3,
+				pvc:      pvcBounding,
+				pv:       pvBounding,
+			},
+			fields: fields{},
+			expect: expect{
+				allocatedSize: int64(150 * utils.LocalGi),
+				states: map[string]*NodeStorageState{
+					nodeLocal.Name: {
+						VGStates: map[string]*VGStoragePool{},
+						DeviceStates: map[string]*DeviceResourcePool{
+							"/dev/sdc": {
+								Name:        "/dev/sdc",
+								Total:       int64(0),
+								Allocatable: int64(0),
+								Requested:   utils.GetPVSize(pvBounding),
+								IsAllocated: true,
+							},
+						},
+						InitedByNLS: false,
+					},
+				},
+				inlineVolumeAllocatedDetails: map[string]NodeInlineVolumeAllocatedDetails{},
+				pvAllocatedDetails: &PVAllocatedDetails{
+					pvcAllocated: map[string]PVAllocated{},
+					pvAllocated: map[string]PVAllocated{
+						pvBounding.Name: &DeviceTypePVAllocated{
+							DeviceName: "/dev/sdc",
+							BasePVAllocated: BasePVAllocated{
+								PVCName:      pvcBounding.Name,
+								PVCNamespace: pvcBounding.Namespace,
+								VolumeName:   pvBounding.Name,
+								NodeName:     utils.NodeName3,
+								Requested:    utils.GetPVSize(pvBounding),
+								Allocated:    utils.GetPVSize(pvBounding),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, _ := CreateTestCache()
 
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
-			cache.AddNodeStorage(tt.fields.nodeLocal)
-
-			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
-			}
-
-			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, v1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
+			if tt.fields.nodeLocal != nil {
+				cache.AddNodeStorage(tt.fields.nodeLocal)
 			}
 
 			if len(tt.fields.states) > 0 {
@@ -2562,19 +3196,17 @@ func Test_DeleteDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, kubeClientSet := CreateTestCache()
+			cache, kubeClientSet := CreateTestCache()
 
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
 			}
 
 			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, v1.CreateOptions{})
+				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
 			}
 
@@ -2761,7 +3393,7 @@ func Test_AddNodeStorage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, _, _ := CreateTestCache()
+			cache, _ := CreateTestCache()
 			cache.states = tt.fields.states
 			cache.AddNodeStorage(tt.args.nodeLocal)
 			assert.Equal(t, tt.expect.states, cache.states)
@@ -2776,8 +3408,6 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 	}
 
 	type fields struct {
-		nodeLocal *nodelocalstorage.NodeLocalStorage
-
 		/*cache*/
 		states map[string]*NodeStorageState
 	}
@@ -2791,8 +3421,6 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 		expectInited bool
 	}
 
-	nodeLocal := utils.CreateTestNodeLocalStorage3()
-
 	tests := []struct {
 		name   string
 		args   args
@@ -2800,9 +3428,9 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 		expect expect
 	}{
 		{
-			name: "test_node_local_storage_have_not_found",
+			name: "test_node_local_storage_not_init",
 			args: args{
-				nodeName: nodeLocal.Name,
+				nodeName: utils.NodeName3,
 				vgName:   utils.VGSSD,
 			},
 			fields: fields{
@@ -2810,7 +3438,7 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 			},
 			expect: expect{
 				states: map[string]*NodeStorageState{
-					nodeLocal.Name: {
+					utils.NodeName3: {
 						VGStates: map[string]*VGStoragePool{
 							utils.VGSSD: {
 								Name: utils.VGSSD,
@@ -2827,58 +3455,14 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 			},
 		},
 		{
-			name: "test_node_local_storage_have_but_not_init",
-			args: args{
-				nodeName: nodeLocal.Name,
-				vgName:   utils.VGSSD,
-			},
-			fields: fields{
-				nodeLocal: nodeLocal,
-				states:    map[string]*NodeStorageState{},
-			},
-			expect: expect{
-				states: map[string]*NodeStorageState{
-					nodeLocal.Name: {
-						VGStates: map[string]*VGStoragePool{
-							utils.VGSSD: {
-								Name:        utils.VGSSD,
-								Total:       int64(300 * utils.LocalGi),
-								Allocatable: int64(300 * utils.LocalGi),
-								Requested:   0,
-							},
-						},
-						DeviceStates: map[string]*DeviceResourcePool{
-							"/dev/sdc": {
-								Name:        "/dev/sdc",
-								Total:       int64(150 * utils.LocalGi),
-								Allocatable: int64(150 * utils.LocalGi),
-								Requested:   0,
-								MediaType:   localtype.MediaTypeHDD,
-								IsAllocated: false,
-							},
-						},
-						InitedByNLS: true,
-					},
-				},
-				vgState: &VGStoragePool{
-					Name:        utils.VGSSD,
-					Total:       int64(300 * utils.LocalGi),
-					Allocatable: int64(300 * utils.LocalGi),
-					Requested:   0,
-				},
-				expectInited: true,
-			},
-		},
-		{
 			name: "test_node_state_inited",
 			args: args{
-				nodeName: nodeLocal.Name,
+				nodeName: utils.NodeName3,
 				vgName:   utils.VGSSD,
 			},
 			fields: fields{
-				nodeLocal: nodeLocal,
 				states: map[string]*NodeStorageState{
-					nodeLocal.Name: {
+					utils.NodeName3: {
 						VGStates: map[string]*VGStoragePool{
 							utils.VGSSD: {
 								Name:        utils.VGSSD,
@@ -2903,7 +3487,7 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 			},
 			expect: expect{
 				states: map[string]*NodeStorageState{
-					nodeLocal.Name: {
+					utils.NodeName3: {
 						VGStates: map[string]*VGStoragePool{
 							utils.VGSSD: {
 								Name:        utils.VGSSD,
@@ -2938,12 +3522,8 @@ func Test_initIfNeedAndGetVGState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, localClientSet, _ := CreateTestCache()
+			cache, _ := CreateTestCache()
 			cache.states = tt.fields.states
-			if tt.fields.nodeLocal != nil {
-				localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-				cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
-			}
 			gotVg, gotInited := cache.initIfNeedAndGetVGState(tt.args.nodeName, tt.args.vgName)
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
 			assert.Equal(t, tt.expect.vgState, gotVg, "check vg return")
@@ -3237,19 +3817,16 @@ func Test_UpdatePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			cache, localClientSet, kubeClientSet := CreateTestCache()
-
-			localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, v1.CreateOptions{})
-			cache.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
+			cache, kubeClientSet := CreateTestCache()
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.fields.podBefore != nil {
-				kubeClientSet.CoreV1().Pods(tt.fields.podBefore.Namespace).Create(context.Background(), tt.fields.podBefore, v1.CreateOptions{})
+				kubeClientSet.CoreV1().Pods(tt.fields.podBefore.Namespace).Create(context.Background(), tt.fields.podBefore, metav1.CreateOptions{})
 				cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.fields.podBefore)
 				cache.AddPod(tt.fields.podBefore)
 			}
 
-			kubeClientSet.CoreV1().Pods(tt.args.pod.Namespace).Create(context.Background(), tt.args.pod, v1.CreateOptions{})
+			kubeClientSet.CoreV1().Pods(tt.args.pod.Namespace).Create(context.Background(), tt.args.pod, metav1.CreateOptions{})
 			cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.args.pod)
 
 			cache.UpdatePod(tt.args.pod)

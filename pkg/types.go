@@ -199,6 +199,23 @@ type PVAllocatedInfo struct {
 	VolumeType string `json:"volumeType"`
 }
 
+// BindingInfo represents the pvc and disk/lvm mapping
+type BindingInfo struct {
+	// node is the name of selected node
+	Node string `json:"node"`
+	// path for mount point
+	Disk string `json:"disk"`
+	// VgName is the name of selected volume group
+	VgName string `json:"vgName"`
+	// Device is the name for raw block device: /dev/vdb
+	Device string `json:"device"`
+	// [lvm] or [disk] or [device] or [quota]
+	VolumeType string `json:"volumeType"`
+
+	// PersistentVolumeClaim is the metakey for pvc: {namespace}/{name}
+	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
+}
+
 func GetAllocatedInfoFromPVAnnotation(pv *corev1.PersistentVolume) (*PVAllocatedInfo, error) {
 	if pv == nil || pv.Annotations == nil {
 		return nil, nil

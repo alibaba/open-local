@@ -22,10 +22,10 @@ import (
 
 	utiltrace "k8s.io/utils/trace"
 
+	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-local/pkg/utils"
 
-	"github.com/alibaba/open-local/pkg/scheduler"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +34,7 @@ import (
 
 // Scheduling is the interface for provisioner to request storage info
 // reports error if failed to reserve storage for pvc
-func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeClaim, node *corev1.Node) (*scheduler.BindingInfo, error) {
+func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeClaim, node *corev1.Node) (*pkg.BindingInfo, error) {
 	if node == nil {
 		log.Infof("scheduling pvc %s/%s without node", pvc.Namespace, pvc.Name)
 	} else {
@@ -129,7 +129,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	return bindingInfo, nil
 }
 
-func unitsToBinding(pvcs []*corev1.PersistentVolumeClaim, units []cache.AllocatedUnit) *scheduler.BindingInfo {
+func unitsToBinding(pvcs []*corev1.PersistentVolumeClaim, units []cache.AllocatedUnit) *pkg.BindingInfo {
 	if len(units) <= 0 || len(units) > 1 {
 		log.Errorf("unexpected allocated unit number: %d", len(units))
 		return nil
@@ -137,12 +137,12 @@ func unitsToBinding(pvcs []*corev1.PersistentVolumeClaim, units []cache.Allocate
 	unit0 := units[0]
 	pvc0 := pvcs[0]
 
-	return &scheduler.BindingInfo{
+	return &pkg.BindingInfo{
 		Node:                  unit0.NodeName,
 		Disk:                  unit0.MountPoint,
 		VgName:                unit0.VgName,
 		Device:                unit0.Device,
-		VolumeType:            unit0.VolumeType,
+		VolumeType:            string(unit0.VolumeType),
 		PersistentVolumeClaim: fmt.Sprintf("%s/%s", pvc0.Namespace, pvc0.Name),
 	}
 }

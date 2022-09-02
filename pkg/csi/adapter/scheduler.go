@@ -22,26 +22,10 @@ import (
 	"net"
 	"os"
 
+	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/client"
 	log "k8s.io/klog/v2"
 )
-
-// BindingInfo represents the pvc and disk/lvm mapping
-type BindingInfo struct {
-	// node is the name of selected node
-	Node string `json:"node"`
-	// path for mount point
-	Disk string `json:"disk"`
-	// VgName is the name of selected volume group
-	VgName string `json:"vgName"`
-	// Device is the name for raw block device: /dev/vdb
-	Device string `json:"device"`
-	// [lvm] or [disk] or [device] or [quota]
-	VolumeType string `json:"volumeType"`
-
-	// PersistentVolumeClaim is the metakey for pvc: {namespace}/{name}
-	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
-}
 
 const (
 	EnvSchedulerExtenderServiceIP   = "EXTENDER_SVC_IP"
@@ -51,20 +35,30 @@ const (
 	DefaultSchedulerExtenderPort        = "23000"
 )
 
+type Adapter struct {
+	hostURL string
+}
+
+func NewAdapter() *Adapter {
+	return &Adapter{
+		hostURL: getExtenderURLHost(),
+	}
+}
+
 // ScheduleVolume make request and get expect schedule topology
-func ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*BindingInfo, error) {
-	bindingInfo := &BindingInfo{}
+func (adapter *Adapter) ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*pkg.BindingInfo, error) {
+	bindingInfo := &pkg.BindingInfo{}
 
 	// make request url
-	urlPath := fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?nodeName=%s&volumeType=%s&vgName=%s", pvcNamespace, pvcName, nodeID, volumeType, vgName)
+	path := fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?nodeName=%s&volumeType=%s&vgName=%s", pvcNamespace, pvcName, nodeID, volumeType, vgName)
 	if nodeID == "" && vgName != "" {
-		urlPath = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s&vgName=%s", pvcNamespace, pvcName, volumeType, vgName)
+		path = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s&vgName=%s", pvcNamespace, pvcName, volumeType, vgName)
 	} else if nodeID != "" && vgName == "" {
-		urlPath = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s&nodeName=%s", pvcNamespace, pvcName, volumeType, nodeID)
+		path = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s&nodeName=%s", pvcNamespace, pvcName, volumeType, nodeID)
 	} else if nodeID == "" && vgName == "" {
-		urlPath = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s", pvcNamespace, pvcName, volumeType)
+		path = fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?volumeType=%s", pvcNamespace, pvcName, volumeType)
 	}
-	url := getExtenderURLHost() + urlPath
+	url := fmt.Sprintf("%s%s", adapter.hostURL, path)
 
 	// Request restful api
 	respBody, err := client.DoRequest(url)

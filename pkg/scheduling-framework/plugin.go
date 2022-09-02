@@ -354,7 +354,7 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 
 	var pvcInfos []localtype.NodeStoragePVCAllocateInfo
 	for _, allocate := range lvmAllocates {
-		if allocate.Allocated > 0 {
+		if allocate.VGName != "" && allocate.Allocated > 0 {
 			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
 				PVCNameSpace: allocate.PVCNamespace,
 				PVCName:      allocate.PVCName,
@@ -366,7 +366,7 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 		}
 	}
 	for _, allocate := range deviceAllocates {
-		if allocate.DeviceName != "" {
+		if allocate.DeviceName != "" && allocate.Allocated > 0 {
 			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
 				PVCNameSpace: allocate.PVCNamespace,
 				PVCName:      allocate.PVCName,
@@ -379,6 +379,7 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 	}
 	err = plugin.addAllocatedInfoToNLS(nodeName, pvcInfos)
 	if err != nil {
+		klog.Errorf("patch allocate info(%#v) to nls(%s) fail for pod(%s)", pvcInfos, nodeName, p.UID, err.Error())
 		return framework.AsStatus(err)
 	}
 	return framework.NewStatus(framework.Success)

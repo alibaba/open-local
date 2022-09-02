@@ -51,6 +51,7 @@ type controllerServer struct {
 	inFlight           *InFlight
 	pvcPodSchedulerMap *PvcPodSchedulerMap
 	schedulerArchMap   *SchedulerArchMap
+	adapter            *adapter.Adapter
 
 	nodeLister corelisters.NodeLister
 	podLister  corelisters.PodLister
@@ -108,6 +109,7 @@ func newControllerServer(options *driverOptions) *controllerServer {
 		pvLister:           kubeInformerFactory.Core().V1().PersistentVolumes().Lister(),
 		pvcPodSchedulerMap: pvcPodSchedulerMap,
 		schedulerArchMap:   newSchedulerArchMap(options.extenderSchedulerNames, options.frameworkSchedulerNames),
+		adapter:            adapter.NewAdapter(),
 		options:            options,
 	}
 	stopCh := signals.SetupSignalHandler()
@@ -222,7 +224,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			switch volumeType {
 			case string(pkg.VolumeTypeLVM):
 				// extender scheduling
-				paramMap, err = scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -268,7 +270,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				}
 			case string(pkg.VolumeTypeMountPoint):
 				var err error
-				paramMap, err = scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -280,7 +282,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			case string(pkg.VolumeTypeDevice):
 				var err error
 				// Node and Storage have been scheduled
-				paramMap, err = scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -838,14 +840,14 @@ func getInfoFromPV(pv *v1.PersistentVolume) (string, string, error) {
 	return nodes[0], vgName, nil
 }
 
-func scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func (cs *controllerServer) scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	vgName := ""
 	paraList := map[string]string{}
 	if value, ok := parameters[VgNameTag]; ok {
 		vgName = value
 	}
 	if vgName == "" {
-		volumeInfo, err := adapter.ScheduleVolume(string(pkg.VolumeTypeLVM), pvcName, pvcNameSpace, vgName, nodeSelected)
+		volumeInfo, err := cs.adapter.ScheduleVolume(string(pkg.VolumeTypeLVM), pvcName, pvcNameSpace, vgName, nodeSelected)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "lvm schedule with error "+err.Error())
 		}
@@ -859,9 +861,9 @@ func scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace string, parameters ma
 	return paraList, nil
 }
 
-func scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func (cs *controllerServer) scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	paraList := map[string]string{}
-	volumeInfo, err := adapter.ScheduleVolume(string(pkg.VolumeTypeMountPoint), pvcName, pvcNameSpace, "", nodeSelected)
+	volumeInfo, err := cs.adapter.ScheduleVolume(string(pkg.VolumeTypeMountPoint), pvcName, pvcNameSpace, "", nodeSelected)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "lvm schedule with error "+err.Error())
 	}
@@ -873,9 +875,9 @@ func scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace string, parame
 	return paraList, nil
 }
 
-func scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
+func (cs *controllerServer) scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	paraList := map[string]string{}
-	volumeInfo, err := adapter.ScheduleVolume(string(pkg.VolumeTypeDevice), pvcName, pvcNameSpace, "", nodeSelected)
+	volumeInfo, err := cs.adapter.ScheduleVolume(string(pkg.VolumeTypeDevice), pvcName, pvcNameSpace, "", nodeSelected)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "device schedule with error "+err.Error())
 	}

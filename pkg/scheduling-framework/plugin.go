@@ -418,6 +418,21 @@ func (plugin *LocalPlugin) NormalizeScore(ctx context.Context, state *framework.
 	return nil
 }
 
+func (plugin *LocalPlugin) ReserveForInlineVolumeOnly(nodeName string, pod *corev1.Pod) error {
+	inlineVolumeAllocateUnits, err := plugin.getInlineVolumeAllocates(pod)
+	if err != nil {
+		return err
+	}
+	if len(inlineVolumeAllocateUnits) > 0 {
+		return plugin.cache.ReserveInlineVolumeOnly(nodeName, string(pod.UID), inlineVolumeAllocateUnits)
+	}
+	return nil
+}
+
+func (plugin *LocalPlugin) UnreserveInlineVolumeOnly(nodeName string, pod *corev1.Pod) {
+	plugin.cache.UnreserveInlineVolumeOnly(nodeName, string(pod.UID))
+}
+
 func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (*PodLocalVolumeInfo, error) {
 	state, err := plugin.getState(cs)
 	if err != nil {

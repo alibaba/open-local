@@ -213,11 +213,6 @@ func (controller *Controller) removePVCAllocatedInfoFromNLS(pvcNameSpace, pvcNam
 		klog.Errorf("remove pvc(%s/%s) allocateInfo from nls(%s) fail,error : %s", pvcNameSpace, pvcName, nodeName, err.Error())
 		return err
 	}
-	return nil
-	if err != nil {
-		klog.Errorf("remove pvc(%s/%s) allocateInfo from nls(%s) fail after retry,error : %s", pvcNameSpace, pvcName, nodeName, err.Error())
-		return err
-	}
 	klog.V(4).Infof("remove pvc(%s/%s) allocateInfo from nls(%s) success", pvcNameSpace, pvcName, nodeName, nodeName)
 	return nil
 }

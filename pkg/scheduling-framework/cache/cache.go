@@ -28,6 +28,28 @@ type NodeAllocateUnits struct {
 	InlineVolumeAllocateUnits []*InlineVolumeAllocated
 }
 
+func (units *NodeAllocateUnits) Clone() *NodeAllocateUnits {
+	if units == nil {
+		return units
+	}
+	copy := &NodeAllocateUnits{
+		LVMPVCAllocateUnits:       []*LVMPVAllocated{},
+		DevicePVCAllocateUnits:    []*DeviceTypePVAllocated{},
+		InlineVolumeAllocateUnits: []*InlineVolumeAllocated{},
+	}
+
+	for _, unit := range units.LVMPVCAllocateUnits {
+		copy.LVMPVCAllocateUnits = append(copy.LVMPVCAllocateUnits, unit.DeepCopy().(*LVMPVAllocated))
+	}
+	for _, unit := range units.DevicePVCAllocateUnits {
+		copy.DevicePVCAllocateUnits = append(copy.DevicePVCAllocateUnits, unit.DeepCopy().(*DeviceTypePVAllocated))
+	}
+	for _, unit := range units.InlineVolumeAllocateUnits {
+		copy.InlineVolumeAllocateUnits = append(copy.InlineVolumeAllocateUnits, unit.DeepCopy())
+	}
+	return copy
+}
+
 func (units *NodeAllocateUnits) ResetAllocatedSize() {
 	if units == nil {
 		return

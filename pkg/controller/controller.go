@@ -406,77 +406,81 @@ func (c *Controller) handleNLS(old, new interface{}) {
 	c.enqueueSyncPVItemByNls(old, new)
 }
 
-func (c *Controller) enqueueSyncPVItemByNls(old, new interface{}) {
+func (c *Controller) enqueueSyncPVItemByNls(old, new interface{}) (skip bool) {
 	// check
 	nodeLocal, ok := new.(*localv1alpha1.NodeLocalStorage)
 	if !ok {
 		klog.Errorf("[OnNodeLocalStorageUpdate]cannot convert newObj to *NodeLocalStorage: %v", new)
-		return
+		return true
 	}
 
 	if old != nil {
 		oldNodeLocal, ok := old.(*localv1alpha1.NodeLocalStorage)
 		if !ok {
 			klog.Errorf("[OnNodeLocalStorageUpdate]cannot convert oldObj to *NodeLocalStorage: %v", old)
-			return
+			return true
 		}
 
 		oldAllocatedJson := localtype.GetAllocateInfoJsonFromNLS(oldNodeLocal)
 		newAllocatedJson := localtype.GetAllocateInfoJsonFromNLS(nodeLocal)
 
 		if newAllocatedJson == "" || newAllocatedJson == oldAllocatedJson {
-			return
+			return true
 		}
 	}
 
 	c.workqueue.Add(SyncPVByNlsItem{
 		nlsName: nodeLocal.Name,
 	})
-	return
+	return false
 }
 
 func (c *Controller) updatePV(obj interface{}) {
+	c.enqueuePVItem(obj)
+}
+
+func (c *Controller) enqueuePVItem(obj interface{}) (skip bool) {
 	if obj == nil {
-		return
+		return true
 	}
 	pv, ok := obj.(*corev1.PersistentVolume)
 	if !ok {
 		klog.Errorf("can't convert obj to pvc %+v", obj)
-		return
+		return true
 	}
 
 	if pv.Status.Phase == corev1.VolumePending {
-		return
+		return true
 	}
 
 	isLocalPV, volumeType := utils.IsOpenLocalPV(pv, false)
 	if !isLocalPV {
-		return
+		return true
 	}
 
 	switch volumeType {
 	case localtype.VolumeTypeLVM:
 		vgName := utils.GetVGNameFromCsiPV(pv)
 		if vgName != "" {
-			return
+			return true
 		}
 	case localtype.DeviceName:
-		deviceName := utils.GetVGNameFromCsiPV(pv)
+		deviceName := utils.GetDeviceNameFromCsiPV(pv)
 		if deviceName != "" {
-			return
+			return true
 		}
 	}
 
 	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
 	if pvcNamespace == "" || pvcName == "" {
-		return
+		return true
 	}
 	c.workqueue.Add(PVItem{
 		volumeName:   pv.Name,
 		pvcNameSpace: pvcNamespace,
 		pvcName:      pvcName,
 	})
-
+	return false
 }
 
 func (c *Controller) deletePVC(obj interface{}) {

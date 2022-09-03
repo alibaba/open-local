@@ -24,7 +24,7 @@ func (plugin *LocalPlugin) OnNodeLocalStorageAdd(obj interface{}) {
 	// nodename
 	nodeName := nodeLocal.Name
 	plugin.cache.AddNodeStorage(nodeLocal)
-	klog.Infof("[OnNodeLocalStorageAdd]node %s is handled", nodeName)
+	klog.V(4).Infof("[OnNodeLocalStorageAdd]node %s is handled", nodeName)
 }
 
 func (plugin *LocalPlugin) OnNodeLocalStorageUpdate(oldObj, newObj interface{}) {
@@ -42,7 +42,7 @@ func (plugin *LocalPlugin) OnNodeLocalStorageUpdate(oldObj, newObj interface{}) 
 	// nodename
 	nodeName := nodeLocal.Name
 	plugin.cache.UpdateNodeStorage(old, nodeLocal)
-	klog.Infof("[OnNodeLocalStorageUpdate]node %s is handled", nodeName)
+	klog.V(4).Infof("[OnNodeLocalStorageUpdate]node %s is handled", nodeName)
 }
 
 func (plugin *LocalPlugin) OnPVAdd(obj interface{}) {

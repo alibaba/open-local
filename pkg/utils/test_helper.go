@@ -358,6 +358,12 @@ type TestPVCPVInfo struct {
 	PVBounding  *TestPVInfo
 }
 
+func (info *TestPVCPVInfo) SetSize(size string) {
+	info.PVCPending.Size = size
+	info.PVCBounding.Size = size
+	info.PVBounding.VolumeSize = size
+}
+
 type TestPVCPVInfoList []*TestPVCPVInfo
 
 func (list TestPVCPVInfoList) GetTestPVCPending() []TestPVCInfo {

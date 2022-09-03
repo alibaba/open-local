@@ -17,6 +17,11 @@ limitations under the License.
 package controller
 
 import (
+	"context"
+	"encoding/json"
+	"github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"time"
@@ -69,7 +74,37 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
+func newNLSForAllocate(name string) *localv1alpha1.NodeLocalStorage {
+	nls := newNLS(name)
+	allocateInfos := &pkg.NodeStorageAllocateInfo{
+		PvcAllocates: map[string]pkg.NodeStoragePVCAllocateInfo{
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithVG,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					VGName:     utils.VGSSD,
+					VolumeType: string(pkg.VolumeTypeLVM),
+				},
+			},
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithDevice,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					DeviceName: "/dev/sdc",
+					VolumeType: string(pkg.VolumeTypeDevice),
+				},
+			},
+		},
+	}
+	allocateInfoJson, _ := json.Marshal(allocateInfos)
+	nls.Annotations = map[string]string{
+		pkg.AnnotationNodeStorageAllocatedInfoKey: string(allocateInfoJson),
+	}
+	return nls
+}
+
 func newNLS(name string) *localv1alpha1.NodeLocalStorage {
+
 	return &localv1alpha1.NodeLocalStorage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -81,6 +116,7 @@ func newNLS(name string) *localv1alpha1.NodeLocalStorage {
 }
 
 func newNLSC(name string) *localv1alpha1.NodeLocalStorageInitConfig {
+
 	return &localv1alpha1.NodeLocalStorageInitConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -360,4 +396,331 @@ func TestUpdateNLS(t *testing.T) {
 
 	f.expectUpdateNLSAction(nls_expected)
 	f.run(nlsc.Name)
+}
+
+func Test_SyncPVByNlsItem(t *testing.T) {
+
+	nls := newNLSForAllocate(utils.NodeName3)
+
+	pvcPVInfos := utils.TestPVCPVInfoList{
+		utils.GetTestPVCPVWithVG(),
+		utils.GetTestPVCPVDevice(),
+	}
+	pvcs := utils.CreateTestPersistentVolumeClaim(pvcPVInfos.GetTestPVCBounding())
+
+	pvsHaveAllocateInfo := utils.CreateTestPersistentVolume(pvcPVInfos.GetTestPVBounding())
+
+	lvmPVInfoWithoutVG := utils.GetTestPVCPVWithVG().PVBounding
+	lvmPVInfoWithoutVG.VgName = ""
+	devicePVInfoWithoutDeviceName := utils.GetTestPVCPVDevice().PVBounding
+	devicePVInfoWithoutDeviceName.DeviceName = ""
+	pvsWithoutAllocateInfo := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*lvmPVInfoWithoutVG, *devicePVInfoWithoutDeviceName})
+
+	type args struct {
+		oldNls *localv1alpha1.NodeLocalStorage
+		newNls *localv1alpha1.NodeLocalStorage
+	}
+
+	type fields struct {
+		pvs []*corev1.PersistentVolume
+	}
+
+	type expect struct {
+		skipUpdate bool
+		pvs        []*corev1.PersistentVolume
+	}
+
+	tests := []struct {
+		name   string
+		args   args
+		fields fields
+		expect expect
+	}{
+		{
+			name: "test add nls, pv have no vg info",
+			args: args{
+				newNls: nls,
+			},
+			fields: fields{
+				pvs: pvsWithoutAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pvs:        pvsHaveAllocateInfo,
+			},
+		},
+		{
+			name: "test update nls, but allocateInfo not change then skip",
+			args: args{
+				oldNls: nls,
+				newNls: nls,
+			},
+			fields: fields{
+				pvs: pvsWithoutAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: true,
+				pvs:        pvsWithoutAllocateInfo,
+			},
+		},
+		{
+			name: "test add nls, all pv have allocateInfo",
+			args: args{
+				newNls: nls,
+			},
+			fields: fields{
+				pvs: pvsHaveAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pvs:        pvsHaveAllocateInfo,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			f := newFixture(t)
+			c, localInforms, k8sInformers := f.newController()
+			ctx := context.Background()
+			localInforms.Start(ctx.Done())
+			k8sInformers.Start(ctx.Done())
+			f.client.CsiV1alpha1().NodeLocalStorages().Create(ctx, nls, metav1.CreateOptions{})
+			localInforms.Csi().V1alpha1().NodeLocalStorages().Informer().GetIndexer().Add(nls)
+
+			for _, pv := range tt.fields.pvs {
+				f.kubeclient.CoreV1().PersistentVolumes().Create(ctx, pv, metav1.CreateOptions{})
+				k8sInformers.Core().V1().PersistentVolumes().Informer().GetIndexer().Add(pv)
+			}
+
+			for _, pvc := range pvcs {
+				f.kubeclient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+				k8sInformers.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+			}
+
+			gotSkip := c.enqueueSyncPVItemByNls(tt.args.oldNls, tt.args.newNls)
+			assert.Equal(t, tt.expect.skipUpdate, gotSkip, "checkSkip")
+
+			if gotSkip {
+				return
+			}
+			c.processNextWorkItem()
+
+			for _, expectPV := range tt.expect.pvs {
+				gotPV, _ := f.kubeclient.CoreV1().PersistentVolumes().Get(ctx, expectPV.Name, metav1.GetOptions{})
+				assert.Equal(t, expectPV, gotPV)
+			}
+		})
+	}
+}
+
+func Test_enqueueAndHandlePVItem(t *testing.T) {
+	nls := newNLSForAllocate(utils.NodeName3)
+
+	pvcPVInfos := utils.TestPVCPVInfoList{
+		utils.GetTestPVCPVWithVG(),
+		utils.GetTestPVCPVDevice(),
+	}
+	pvcs := utils.CreateTestPersistentVolumeClaim(pvcPVInfos.GetTestPVCBounding())
+
+	pvNotBoundInfo := utils.GetTestPVCPVWithVG().PVBounding
+	pvNotBoundInfo.ClaimRef = nil
+	pvNotBoundInfo.PVStatus = corev1.VolumeAvailable
+	pvNotBound := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*pvNotBoundInfo})[0]
+
+	lvmPVWithVG := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*utils.GetTestPVCPVWithVG().PVBounding})[0]
+
+	lvmPVInfoWithoutVG := utils.GetTestPVCPVWithVG().PVBounding
+	lvmPVInfoWithoutVG.VgName = ""
+	lvmPVWithoutVG := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*lvmPVInfoWithoutVG})[0]
+
+	devicePVWithDeviceName := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*utils.GetTestPVCPVDevice().PVBounding})[0]
+
+	devicePVInfoWithoutDeviceName := utils.GetTestPVCPVDevice().PVBounding
+	devicePVInfoWithoutDeviceName.DeviceName = ""
+	devicePVWithoutDeviceName := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*devicePVInfoWithoutDeviceName})[0]
+
+	type args struct {
+		pv *corev1.PersistentVolume
+	}
+
+	type expect struct {
+		skipUpdate bool
+		pv         *corev1.PersistentVolume
+	}
+
+	tests := []struct {
+		name   string
+		args   args
+		expect expect
+	}{
+		{
+			name: "test pv not bound",
+			args: args{
+				pv: pvNotBound,
+			},
+			expect: expect{
+				skipUpdate: true,
+			},
+		},
+		{
+			name: "test lvm pv without vgName",
+			args: args{
+				pv: lvmPVWithoutVG,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pv:         lvmPVWithVG,
+			},
+		},
+		{
+			name: "test lvm pv with vgName",
+			args: args{
+				pv: lvmPVWithVG,
+			},
+			expect: expect{
+				skipUpdate: true,
+			},
+		},
+		{
+			name: "test device pv without deviceName",
+			args: args{
+				pv: devicePVWithoutDeviceName,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pv:         devicePVWithDeviceName,
+			},
+		},
+		{
+			name: "test device pv with deviceName",
+			args: args{
+				pv: devicePVWithDeviceName,
+			},
+			expect: expect{
+				skipUpdate: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			c, localInforms, k8sInformers := f.newController()
+			ctx := context.Background()
+			localInforms.Start(ctx.Done())
+			k8sInformers.Start(ctx.Done())
+			f.client.CsiV1alpha1().NodeLocalStorages().Create(ctx, nls, metav1.CreateOptions{})
+			localInforms.Csi().V1alpha1().NodeLocalStorages().Informer().GetIndexer().Add(nls)
+
+			f.kubeclient.CoreV1().PersistentVolumes().Create(ctx, tt.args.pv, metav1.CreateOptions{})
+			k8sInformers.Core().V1().PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
+
+			for _, pvc := range pvcs {
+				f.kubeclient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+				k8sInformers.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+			}
+
+			gotSkip := c.enqueuePVItem(tt.args.pv)
+			assert.Equal(t, tt.expect.skipUpdate, gotSkip, "checkSkip")
+
+			if gotSkip {
+				return
+			}
+			c.processNextWorkItem()
+
+			gotPV, _ := f.kubeclient.CoreV1().PersistentVolumes().Get(ctx, tt.expect.pv.Name, metav1.GetOptions{})
+			assert.Equal(t, tt.expect.pv, gotPV)
+		})
+	}
+}
+
+func Test_deletePVC(t *testing.T) {
+	nls := newNLSForAllocate(utils.NodeName3)
+
+	pvcLVM := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCBounding})[0]
+	nlsRemoveByPVCLVM := nls.DeepCopy()
+	allocateInfos := &pkg.NodeStorageAllocateInfo{
+		PvcAllocates: map[string]pkg.NodeStoragePVCAllocateInfo{
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithDevice,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					DeviceName: "/dev/sdc",
+					VolumeType: string(pkg.VolumeTypeDevice),
+				},
+			},
+		},
+	}
+	allocateInfoJson, _ := json.Marshal(allocateInfos)
+	nlsRemoveByPVCLVM.Annotations[pkg.AnnotationNodeStorageAllocatedInfoKey] = string(allocateInfoJson)
+
+	pvcDevice := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVDevice().PVCBounding})[0]
+	nlsRemoveByPVCDevice := nls.DeepCopy()
+	allocateInfos = &pkg.NodeStorageAllocateInfo{
+		PvcAllocates: map[string]pkg.NodeStoragePVCAllocateInfo{
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithVG,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					VGName:     utils.VGSSD,
+					VolumeType: string(pkg.VolumeTypeLVM),
+				},
+			},
+		},
+	}
+	allocateInfoJson, _ = json.Marshal(allocateInfos)
+	nlsRemoveByPVCDevice.Annotations[pkg.AnnotationNodeStorageAllocatedInfoKey] = string(allocateInfoJson)
+
+	type args struct {
+		pvc *corev1.PersistentVolumeClaim
+	}
+
+	type expect struct {
+		nls *localv1alpha1.NodeLocalStorage
+	}
+
+	tests := []struct {
+		name   string
+		args   args
+		expect expect
+	}{
+		{
+			name: "test lvm pvc delete",
+			args: args{
+				pvc: pvcLVM,
+			},
+			expect: expect{
+				nls: nlsRemoveByPVCLVM,
+			},
+		},
+		{
+			name: "test lvm pvc delete",
+			args: args{
+				pvc: pvcDevice,
+			},
+			expect: expect{
+				nls: nlsRemoveByPVCDevice,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			c, localInforms, k8sInformers := f.newController()
+			ctx := context.Background()
+			localInforms.Start(ctx.Done())
+			k8sInformers.Start(ctx.Done())
+			f.client.CsiV1alpha1().NodeLocalStorages().Create(ctx, nls, metav1.CreateOptions{})
+			localInforms.Csi().V1alpha1().NodeLocalStorages().Informer().GetIndexer().Add(nls)
+
+			c.deletePVC(tt.args.pvc)
+			c.processNextWorkItem()
+
+			gotNls, _ := f.client.CsiV1alpha1().NodeLocalStorages().Get(ctx, tt.expect.nls.Name, metav1.GetOptions{})
+			assert.Equal(t, tt.expect.nls, gotNls)
+		})
+	}
 }

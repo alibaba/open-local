@@ -106,13 +106,13 @@ func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeC
 			if isLocalPV, pvType = utils.IsLocalPVC(pvc, scLister, containReadonlySnapshot); isLocalPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
-					log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
 					lvmPVCs = append(lvmPVCs, pvc)
 				case pkg.VolumeTypeMountPoint:
-					log.Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
 					mpPVCs = append(mpPVCs, pvc)
 				case pkg.VolumeTypeDevice:
-					log.Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
 					devicePVCs = append(devicePVCs, pvc)
 				default:
 					log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)

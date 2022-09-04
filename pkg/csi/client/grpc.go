@@ -89,7 +89,7 @@ func (c *workerConnection) Close() error {
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	log.V(6).Infof("New Connecting to %s", address)
 	// only for unit test
-	var bufDialerFunc func(context.Context, string) (net.Conn, error) = nil
+	var bufDialerFunc func(context.Context, string) (net.Conn, error)
 	dialOptions := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(logGRPC),

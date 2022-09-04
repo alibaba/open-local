@@ -28,6 +28,28 @@ type NodeAllocateUnits struct {
 	InlineVolumeAllocateUnits []*InlineVolumeAllocated
 }
 
+func (units *NodeAllocateUnits) Clone() *NodeAllocateUnits {
+	if units == nil {
+		return units
+	}
+	copy := &NodeAllocateUnits{
+		LVMPVCAllocateUnits:       []*LVMPVAllocated{},
+		DevicePVCAllocateUnits:    []*DeviceTypePVAllocated{},
+		InlineVolumeAllocateUnits: []*InlineVolumeAllocated{},
+	}
+
+	for _, unit := range units.LVMPVCAllocateUnits {
+		copy.LVMPVCAllocateUnits = append(copy.LVMPVCAllocateUnits, unit.DeepCopy().(*LVMPVAllocated))
+	}
+	for _, unit := range units.DevicePVCAllocateUnits {
+		copy.DevicePVCAllocateUnits = append(copy.DevicePVCAllocateUnits, unit.DeepCopy().(*DeviceTypePVAllocated))
+	}
+	for _, unit := range units.InlineVolumeAllocateUnits {
+		copy.InlineVolumeAllocateUnits = append(copy.InlineVolumeAllocateUnits, unit.DeepCopy())
+	}
+	return copy
+}
+
 func (units *NodeAllocateUnits) ResetAllocatedSize() {
 	if units == nil {
 		return
@@ -234,7 +256,7 @@ func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState)
 		return err
 	}
 
-	err = c.reserveInlineVolumes(preAllocateState.NodeName, preAllocateState.PodUid, preAllocateState.Units, nodeState)
+	err = c.reserveInlineVolumes(preAllocateState.NodeName, preAllocateState.PodUid, preAllocateState.Units.InlineVolumeAllocateUnits, nodeState)
 	if err != nil {
 		return err
 	}
@@ -245,6 +267,19 @@ func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState)
 	}
 
 	return nil
+}
+
+func (c *NodeStorageAllocatedCache) ReserveInlineVolumeOnly(nodeName string, podUid string, units []*InlineVolumeAllocated) error {
+	c.Lock()
+	defer c.Unlock()
+
+	nodeState, ok := c.states[nodeName]
+	if !ok || !nodeState.InitedByNLS {
+		err := fmt.Errorf("assume fail for node(%s), storage not init by NLS", nodeName)
+		klog.Errorf(err.Error())
+		return err
+	}
+	return c.reserveInlineVolumes(nodeName, podUid, units, nodeState)
 }
 
 func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocateState) {
@@ -261,6 +296,17 @@ func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocat
 	c.unreserveLVMPVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
 	c.unreserveInlineVolumes(reservedAllocateState.NodeName, reservedAllocateState.PodUid, reservedAllocateState.Units, nodeState)
 	c.unreserveDevicePVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
+}
+
+func (c *NodeStorageAllocatedCache) UnreserveInlineVolumeOnly(nodeName, podUid string) {
+	c.Lock()
+	defer c.Unlock()
+	nodeState, ok := c.states[nodeName]
+	if !ok || !nodeState.InitedByNLS {
+		klog.Errorf("revert fail for node(%s), storage not init by NLS", nodeName)
+		return
+	}
+	c.unreserveInlineVolumesDirect(nodeName, podUid, nodeState)
 }
 
 func (c *NodeStorageAllocatedCache) reserveLVMPVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
@@ -322,8 +368,8 @@ func (c *NodeStorageAllocatedCache) unreserveLVMPVCs(nodeName string, units *Nod
 	}
 }
 
-func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {
-	if len(units.InlineVolumeAllocateUnits) == 0 {
+func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid string, units []*InlineVolumeAllocated, currentStorageState *NodeStorageState) error {
+	if len(units) == 0 {
 		return nil
 	}
 
@@ -341,7 +387,7 @@ func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid
 	}
 
 	podDetails := PodInlineVolumeAllocatedDetails{}
-	for i, unit := range units.InlineVolumeAllocateUnits {
+	for i, unit := range units {
 
 		if currentStorageState.VGStates == nil {
 			err := fmt.Errorf("reserveInlineVolumes fail, no VG found on node %s", nodeName)
@@ -360,9 +406,9 @@ func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid
 		}
 
 		vgState.Requested = vgState.Requested + unit.VolumeSize
-		units.InlineVolumeAllocateUnits[i].Allocated = unit.VolumeSize
+		units[i].Allocated = unit.VolumeSize
 
-		podDetails = append(podDetails, units.InlineVolumeAllocateUnits[i].DeepCopy())
+		podDetails = append(podDetails, units[i].DeepCopy())
 		nodeDetails[podUid] = &podDetails
 	}
 	return nil
@@ -377,6 +423,10 @@ func (c *NodeStorageAllocatedCache) unreserveInlineVolumes(nodeName, podUid stri
 		units.InlineVolumeAllocateUnits[i].Allocated = 0
 	}
 
+	c.unreserveInlineVolumesDirect(nodeName, podUid, currentStorageState)
+}
+
+func (c *NodeStorageAllocatedCache) unreserveInlineVolumesDirect(nodeName, podUid string, currentStorageState *NodeStorageState) {
 	nodeDetails, exist := c.inlineVolumeAllocatedDetails[nodeName]
 	if !exist {
 		return

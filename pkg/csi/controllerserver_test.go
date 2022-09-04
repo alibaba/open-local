@@ -37,8 +37,9 @@ import (
 )
 
 func init() {
-	server.StartFake()
 	client.MustRunThisWhenTest()
+	server.MustRunThisWhenTest()
+	server.StartFake()
 }
 
 func Test_controllerServer_CreateVolume(t *testing.T) {

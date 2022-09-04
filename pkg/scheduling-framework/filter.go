@@ -59,11 +59,23 @@ func (plugin *LocalPlugin) getPodLocalVolumeInfos(pod *corev1.Pod) (*PodLocalVol
 		volumeInfos.lvmPVCsWithVgNameNotAllocated, volumeInfos.lvmPVCsWithoutVgNameNotAllocated, volumeInfos.lvmPVCsSnapshot, err = plugin.filterAllocatedAndDivideLVMPVC(unboundLvmPVCs)
 	}
 
+	inlineVolumeAllocates, err := plugin.getInlineVolumeAllocates(pod)
+	if err != nil {
+		return volumeInfos, err
+	}
+	if len(inlineVolumeAllocates) > 0 {
+		volumeInfos.inlineVolumes = append(volumeInfos.inlineVolumes, inlineVolumeAllocates...)
+	}
+	return volumeInfos, nil
+}
+
+func (plugin *LocalPlugin) getInlineVolumeAllocates(pod *corev1.Pod) ([]*cache.InlineVolumeAllocated, error) {
+	var inlineVolumeAllocates []*cache.InlineVolumeAllocated
+
 	containInlineVolume, _ := utils.ContainInlineVolumes(pod)
 	if !containInlineVolume {
-		return volumeInfos, nil
+		return nil, nil
 	}
-	var inlineVolumeAllocates []*cache.InlineVolumeAllocated
 	for _, volume := range pod.Spec.Volumes {
 		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 			vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
@@ -80,8 +92,7 @@ func (plugin *LocalPlugin) getPodLocalVolumeInfos(pod *corev1.Pod) (*PodLocalVol
 			})
 		}
 	}
-	volumeInfos.inlineVolumes = inlineVolumeAllocates
-	return volumeInfos, nil
+	return inlineVolumeAllocates, nil
 }
 
 func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo, nodeName string) (*cache.NodeAllocateState, error) {

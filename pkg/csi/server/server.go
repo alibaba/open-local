@@ -85,6 +85,9 @@ func Start(port string) {
 	address := fmt.Sprintf(":%s", port)
 	log.Infof("Lvmd Starting with socket: %s ...", address)
 	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
 
 	grpcServer, _, err := NewGRPCServer()
 	if err != nil {

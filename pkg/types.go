@@ -143,14 +143,14 @@ const (
 		- update by schedulerFramework prebind
 		- read by schedulerFramework eventHandlers onNodeLocalStorageAdd/Update
 	*/
-	AnnotationNodeStorageAllocatedInfoKey = "csi.alibabacloud.com/allocated"
+	AnnotationNodeStorageAllocatedInfoKey = "csi.aliyun.com/node-allocated"
 
 	/*
 		record: vgName to PV
 		- update by nsl controller
 		- read by csi: nodeServer publishVolume
 	*/
-	AnnotationPVAllocatedInfoKey = "csi.alibabacloud.com/allocated"
+	AnnotationPVAllocatedInfoKey = "csi.aliyun.com/pv-allocated"
 )
 
 var (

@@ -1373,7 +1373,7 @@ func Test_reserveInlineVolumes(t *testing.T) {
 
 			cache.inlineVolumeAllocatedDetails = tt.fields.inlineVolumeAllocatedDetails
 			currentStorageState := cache.states[tt.args.nodeName]
-			err := cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
+			err := cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units.InlineVolumeAllocateUnits, currentStorageState)
 			assert.Equal(t, tt.expect.resultErr, err != nil, fmt.Sprintf("errInfo:%+v", err))
 			assert.Equal(t, tt.expect.units, tt.args.units, "check units")
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")
@@ -1477,7 +1477,7 @@ func Test_unreserveInlineVolumes(t *testing.T) {
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
-			cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units, currentStorageState)
+			cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units.InlineVolumeAllocateUnits, currentStorageState)
 			nodeDetails := cache.inlineVolumeAllocatedDetails[tt.args.nodeName]
 			assert.NotEmpty(t, nodeDetails)
 			podDetails := nodeDetails[tt.args.podUid]

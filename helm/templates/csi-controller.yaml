@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Values.name }}
+    component: {{ .Values.name }}-csi-controller
+  name: {{ .Values.name }}-csi-controller
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+      component: {{ .Values.name }}-csi-controller
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        component: {{ .Values.name }}-csi-controller
+    spec:
+      containers:
+      - args:
+        - --csi-address=$(ADDRESS)
+        - --volume-name-prefix={{ .Values.agent.volume_name_prefix }}
+        - --feature-gates=Topology=True
+        - --strict-topology=True
+        - --extra-create-metadata=true
+        - --timeout=10m
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: ack-agility-registry.cn-shanghai.cr.aliyuncs.com/ecp_builder/csi-provisioner:v2.2.2
+        imagePullPolicy: Always
+        name: csi-provisioner
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - args:
+        - --csi-address=$(ADDRESS)
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
+        imagePullPolicy: Always
+        name: csi-resizer
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - args:
+        - --csi-address=$(ADDRESS)
+        - --snapshot-name-prefix=snap
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.snapshotter.image }}:{{ .Values.images.snapshotter.tag }}
+        imagePullPolicy: Always
+        name: csi-snapshotter
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - args:
+        - csi
+        - --endpoint=$(CSI_ENDPOINT)
+        - --nodeID=$(KUBE_NODE_NAME)
+        - --driver={{ .Values.driver }}
+        - --driver-mode=controller
+        env:
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: CSI_ENDPOINT
+          value: unix://var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        - name: ISSUE_ORPHANED_POD
+          value: "true"
+        - name: ISSUE_BLOCK_REFERENCE
+          value: "true"
+        - name: ISSUE_MESSAGE_FILE
+          value: "true"
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
+        - name: EXTENDER_SVC_IP
+          value: "{{ .Values.globalconfig.YodaSchedulerSvcIP }}"
+{{- end }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        imagePullPolicy: Always
+        name: csi-plugin
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: {{ .Values.name }}
+      serviceAccountName: {{ .Values.name }}
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      volumes:
+      - emptyDir: {}
+        name: socket-dir

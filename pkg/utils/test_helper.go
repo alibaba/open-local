@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@ package utils
 
 import (
 	"encoding/json"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
@@ -816,4 +817,25 @@ func CreatePod(podInfo *TestPodInfo) *corev1.Pod {
 	}
 
 	return pod
+}
+
+type TestNodeInfo struct {
+	NodeName  string
+	IPAddress string
+}
+
+func CreateNode(nodeInfo *TestNodeInfo) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nodeInfo.NodeName,
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: nodeInfo.IPAddress,
+				},
+			},
+		},
+	}
 }

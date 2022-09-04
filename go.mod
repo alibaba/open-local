@@ -6,15 +6,17 @@ require (
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/docker/go-units v0.4.0
 	github.com/golang/protobuf v1.5.2
-	github.com/google/credstore v0.0.0-20181218150457-e184c60ef875 // indirect
-	github.com/google/go-microservice-helpers v0.0.0-20190205165657-a91942da5417
+	github.com/google/credstore v0.0.0-20181218150457-e184c60ef875
+	github.com/google/go-microservice-helpers v0.0.0-20190205165657-a91942da5417 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gnostic v0.5.1 // indirect
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kata-containers/kata-containers/src/runtime v0.0.0-20220902020102-6de4bfd8607a
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
-	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2
 	github.com/prometheus/client_golang v1.12.1
 	github.com/ricochet2200/go-disk-usage v0.0.0-20150921141558-f0d1b743428f
@@ -38,6 +40,7 @@ require (
 )
 
 replace (
+	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
 	google.golang.org/grpc => google.golang.org/grpc v1.43.0
 	k8s.io/api => k8s.io/api v0.20.5
@@ -54,6 +57,7 @@ replace (
 	k8s.io/controller-manager => k8s.io/controller-manager v0.20.5
 	k8s.io/cri-api => k8s.io/cri-api v0.20.5
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.5
+	k8s.io/klog/v2 => k8s.io/klog/v2 v2.10.0
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.5
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.5
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.5

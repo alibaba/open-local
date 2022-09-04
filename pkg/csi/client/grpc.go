@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/csi/test"
+	"google.golang.org/grpc/test/bufconn"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -61,6 +63,14 @@ var (
 	_ Connection = &workerConnection{}
 )
 
+func MustRunThisWhenTest() {
+	const bufSize = 1024 * 1024
+	testfunc := func() {
+		test.Lis = bufconn.Listen(bufSize)
+	}
+	test.Once.Do(testfunc)
+}
+
 // NewGrpcConnection lvm connection
 func NewGrpcConnection(address string, timeout time.Duration) (Connection, error) {
 	conn, err := connect(address, timeout)
@@ -78,10 +88,17 @@ func (c *workerConnection) Close() error {
 
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	log.V(6).Infof("New Connecting to %s", address)
+	// only for unit test
+	var bufDialerFunc func(context.Context, string) (net.Conn, error) = nil
 	dialOptions := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		// grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithUnaryInterceptor(logGRPC),
+	}
+	if test.Lis != nil {
+		bufDialerFunc = func(context.Context, string) (net.Conn, error) {
+			return test.Lis.Dial()
+		}
+		dialOptions = append(dialOptions, grpc.WithContextDialer(bufDialerFunc))
 	}
 	// if strings.HasPrefix(address, "/") {
 	// 	dialOptions = append(dialOptions, grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {

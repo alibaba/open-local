@@ -44,6 +44,7 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
+	// Cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	opt.addFlags(Cmd.Flags())
 }
 

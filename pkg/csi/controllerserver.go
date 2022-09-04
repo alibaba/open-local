@@ -51,7 +51,7 @@ type controllerServer struct {
 	inFlight           *InFlight
 	pvcPodSchedulerMap *PvcPodSchedulerMap
 	schedulerArchMap   *SchedulerArchMap
-	adapter            *adapter.Adapter
+	adapter            adapter.Adapter
 
 	nodeLister corelisters.NodeLister
 	podLister  corelisters.PodLister
@@ -109,7 +109,7 @@ func newControllerServer(options *driverOptions) *controllerServer {
 		pvLister:           kubeInformerFactory.Core().V1().PersistentVolumes().Lister(),
 		pvcPodSchedulerMap: pvcPodSchedulerMap,
 		schedulerArchMap:   newSchedulerArchMap(options.extenderSchedulerNames, options.frameworkSchedulerNames),
-		adapter:            adapter.NewAdapter(),
+		adapter:            adapter.NewExtenderAdapter(),
 		options:            options,
 	}
 	stopCh := signals.SetupSignalHandler()
@@ -852,8 +852,7 @@ func (cs *controllerServer) scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpac
 			return nil, status.Error(codes.InvalidArgument, "lvm schedule with error "+err.Error())
 		}
 		if volumeInfo.VgName == "" || volumeInfo.Node == "" {
-			log.Errorf("Lvm Schedule finished, but get empty: %v", volumeInfo)
-			return nil, status.Error(codes.InvalidArgument, "lvm schedule finish but vgName/Node empty")
+			return nil, status.Errorf(codes.InvalidArgument, "Lvm Schedule finished, but get empty: %v", volumeInfo)
 		}
 		vgName = volumeInfo.VgName
 	}

@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/alibaba/open-local/pkg/utils"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	log "k8s.io/klog/v2"
-
 	"github.com/alibaba/open-local/cmd/agent"
 	"github.com/alibaba/open-local/cmd/controller"
 	"github.com/alibaba/open-local/cmd/csi"
 	"github.com/alibaba/open-local/cmd/doc"
 	"github.com/alibaba/open-local/cmd/scheduler"
 	"github.com/alibaba/open-local/cmd/version"
+	"github.com/alibaba/open-local/pkg/utils"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"k8s.io/component-base/logs"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -71,4 +71,5 @@ func init() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 
 	_ = flag.CommandLine.Parse([]string{})
+	logs.InitLogs()
 }

@@ -817,10 +817,10 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 			},
 			expectFilter: &filterResult{
 				nodeStatuses: map[string]*framework.Status{
-					utils.NodeName1: framework.NewStatus(framework.Error),
-					utils.NodeName2: framework.NewStatus(framework.Error),
+					utils.NodeName1: framework.NewStatus(framework.Unschedulable),
+					utils.NodeName2: framework.NewStatus(framework.Unschedulable),
 					utils.NodeName3: framework.NewStatus(framework.Success),
-					utils.NodeName4: framework.NewStatus(framework.Error),
+					utils.NodeName4: framework.NewStatus(framework.Unschedulable),
 				},
 				stateData: &stateData{
 					allocateStateByNode: map[string]*cache.NodeAllocateState{

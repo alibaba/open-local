@@ -168,7 +168,7 @@ func (controller *Controller) patchAllocateInfoToPV(originPV *corev1.PersistentV
 }
 
 func (controller *Controller) removePVCAllocatedInfoFromNLS(pvcNameSpace, pvcName string, nodeName string) error {
-	nls, err := controller.nlsLister.Get(nodeName)
+	nls, err := controller.localclientset.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{ResourceVersion: "0"})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil

@@ -69,7 +69,7 @@ func (plugin *LocalPlugin) OnPVUpdate(oldObj, newObj interface{}) {
 	}
 	plugin.updatePV(pv)
 
-	klog.Infof("[OnPVUpdate]pv %s is handled", pv.Name)
+	klog.V(4).Infof("[OnPVUpdate]pv %s is handled", pv.Name)
 }
 
 func (plugin *LocalPlugin) OnPVDelete(obj interface{}) {
@@ -92,7 +92,7 @@ func (plugin *LocalPlugin) OnPVDelete(obj interface{}) {
 	}
 
 	plugin.deleteByPV(pv)
-	klog.Infof("[OnPVDelete]pv %s is handled", pv.Name)
+	klog.V(4).Infof("[OnPVDelete]pv %s is handled", pv.Name)
 }
 
 func (plugin *LocalPlugin) OnPVCAdd(obj interface{}) {
@@ -122,7 +122,7 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 
 	plugin.allocatedByPVCEvent(nodeName, pvc, pvName)
 
-	klog.Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
+	klog.V(4).Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }
 
 func (plugin *LocalPlugin) OnPVCDelete(obj interface{}) {
@@ -134,7 +134,7 @@ func (plugin *LocalPlugin) OnPVCDelete(obj interface{}) {
 	}
 
 	plugin.cache.DeleteByPVC(pvc)
-	klog.Infof("[OnPVCDelete]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
+	klog.V(4).Infof("[OnPVCDelete]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }
 
 func (plugin *LocalPlugin) OnPodAdd(obj interface{}) {
@@ -147,7 +147,7 @@ func (plugin *LocalPlugin) OnPodAdd(obj interface{}) {
 
 	plugin.cache.AddPod(pod)
 
-	klog.Infof("[OnPodAdd]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodAdd]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 }
 
 func (plugin *LocalPlugin) OnPodUpdate(oldObj, newObj interface{}) {
@@ -160,7 +160,7 @@ func (plugin *LocalPlugin) OnPodUpdate(oldObj, newObj interface{}) {
 
 	plugin.cache.UpdatePod(pod)
 
-	klog.Infof("[OnPodUpdate]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodUpdate]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 }
 
 func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
@@ -172,7 +172,7 @@ func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
 	}
 	plugin.cache.DeletePod(pod)
 
-	klog.Infof("[OnPodDelete]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodDelete]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 }
 
 // for lvm type pvc expand
@@ -253,7 +253,7 @@ func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos []loc
 
 	err := retry.RetryOnConflict(
 		retry.DefaultRetry, func() error {
-			nls, err := plugin.localInformers.NodeLocalStorages().Lister().Get(nodeName)
+			nls, err := plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{ResourceVersion: "0"})
 			if err != nil {
 				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, get nls error : %s", pvcInfos, nodeName, err.Error())
 				return err

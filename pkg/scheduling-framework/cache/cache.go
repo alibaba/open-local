@@ -239,7 +239,7 @@ func (c *NodeStorageAllocatedCache) IsLocalNode(nodeName string) bool {
 /*
 	assume by cache, should record unit.allocated , allocated size will use by plugin Unreserve to revert cache
 */
-func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState) error {
+func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState, reservationPodUid string) error {
 	if preAllocateState == nil || preAllocateState.Units == nil {
 		return nil
 	}
@@ -251,6 +251,10 @@ func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState)
 		err := fmt.Errorf("assume fail for node(%s), storage not init by NLS", preAllocateState.NodeName)
 		klog.Errorf(err.Error())
 		return err
+	}
+
+	if reservationPodUid != "" {
+		c.unreserveInlineVolumesDirect(preAllocateState.NodeName, reservationPodUid, nodeState)
 	}
 
 	err := c.reserveLVMPVC(preAllocateState.NodeName, preAllocateState.Units, nodeState)
@@ -271,20 +275,7 @@ func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState)
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) ReserveInlineVolumeOnly(nodeName string, podUid string, units []*InlineVolumeAllocated) error {
-	c.Lock()
-	defer c.Unlock()
-
-	nodeState, ok := c.states[nodeName]
-	if !ok || !nodeState.InitedByNLS {
-		err := fmt.Errorf("assume fail for node(%s), storage not init by NLS", nodeName)
-		klog.Errorf(err.Error())
-		return err
-	}
-	return c.reserveInlineVolumes(nodeName, podUid, units, nodeState)
-}
-
-func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocateState) {
+func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocateState, reservationPodUid string, reservationPodUnits []*InlineVolumeAllocated) {
 	if reservedAllocateState == nil || reservedAllocateState.Units == nil {
 		return
 	}
@@ -298,17 +289,9 @@ func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocat
 	c.unreserveLVMPVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
 	c.unreserveInlineVolumes(reservedAllocateState.NodeName, reservedAllocateState.PodUid, reservedAllocateState.Units, nodeState)
 	c.unreserveDevicePVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
-}
-
-func (c *NodeStorageAllocatedCache) UnreserveInlineVolumeOnly(nodeName, podUid string) {
-	c.Lock()
-	defer c.Unlock()
-	nodeState, ok := c.states[nodeName]
-	if !ok || !nodeState.InitedByNLS {
-		klog.Errorf("revert fail for node(%s), storage not init by NLS", nodeName)
-		return
+	if reservationPodUid != "" {
+		c.reserveInlineVolumes(reservedAllocateState.NodeName, reservationPodUid, reservationPodUnits, nodeState)
 	}
-	c.unreserveInlineVolumesDirect(nodeName, podUid, nodeState)
 }
 
 func (c *NodeStorageAllocatedCache) reserveLVMPVC(nodeName string, units *NodeAllocateUnits, currentStorageState *NodeStorageState) error {

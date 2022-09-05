@@ -95,7 +95,7 @@ func (plugin *LocalPlugin) getInlineVolumeAllocates(pod *corev1.Pod) ([]*cache.I
 	return inlineVolumeAllocates, nil
 }
 
-func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo, nodeName string) (*cache.NodeAllocateState, error) {
+func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo, reservationPod *corev1.Pod, nodeName string) (*cache.NodeAllocateState, error) {
 	nodeStateClone := plugin.cache.GetNodeStorageStateCopy(nodeName)
 	if nodeStateClone == nil {
 		return nil, fmt.Errorf("node(%s) have no local storage pool", nodeName)
@@ -106,6 +106,10 @@ func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalV
 	}
 
 	nodeAllocate := &cache.NodeAllocateState{NodeStorageAllocatedByUnits: nodeStateClone, NodeName: nodeName, PodUid: string(pod.UID)}
+
+	if reservationPod != nil {
+		plugin.preRevertReservation(reservationPod, nodeName, nodeStateClone)
+	}
 
 	allocateUnits, err := plugin.preAllocateByVGs(pod, podVolumeInfo, nodeName, nodeStateClone)
 	if allocateUnits != nil {
@@ -119,6 +123,29 @@ func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalV
 		allocateUnits.DevicePVCAllocateUnits = allocateUnitsByDevice
 	}
 	return nodeAllocate, err
+}
+
+func (plugin *LocalPlugin) preRevertReservation(reservationPod *corev1.Pod, nodeName string, nodeStateClone *cache.NodeStorageState) {
+	inlineDetails := plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(reservationPod.UID))
+	if inlineDetails == nil || len(*inlineDetails) <= 0 {
+		return
+	}
+
+	for _, detail := range *inlineDetails {
+		if nodeStateClone.VGStates == nil {
+			klog.Errorf("preRevertReservation fail, no VG found on node %s", nodeName)
+			continue
+		}
+
+		vgState, ok := nodeStateClone.VGStates[detail.VgName]
+		if !ok {
+			klog.Errorf("preRevertReservation fail, volumeGroup(%s) have not found for pod(%s) on node %s", detail.VgName, reservationPod.UID, nodeName)
+			continue
+		}
+
+		vgState.Requested = vgState.Requested - detail.Allocated
+	}
+
 }
 
 func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot []*LVMPVCInfo) (bool, error) {

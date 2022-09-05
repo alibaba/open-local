@@ -249,7 +249,16 @@ func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {
 
 //TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
 func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+
+	return plugin.FilterReservation(ctx, state, pod, nil, nodeInfo)
+}
+
+func (plugin *LocalPlugin) FilterReservation(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, reservationPod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	nodeName := nodeInfo.Node().Name
+
+	if reservationPod != nil && reservationPod.Spec.NodeName != nodeName {
+		return framework.NewStatus(framework.Unschedulable, "node not fit for reservation pod")
+	}
 
 	podVolumeInfo, err := plugin.getPodVolumeInfoFromState(state)
 	if err != nil {
@@ -271,7 +280,7 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
 	}
 
-	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
+	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, reservationPod, nodeName)
 	if err != nil {
 		klog.V(4).Infof("filter fail: preAllocate err for nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
@@ -313,6 +322,11 @@ func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleStat
 //PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
 func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
 
+	return plugin.ReserveReservation(ctx, state, pod, nil, nodeName)
+}
+
+func (plugin *LocalPlugin) ReserveReservation(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, reservationPod *corev1.Pod, nodeName string) *framework.Status {
+
 	stateData, err := plugin.getState(state)
 	if err != nil {
 		return framework.AsStatus(err)
@@ -323,7 +337,7 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 		return framework.NewStatus(framework.Success)
 	}
 
-	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
+	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, reservationPod, nodeName)
 	if err != nil {
 		klog.Errorf("reserve pod(%s) with node(%s) fail, preAllocate err: %s", pod.UID, nodeName, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
@@ -331,7 +345,12 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 
 	//reset allocated size, and will re-allocate by assume;
 	preAllocate.Units.ResetAllocatedSize()
-	err = plugin.cache.Reserve(preAllocate)
+	if reservationPod != nil {
+		err = plugin.cache.Reserve(preAllocate, string(reservationPod.UID))
+	} else {
+		err = plugin.cache.Reserve(preAllocate, "")
+	}
+
 	stateData.reservedState = preAllocate
 	if err != nil {
 		klog.Errorf("reserve pod(%s) with node(%s) fail, cache reserve err: %s", pod.UID, nodeName, err.Error())
@@ -341,6 +360,10 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 }
 
 func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) {
+	plugin.UnreserveReservation(ctx, state, p, nil, nodeName)
+}
+
+func (plugin *LocalPlugin) UnreserveReservation(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, reservationPod *corev1.Pod, nodeName string) {
 	reservedAllocate, err := plugin.getReserveState(state, nodeName)
 	if err != nil {
 		klog.Errorf("get AllocateUnitFromState for node %s error : %v", nodeName, err)
@@ -349,8 +372,18 @@ func (plugin *LocalPlugin) Unreserve(ctx context.Context, state *framework.Cycle
 	if reservedAllocate == nil {
 		return
 	}
+	reservationPodUid := ""
+	var reservationInlineVolumes []*cache.InlineVolumeAllocated
+	if reservationPod != nil {
+		reservationPodUid = string(reservationPod.UID)
+		reservationInlineVolumes, err = plugin.getInlineVolumeAllocates(reservationPod)
+		if err != nil {
+			klog.Errorf("UnreserveReservation error! can not get inlineVolume info for reservationPod(%s)", reservationPod.UID)
+		}
+	}
+
 	// if allocated size
-	plugin.cache.Unreserve(reservedAllocate)
+	plugin.cache.Unreserve(reservedAllocate, reservationPodUid, reservationInlineVolumes)
 	return
 }
 
@@ -433,21 +466,6 @@ func (plugin *LocalPlugin) NormalizeScore(ctx context.Context, state *framework.
 	}
 
 	return nil
-}
-
-func (plugin *LocalPlugin) ReserveForInlineVolumeOnly(nodeName string, pod *corev1.Pod) error {
-	inlineVolumeAllocateUnits, err := plugin.getInlineVolumeAllocates(pod)
-	if err != nil {
-		return err
-	}
-	if len(inlineVolumeAllocateUnits) > 0 {
-		return plugin.cache.ReserveInlineVolumeOnly(nodeName, string(pod.UID), inlineVolumeAllocateUnits)
-	}
-	return nil
-}
-
-func (plugin *LocalPlugin) UnreserveInlineVolumeOnly(nodeName string, pod *corev1.Pod) {
-	plugin.cache.UnreserveInlineVolumeOnly(nodeName, string(pod.UID))
 }
 
 func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (*PodLocalVolumeInfo, error) {

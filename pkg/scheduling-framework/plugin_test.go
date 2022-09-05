@@ -1201,7 +1201,13 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 
 func Test_Prebind(t *testing.T) {
 
-	complexPod, _ := createPodComplex()
+	//complex pod
+	complexPod, complexPVCPVInfos := createPodComplex()
+
+	//pvc,pv pending
+	pvcsPending := createPVC(complexPVCPVInfos.GetTestPVCPending())
+	pvcsBounding := createPVC(complexPVCPVInfos.GetTestPVCBounding())
+	pvsBounding := createPV(complexPVCPVInfos.GetTestPVBounding())
 
 	type args struct {
 		nodeName string
@@ -1210,7 +1216,10 @@ func Test_Prebind(t *testing.T) {
 	}
 
 	type fields struct {
-		nodeLocal *nodelocalstorage.NodeLocalStorage
+		pvcs         map[string]*corev1.PersistentVolumeClaim
+		pvs          map[string]*corev1.PersistentVolume
+		lastReserved *cache.NodeAllocateState
+		nodeLocal    *nodelocalstorage.NodeLocalStorage
 	}
 
 	type expect struct {
@@ -1265,11 +1274,12 @@ func Test_Prebind(t *testing.T) {
 			},
 			fields: fields{
 				nodeLocal: utils.CreateTestNodeLocalStorage3(),
+				pvcs:      pvcsPending,
 			},
 			expect: expect{
 				status: framework.NewStatus(framework.Success),
 				pvcInfos: map[string]localtype.NodeStoragePVCAllocateInfo{
-					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): localtype.NodeStoragePVCAllocateInfo{
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
 						PVCName:      utils.PVCWithVG,
 						PVCNameSpace: utils.LocalNameSpace,
 						PVAllocatedInfo: localtype.PVAllocatedInfo{
@@ -1278,7 +1288,171 @@ func Test_Prebind(t *testing.T) {
 							VolumeType: string(localtype.VolumeTypeLVM),
 						},
 					},
-					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): localtype.NodeStoragePVCAllocateInfo{
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+						PVCName:      utils.PVCWithDevice,
+						PVCNameSpace: utils.LocalNameSpace,
+						PVAllocatedInfo: localtype.PVAllocatedInfo{
+							VGName:     "",
+							DeviceName: "/dev/sdc",
+							VolumeType: string(localtype.VolumeTypeDevice),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test allocate info with bound",
+			args: args{
+				nodeName: utils.NodeName3,
+				pod:      complexPod,
+				state: &stateData{
+					reservedState: &cache.NodeAllocateState{
+						NodeName: utils.NodeName3,
+						PodUid:   string(complexPod.UID),
+						Units: &cache.NodeAllocateUnits{
+							LVMPVCAllocateUnits: []*cache.LVMPVAllocated{
+								{
+									VGName: utils.VGSSD,
+									BasePVAllocated: cache.BasePVAllocated{
+										PVCName:      utils.PVCWithVG,
+										PVCNamespace: utils.LocalNameSpace,
+										NodeName:     utils.NodeName3,
+										Requested:    int64(10 * utils.LocalGi),
+										Allocated:    int64(10 * utils.LocalGi),
+									},
+								},
+							},
+							DevicePVCAllocateUnits: []*cache.DeviceTypePVAllocated{
+								{
+									DeviceName: "/dev/sdc",
+									BasePVAllocated: cache.BasePVAllocated{
+										PVCName:      utils.PVCWithDevice,
+										PVCNamespace: utils.LocalNameSpace,
+										NodeName:     utils.NodeName3,
+										Requested:    int64(10 * utils.LocalGi),
+										Allocated:    int64(150 * utils.LocalGi),
+									},
+								},
+							},
+							InlineVolumeAllocateUnits: []*cache.InlineVolumeAllocated{},
+						},
+					},
+				},
+			},
+			fields: fields{
+				nodeLocal: utils.CreateTestNodeLocalStorage3(),
+				pvcs:      pvcsBounding,
+				pvs:       pvsBounding,
+			},
+			expect: expect{
+				status: framework.NewStatus(framework.Success),
+				pvcInfos: map[string]localtype.NodeStoragePVCAllocateInfo{
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+						PVCName:      utils.PVCWithVG,
+						PVCNameSpace: utils.LocalNameSpace,
+						PVAllocatedInfo: localtype.PVAllocatedInfo{
+							VGName:     utils.VGSSD,
+							DeviceName: "",
+							VolumeType: string(localtype.VolumeTypeLVM),
+						},
+					},
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+						PVCName:      utils.PVCWithDevice,
+						PVCNameSpace: utils.LocalNameSpace,
+						PVAllocatedInfo: localtype.PVAllocatedInfo{
+							VGName:     "",
+							DeviceName: "/dev/sdc",
+							VolumeType: string(localtype.VolumeTypeDevice),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "test allocate info with bound, but pv have no vg or device",
+			args: args{
+				nodeName: utils.NodeName3,
+				pod:      complexPod,
+				state: &stateData{
+					reservedState: &cache.NodeAllocateState{
+						NodeName: utils.NodeName3,
+						PodUid:   string(complexPod.UID),
+						Units: &cache.NodeAllocateUnits{
+							LVMPVCAllocateUnits: []*cache.LVMPVAllocated{
+								{
+									VGName: utils.VGSSD,
+									BasePVAllocated: cache.BasePVAllocated{
+										PVCName:      utils.PVCWithVG,
+										PVCNamespace: utils.LocalNameSpace,
+										NodeName:     utils.NodeName3,
+										Requested:    int64(10 * utils.LocalGi),
+										Allocated:    int64(10 * utils.LocalGi),
+									},
+								},
+							},
+							DevicePVCAllocateUnits: []*cache.DeviceTypePVAllocated{
+								{
+									DeviceName: "/dev/sdc",
+									BasePVAllocated: cache.BasePVAllocated{
+										PVCName:      utils.PVCWithDevice,
+										PVCNamespace: utils.LocalNameSpace,
+										NodeName:     utils.NodeName3,
+										Requested:    int64(10 * utils.LocalGi),
+										Allocated:    int64(150 * utils.LocalGi),
+									},
+								},
+							},
+							InlineVolumeAllocateUnits: []*cache.InlineVolumeAllocated{},
+						},
+					},
+				},
+			},
+			fields: fields{
+				nodeLocal: utils.CreateTestNodeLocalStorage3(),
+				pvcs:      pvcsBounding,
+				lastReserved: &cache.NodeAllocateState{
+					NodeName: utils.NodeName3,
+					PodUid:   string(complexPod.UID),
+					Units: &cache.NodeAllocateUnits{
+						LVMPVCAllocateUnits: []*cache.LVMPVAllocated{
+							{
+								VGName: utils.VGSSD,
+								BasePVAllocated: cache.BasePVAllocated{
+									PVCName:      utils.PVCWithoutVG,
+									PVCNamespace: utils.LocalNameSpace,
+									NodeName:     utils.NodeName3,
+									Requested:    int64(40 * utils.LocalGi),
+									Allocated:    int64(40 * utils.LocalGi),
+								},
+							},
+						},
+						DevicePVCAllocateUnits:    []*cache.DeviceTypePVAllocated{},
+						InlineVolumeAllocateUnits: []*cache.InlineVolumeAllocated{},
+					},
+				},
+			},
+			expect: expect{
+				status: framework.NewStatus(framework.Success),
+				pvcInfos: map[string]localtype.NodeStoragePVCAllocateInfo{
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+						PVCName:      utils.PVCWithVG,
+						PVCNameSpace: utils.LocalNameSpace,
+						PVAllocatedInfo: localtype.PVAllocatedInfo{
+							VGName:     utils.VGSSD,
+							DeviceName: "",
+							VolumeType: string(localtype.VolumeTypeLVM),
+						},
+					},
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG): {
+						PVCName:      utils.PVCWithoutVG,
+						PVCNameSpace: utils.LocalNameSpace,
+						PVAllocatedInfo: localtype.PVAllocatedInfo{
+							VGName:     utils.VGSSD,
+							DeviceName: "",
+							VolumeType: string(localtype.VolumeTypeLVM),
+						},
+					},
+					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
 						PVCName:      utils.PVCWithDevice,
 						PVCNameSpace: utils.LocalNameSpace,
 						PVAllocatedInfo: localtype.PVAllocatedInfo{
@@ -1299,6 +1473,29 @@ func Test_Prebind(t *testing.T) {
 
 			plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, metav1.CreateOptions{})
 			plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
+			plugin.OnNodeLocalStorageAdd(tt.fields.nodeLocal)
+
+			for _, pvc := range pvcsPending {
+				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				plugin.OnPVCAdd(pvc)
+			}
+
+			if tt.fields.lastReserved != nil {
+				plugin.cache.Reserve(tt.fields.lastReserved, "")
+			}
+
+			for _, pvc := range tt.fields.pvcs {
+				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				plugin.OnPVCAdd(pvc)
+			}
+
+			for _, pv := range tt.fields.pvs {
+				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
+				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
+				plugin.OnPVAdd(pv)
+			}
 
 			cycleState := framework.NewCycleState()
 			cycleState.Write(stateKey, tt.args.state)

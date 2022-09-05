@@ -60,24 +60,24 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 	}
 	pvcPodSchedulerMap := newPvcPodSchedulerMap()
 	pvcTmp := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithoutVG().PVCPending})[0]
-	// pvcWithoutVGFW
-	pvcWithoutVGFW := pvcTmp.DeepCopy()
-	pvcWithoutVGFW.Name = "pvcWithoutVGFW"
-	pvcWithoutVGFW.SetAnnotations(map[string]string{
+	// pvcWithoutVG_FW
+	pvcWithoutVG_FW := pvcTmp.DeepCopy()
+	pvcWithoutVG_FW.Name = "pvcWithoutVGFW"
+	pvcWithoutVG_FW.SetAnnotations(map[string]string{
 		pkg.AnnoSelectedNode: utils.NodeName4,
 	})
-	pvcPodSchedulerMap.Add(pvcWithoutVGFW.Namespace, pvcWithoutVGFW.Name, "ahe-scheduler")
-	// pvcWithoutVGFWNoNodeName
-	pvcWithoutVGFWNoNodeName := pvcTmp.DeepCopy()
-	pvcWithoutVGFWNoNodeName.Name = "pvcWithoutVGFWNoNodeName"
-	pvcPodSchedulerMap.Add(pvcWithoutVGFWNoNodeName.Namespace, pvcWithoutVGFWNoNodeName.Name, "ahe-scheduler")
-	// pvcWithoutVGExtender
-	pvcWithoutVGExtender := pvcTmp.DeepCopy()
-	pvcWithoutVGFWNoNodeName.Name = "pvcWithoutVGExtender"
-	pvcWithoutVGExtender.SetAnnotations(map[string]string{
+	pvcPodSchedulerMap.Add(pvcWithoutVG_FW.Namespace, pvcWithoutVG_FW.Name, "ahe-scheduler")
+	// pvcWithoutVG_FW_NoNodeName
+	pvcWithoutVG_FW_NoNodeName := pvcTmp.DeepCopy()
+	pvcWithoutVG_FW_NoNodeName.Name = "pvcWithoutVGFWNoNodeName"
+	pvcPodSchedulerMap.Add(pvcWithoutVG_FW_NoNodeName.Namespace, pvcWithoutVG_FW_NoNodeName.Name, "ahe-scheduler")
+	// pvcWithoutVG_Extender
+	pvcWithoutVG_Extender := pvcTmp.DeepCopy()
+	pvcWithoutVG_Extender.Name = "pvcWithoutVGExtender"
+	pvcWithoutVG_Extender.SetAnnotations(map[string]string{
 		pkg.AnnoSelectedNode: utils.NodeName4,
 	})
-	pvcPodSchedulerMap.Add(pvcWithoutVGExtender.Namespace, pvcWithoutVGExtender.Name, "default")
+	pvcPodSchedulerMap.Add(pvcWithoutVG_Extender.Namespace, pvcWithoutVG_Extender.Name, "default")
 	// nodeName4
 	node := utils.CreateNode(&utils.TestNodeInfo{
 		NodeName:  utils.NodeName4,
@@ -85,9 +85,9 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 	})
 
 	pvcs := []*v1.PersistentVolumeClaim{
-		pvcWithoutVGFW,
-		pvcWithoutVGFWNoNodeName,
-		pvcWithoutVGExtender,
+		pvcWithoutVG_FW,
+		pvcWithoutVG_FW_NoNodeName,
+		pvcWithoutVG_Extender,
 	}
 
 	ctx := context.Background()
@@ -182,8 +182,8 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					Parameters: map[string]string{
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 						pkg.PVName:        "test-pv",
-						pkg.PVCNameSpace:  pvcWithoutVGFWNoNodeName.Namespace,
-						pkg.PVCName:       pvcWithoutVGFWNoNodeName.Name,
+						pkg.PVCNameSpace:  pvcWithoutVG_FW_NoNodeName.Namespace,
+						pkg.PVCName:       pvcWithoutVG_FW_NoNodeName.Name,
 					},
 				},
 			},
@@ -206,8 +206,8 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					CapacityRange: &csi.CapacityRange{RequiredBytes: int64(150 * 1024 * 1024 * 1024)},
 					Parameters: map[string]string{
 						pkg.PVName:        "test-pv",
-						pkg.PVCNameSpace:  pvcWithoutVGFW.Namespace,
-						pkg.PVCName:       pvcWithoutVGFW.Name,
+						pkg.PVCNameSpace:  pvcWithoutVG_FW.Namespace,
+						pkg.PVCName:       pvcWithoutVG_FW.Name,
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
@@ -218,8 +218,8 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					VolumeId:      "test-pv",
 					VolumeContext: map[string]string{
 						pkg.PVName:           "test-pv",
-						pkg.PVCNameSpace:     pvcWithoutVGFW.Namespace,
-						pkg.PVCName:          pvcWithoutVGFW.Name,
+						pkg.PVCNameSpace:     pvcWithoutVG_FW.Namespace,
+						pkg.PVCName:          pvcWithoutVG_FW.Name,
 						pkg.VolumeTypeKey:    string(pkg.VolumeTypeLVM),
 						pkg.AnnoSelectedNode: utils.NodeName4,
 					},
@@ -250,8 +250,8 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					CapacityRange: &csi.CapacityRange{RequiredBytes: int64(150 * 1024 * 1024 * 1024)},
 					Parameters: map[string]string{
 						pkg.PVName:        "test-pv",
-						pkg.PVCNameSpace:  pvcWithoutVGExtender.Namespace,
-						pkg.PVCName:       pvcWithoutVGExtender.Name,
+						pkg.PVCNameSpace:  pvcWithoutVG_Extender.Namespace,
+						pkg.PVCName:       pvcWithoutVG_Extender.Name,
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
@@ -262,8 +262,8 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					VolumeId:      "test-pv",
 					VolumeContext: map[string]string{
 						pkg.PVName:           "test-pv",
-						pkg.PVCNameSpace:     pvcWithoutVGExtender.Namespace,
-						pkg.PVCName:          pvcWithoutVGExtender.Name,
+						pkg.PVCNameSpace:     pvcWithoutVG_Extender.Namespace,
+						pkg.PVCName:          pvcWithoutVG_Extender.Name,
 						pkg.VolumeTypeKey:    string(pkg.VolumeTypeLVM),
 						pkg.AnnoSelectedNode: utils.NodeName4,
 						pkg.VGName:           "newVG",

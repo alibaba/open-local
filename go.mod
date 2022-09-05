@@ -40,6 +40,7 @@ require (
 )
 
 replace (
+	cloud.google.com/go => cloud.google.com/go v0.54.0
 	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
 	google.golang.org/grpc => google.golang.org/grpc v1.43.0

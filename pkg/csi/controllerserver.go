@@ -343,14 +343,6 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	if err := validateDeleteVolumeRequest(req); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "DeleteVolume: fail to validate DeleteVolumeRequest: %s", err.Error())
 	}
-	pv, err := cs.pvLister.Get(volumeID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
-	}
-	nodeName, vgName, err := getInfoFromPV(pv)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to  get pv spec %s: %s", volumeID, err.Error())
-	}
 
 	// Step 2: delete volume
 	if ok := cs.inFlight.Insert(volumeID); !ok {
@@ -359,61 +351,74 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	defer func() {
 		cs.inFlight.Delete(volumeID)
 	}()
+
+	// Step 3: check if volume content source is snapshot
+	pv, err := cs.pvLister.Get(volumeID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
+	}
+	isSnapshot := false
+	isSnapshotReadOnly := false
+	if pv.Spec.CSI != nil {
+		attributes := pv.Spec.CSI.VolumeAttributes
+		if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
+			isSnapshot = true
+		}
+		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
+			isSnapshotReadOnly = true
+		}
+	}
+	if isSnapshot {
+		if isSnapshotReadOnly {
+			log.Infof("DeleteVolume: volume %s is ro snapshot volume, skip delete lv", volumeID)
+			// break switch
+			return &csi.DeleteVolumeResponse{}, nil
+		} else {
+			return nil, status.Errorf(codes.Unimplemented, "DeleteVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
+		}
+	}
+
+	// Step 4: switch
 	volumeType := pv.Spec.CSI.VolumeAttributes[pkg.VolumeTypeKey]
 	switch volumeType {
 	case string(pkg.VolumeTypeLVM):
-		// check volume content source is snapshot
-		isSnapshot := false
-		isSnapshotReadOnly := false
-		if pv.Spec.CSI != nil {
-			attributes := pv.Spec.CSI.VolumeAttributes
-			if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
-				isSnapshot = true
-			}
-			if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
-				isSnapshotReadOnly = true
-			}
+		nodeName, vgName, err := getInfoFromPV(pv)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to  get pv spec %s: %s", volumeID, err.Error())
 		}
-		if isSnapshot {
-			if isSnapshotReadOnly {
-				log.Infof("DeleteVolume: volume %s is ro snapshot volume, skip delete lv", volumeID)
-				// break switch
-				break
-			} else {
-				return nil, status.Errorf(codes.Unimplemented, "DeleteVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
-			}
-		}
-
 		if nodeName == "" {
-			log.Warningf("DeleteVolume: delete local volume %s with node empty", volumeID)
-		} else {
-			conn, err := cs.getNodeConn(nodeName)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
-			}
-			defer conn.Close()
+			log.Warningf("DeleteVolume: delete local volume %s with empty node", volumeID)
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+		if vgName == "" {
+			log.Warningf("DeleteVolume: delete local volume %s with empty vgName", volumeID)
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+		conn, err := cs.getNodeConn(nodeName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
+		}
+		defer conn.Close()
 
-			if lvmName, err := conn.GetLvm(ctx, vgName, volumeID); err != nil {
-				if strings.Contains(err.Error(), "Failed to find logical volume") {
-					log.Warningf("DeleteVolume: lvm volume not found, skip deleting %s", volumeID)
-				} else if strings.Contains(err.Error(), "Volume group \""+vgName+"\" not found") {
-					log.Warningf("DeleteVolume: Volume group not found, skip deleting %s", volumeID)
-				} else {
-					return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get lv %s: %s", volumeID, err.Error())
-				}
+		if lvName, err := conn.GetLvm(ctx, vgName, volumeID); err != nil {
+			if strings.Contains(err.Error(), "Failed to find logical volume") {
+				log.Warningf("DeleteVolume: lvm volume not found, skip deleting %s", volumeID)
+				return &csi.DeleteVolumeResponse{}, nil
+			} else if strings.Contains(err.Error(), "Volume group \""+vgName+"\" not found") {
+				log.Warningf("DeleteVolume: Volume group not found, skip deleting %s", volumeID)
+				return &csi.DeleteVolumeResponse{}, nil
+			} else {
+				return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get lv %s: %s", volumeID, err.Error())
+			}
+		} else {
+			if lvName != "" {
 				if err := conn.DeleteLvm(ctx, vgName, volumeID); err != nil {
 					return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete lv %s: %s", volumeID, err.Error())
 				}
-				log.Infof("DeleteLvm: delete lvm %s/%s at node %s successfully", vgName, volumeID, nodeName)
+				log.Infof("DeleteVolume: delete lv %s/%s at node %s successfully", vgName, volumeID, nodeName)
 			} else {
-				if lvmName != "" {
-					if err := conn.DeleteLvm(ctx, vgName, volumeID); err != nil {
-						return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete lv %s: %s", volumeID, err.Error())
-					}
-					log.Infof("DeleteLvm: delete lvm %s/%s at node %s successfully", vgName, volumeID, nodeName)
-				} else {
-					log.Warningf("DeleteVolume: empty lv name, skip deleting %s", volumeID)
-				}
+				log.Warningf("DeleteVolume: empty lv name, skip deleting %s", volumeID)
+				return &csi.DeleteVolumeResponse{}, nil
 			}
 		}
 	case string(pkg.VolumeTypeMountPoint):

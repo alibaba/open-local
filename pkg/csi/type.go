@@ -22,6 +22,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+	log "k8s.io/klog/v2"
 )
 
 const (
@@ -154,6 +155,7 @@ func newSchedulerArchMap(extenderSchedulerNames []string, frameworkSchedulerName
 	for _, name := range frameworkSchedulerNames {
 		info[name] = SchedulerArchFramework
 	}
+	log.V(2).Infof("schedulerArchMap info is %v", info)
 	return &SchedulerArchMap{
 		info: info,
 	}

@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net/http"
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 
 	localtype "github.com/alibaba/open-local/pkg"
@@ -148,6 +150,8 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	} else if allocateInfo != nil && allocateInfo.VGName != "" {
 		return allocateInfo.VGName
 	}
+
+	log.V(2).Infof("allocateInfo of pv %s is %v", pv.Name, allocateInfo)
 
 	csi := pv.Spec.CSI
 	if csi == nil {
@@ -800,4 +804,64 @@ func GetAccessModes(caps []*csilib.VolumeCapability) *[]string {
 		modes = append(modes, c.AccessMode.GetMode().String())
 	}
 	return &modes
+}
+
+func EnsureBlock(target string) error {
+	fi, err := os.Lstat(target)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil && fi.IsDir() {
+		os.Remove(target)
+	}
+	targetPathFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, 0750)
+	if err != nil {
+		return fmt.Errorf("failed to create block:%s with error: %v", target, err)
+	}
+	if err := targetPathFile.Close(); err != nil {
+		return fmt.Errorf("failed to close targetPath:%s with error: %v", target, err)
+	}
+	return nil
+}
+
+func MountBlock(source, target string, opts ...string) error {
+	mountCmd := "mount"
+	mountArgs := []string{}
+
+	if source == "" {
+		return errors.New("source is not specified for mounting the volume")
+	}
+	if target == "" {
+		return errors.New("target is not specified for mounting the volume")
+	}
+
+	if len(opts) > 0 {
+		mountArgs = append(mountArgs, "-o", strings.Join(opts, ","))
+	}
+	mountArgs = append(mountArgs, source)
+	mountArgs = append(mountArgs, target)
+	// create target, os.Mkdirall is noop if it exists
+	_, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+
+	log.V(6).Infof("Mount %s to %s, the command is %s %v", source, target, mountCmd, mountArgs)
+	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mounting failed: %v cmd: '%s %s' output: %q",
+			err, mountCmd, strings.Join(mountArgs, " "), string(out))
+	}
+	return nil
+}
+
+// IsBlockDevice checks if the given path is a block device
+func IsBlockDevice(fullPath string) (bool, error) {
+	var st unix.Stat_t
+	err := unix.Stat(fullPath, &st)
+	if err != nil {
+		return false, err
+	}
+
+	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
 }

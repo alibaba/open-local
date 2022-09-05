@@ -44,12 +44,10 @@ import (
 	log "k8s.io/klog/v2"
 	mountutils "k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
-	k8smount "k8s.io/utils/mount"
 )
 
 type nodeServer struct {
-	mounter              utils.Mounter
-	k8smounter           k8smount.Interface
+	k8smounter           mountutils.SafeFormatAndMount
 	ephemeralVolumeStore Store
 	inFlight             *InFlight
 	spdkSupported        bool
@@ -59,16 +57,16 @@ type nodeServer struct {
 }
 
 func newNodeServer(options *driverOptions) *nodeServer {
-	mounter := k8smount.New("")
-
 	store, err := NewVolumeStore(DefaultEphemeralVolumeDataFilePath)
 	if err != nil {
 		log.Fatalf("fail to initialize ephemeral volume store: %s", err.Error())
 	}
 
 	ns := &nodeServer{
-		mounter:              utils.NewMounter(),
-		k8smounter:           mounter,
+		k8smounter: mountutils.SafeFormatAndMount{
+			Interface: mountutils.New(""),
+			Exec:      utilexec.New(),
+		},
 		ephemeralVolumeStore: store,
 		inFlight:             NewInFlight(),
 		spdkSupported:        false,
@@ -120,6 +118,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 	}
 
+	// Step 3: spdk or direct
 	if ok := ns.inFlight.Insert(volumeID); !ok {
 		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, volumeID)
 	}
@@ -145,6 +144,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
+	// Step 4: switch
 	volCap := req.GetVolumeCapability()
 	switch volumeType {
 	case string(pkg.VolumeTypeLVM):
@@ -200,7 +200,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	if targetPath == "" {
 		return nil, status.Error(codes.Internal, "NodeUnpublishVolume: targetPath is empty")
 	}
-	log.Infof("NodeUnpublishVolume: start to unmount target path %s for volume %s", targetPath, volumeID)
+	log.Infof("NodeUnpublishVolume: start to umount target path %s for volume %s", targetPath, volumeID)
 
 	// Step 2: umount
 	if ok := ns.inFlight.Insert(volumeID); !ok {
@@ -211,21 +211,16 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}()
 	if ns.spdkSupported {
 		if err := volume.Remove(targetPath); err != nil {
-			log.Warningf("NodeUnpublishVolume: direct volume remove failed: %s", err.Error())
-		}
-	}
-	isMnt, err := ns.mounter.IsMounted(targetPath)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to check if targetPath %s is mounted: %s", targetPath, err.Error())
-	}
-	if isMnt {
-		err := ns.mounter.Unmount(targetPath)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s", volumeID, targetPath, err.Error())
+			log.Errorf("NodeUnpublishVolume: direct volume remove failed: %s", err.Error())
 		}
 	}
 
+	if err := mountutils.CleanupMountPoint(targetPath, ns.k8smounter, true /*extensiveMountPointCheck*/); err != nil {
+		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s", volumeID, targetPath, err.Error())
+	}
+
 	// Step 3: delete ephemeral device
+	var err error
 	ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(volumeID)
 	if exist && ephemeralDevice != "" {
 		// /dev/mapper/yoda--pool0-yoda--5c523416--7288--4138--95e0--f9392995959f
@@ -235,12 +230,12 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 			err = removeLVMByDevicePath(ephemeralDevice)
 		}
 		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to remove ephemeral volume: %s", err.Error())
 		}
 
 		err = ns.ephemeralVolumeStore.DeleteVolume(volumeID)
 		if err != nil {
-			log.Warningf("failed to remove volume: %s", err.Error())
+			log.Errorf("NodeUnpublishVolume: failed to remove volume in volume store: %s", err.Error())
 		}
 	}
 
@@ -336,7 +331,7 @@ func (ns *nodeServer) addDirectVolume(volumePath, device, fsType string) error {
 }
 
 func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
-	mounted, err := ns.mounter.IsMounted(targetPath)
+	mounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		log.Errorf("mountBlockDevice - check if %s is mounted failed: %s", targetPath, err.Error())
 		return status.Errorf(codes.Internal, "check if %s is mounted failed: %s", targetPath, err.Error())
@@ -348,7 +343,7 @@ func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
 	} else {
 		log.Infof("mounting %s at %s", device, targetPath)
 
-		if err := ns.mounter.MountBlock(device, targetPath, mountOptions...); err != nil {
+		if err := utils.MountBlock(device, targetPath, mountOptions...); err != nil {
 			if removeErr := os.Remove(targetPath); removeErr != nil {
 				log.Errorf("Remove mount target %s failed: %s", targetPath, removeErr.Error())
 				return status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, removeErr)
@@ -375,7 +370,7 @@ func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePubl
 			}
 
 			if err := volume.Remove(req.GetTargetPath()); err != nil {
-				log.Warningf("NodePublishVolume - direct volume remove failed: %s", err.Error())
+				log.Errorf("NodePublishVolume - direct volume remove failed: %s", err.Error())
 			}
 		}
 	}()
@@ -399,7 +394,7 @@ func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePubl
 		ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
 		if ephemeralVolume {
 			if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, device); err != nil {
-				log.Warningf("fail to add volume: %s", err.Error())
+				log.Errorf("fail to add volume: %s", err.Error())
 			}
 		}
 	}

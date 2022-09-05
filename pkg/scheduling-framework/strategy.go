@@ -126,7 +126,9 @@ func (s *SpreadStrategy) ScoreDeviceCount(nodeAllocate *cache.NodeAllocateState)
 
 func allocatePVCWithoutVgName(nodeName string, vgStates *[]*cache.VGStoragePool, pvcInfo *LVMPVCInfo, vgSortFunc vgSortFunc) (*cache.LVMPVAllocated, error) {
 	if vgStates == nil {
-		return nil, fmt.Errorf("allocate for pvc(%s) fail, no vg found on node(%s)", utils.PVCName(pvcInfo.pvc), nodeName)
+		err := fmt.Errorf("allocate for pvc(%s) fail, no vg found on node(%s)", utils.PVCName(pvcInfo.pvc), nodeName)
+		klog.Error(err)
+		return nil, err
 	}
 	vgStateList := *vgStates
 

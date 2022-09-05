@@ -132,14 +132,19 @@ var _ = framework.PreBindPlugin(&LocalPlugin{})
 // NewLocalPlugin
 func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 
-	unknownObj, ok := configuration.(*runtime.Unknown)
-	if !ok {
-		return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", configuration)
-	}
 	args := OpenLocalArg{}
-	if err := frameworkruntime.DecodeInto(unknownObj, &args); err != nil {
-		return nil, err
+
+	if configuration != nil {
+		unknownObj, ok := configuration.(*runtime.Unknown)
+		if !ok {
+			return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", configuration)
+		}
+
+		if err := frameworkruntime.DecodeInto(unknownObj, &args); err != nil {
+			return nil, err
+		}
 	}
+
 	nodeAntiAffinityWeight, err := utils.ParseWeight(args.NodeAntiAffinityConf)
 	if err != nil {
 		return nil, err
@@ -231,6 +236,7 @@ type CacheUnit struct {
 func (plugin *LocalPlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	podVolumeInfo, err := plugin.getPodLocalVolumeInfos(pod)
 	if err != nil {
+		klog.Errorf("preFilter", err.Error())
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
 	state.Write(stateKey, &stateData{podVolumeInfo: podVolumeInfo, allocateStateByNode: map[string]*cache.NodeAllocateState{}})
@@ -247,6 +253,7 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 
 	podVolumeInfo, err := plugin.getPodVolumeInfoFromState(state)
 	if err != nil {
+		klog.Errorf("get podVolumeInfo from state fail, pod:%s, node:%s, err: %s", pod.UID, nodeName, err.Error())
 		return framework.AsStatus(err)
 	}
 	//not use local pv, return success
@@ -254,17 +261,24 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 		return framework.NewStatus(framework.Success)
 	}
 
-	err = plugin.filterBySnapshot(nodeName, podVolumeInfo.lvmPVCsSnapshot)
+	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.lvmPVCsSnapshot)
 	if err != nil {
+		klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.AsStatus(err)
+	}
+	if !fits {
+		klog.V(6).Infof("pod have snapshot pvc, node %s not fit pod", nodeName)
+		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
 	}
 
 	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
 	if err != nil {
+		klog.V(4).Infof("filter fail: preAllocate err for nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
 	stateData, err := plugin.getState(state)
 	if err != nil {
+		klog.Errorf("get stateData from state fail, pod:%s, node:%s, err: %s", pod.UID, nodeName, err.Error())
 		return framework.AsStatus(err)
 	}
 	stateData.AddAllocateState(nodeName, nodeAllocate)
@@ -274,6 +288,7 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
 	allocateInfo, err := plugin.getNodeAllocateUnitFromState(state, nodeName)
 	if err != nil {
+		klog.Errorf("Score node(%s) for pod(%s) err: %s", nodeName, pod.UID, err.Error())
 		return 0, framework.NewStatus(framework.Unschedulable, err.Error())
 	}
 	if allocateInfo == nil || !allocateInfo.Units.HaveLocalUnits() {
@@ -310,6 +325,7 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 
 	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nodeName)
 	if err != nil {
+		klog.Errorf("reserve pod(%s) with node(%s) fail, preAllocate err: %s", pod.UID, nodeName, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
 
@@ -318,6 +334,7 @@ func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleSt
 	err = plugin.cache.Reserve(preAllocate)
 	stateData.reservedState = preAllocate
 	if err != nil {
+		klog.Errorf("reserve pod(%s) with node(%s) fail, cache reserve err: %s", pod.UID, nodeName, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
 	return framework.NewStatus(framework.Success)

@@ -81,35 +81,37 @@ func (units *NodeAllocateUnits) HaveLocalUnits() bool {
 case1：正常调度流程-动态绑定
 	1. Create PVC 延迟binding（调度器watch到PVC创建，未bind node不处理）
 	2. Create Pod，调度器开始调度Pod
-	3. 调度PVC，更新cache，开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到NLS ##注意，这里不清楚哪个prebind先执行
-	4. external_provisional create Volume and PV(pending状态)
-	5. 调度器Watch PV创建（pending状态），不处理
-	6. pv_controller：bind PVC/PV
-	7. 调度器watch到PV update：1）PV bound状态 此时PVC已经调度过，故向cache写入Volume信息 2）获取NLS信息，得到VG信息，并更新PV的VG信息
-	8. 调度器watch到NLS update：1）如果PV中无VG信息，且bound状态，更新VG信息到PV中
-	9. prebind结束，bind node
+	3. reserve阶段：调度PVC，更新cache，
+    4. 开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到NLS ##注意，这里不清楚哪个prebind先执行
+	5. external_provisional create Volume and PV(pending状态)
+	6. 调度器Watch PV创建（pending状态），不处理
+	7. pv_controller：bind PVC/PV
+	8. 调度器watch到PV update：PV bound状态 此时PVC已经调度过，故向cache写入Volume信息，并删除pvc的调度信息，防止重复扣减
+	9. nls-controller: 1)watch pv update: 获取NLS信息，得到VG信息，并更新PV的VG信息 2)watch到NLS update,如果PV中无VG信息，且bound状态，更新VG信息到PV中
+	10. prebind结束，bind node
 
 
 Case2：正常调度流程-静态绑定-（调度之前pv_controller提前已绑定）
-	1. onPVAdd/onPVUpdate：1）未bound阶段非pending，创建了PV的调度信息 2）bound，则补充PVC信息
-	2. onPVCAdd/onPVCUpdate：1）未bound阶段，则不处理 2）bound阶段，则创建或者补充PVC/PV调度信息
+	1. onPVAdd/onPVUpdate：1）未bound阶段非pending，创建了PV的调度信息 2）bound，则向cache写入Volume信息，并删除pvc的调度信息，防止重复扣减
+	2. onPVCAdd/onPVCUpdate：1）未bound阶段，则不处理 2）bound阶段，则更新PVC info信息
 	3.调度器：已bound的PVC跳过
+
 
 TODO：目前无法在reserve阶段获取这种静态绑定的，因此会扣减账本
 case3：正常调度流程-静态绑定-调度器prebind阶段绑定
-	1. onPVAdd/onPVUpdate：1）未bound阶段非pending，创建了PV的调度信息 2）bound，则补充PVC信息
-	2. onPVCAdd/onPVCUpdate：1）未bound阶段，则不处理 2）bound阶段，则创建或者补充PVC/PV调度信息
+	1. onPVAdd/onPVUpdate：1）未bound阶段非pending，创建PV的调度信息 2）bound，则向cache写入Volume信息，并删除pvc的调度信息，防止重复扣减
+	2. onPVCAdd/onPVCUpdate：1）未bound阶段，则不处理 2）bound阶段，bound阶段，则更新PVC info信息
 	3. 调度器：volume_binding plugin prebind阶段才做PVC/PV静态bound操作，如果是static binding的PVC，则跳过（如何获取static binding，可以从cyclestate里获取volume_binding的结果）
 
 
 case4:调度器重建流程以及各类异常调度流程
 	onPVDelete： 删除（PVC/PV）allocated信息，删除账本信息
-	onPVCDelete： 删除PVC allocated信息，如果PV还在，则继续保留PV部分，且不扣减账本
+	onPVCDelete： 删除PVC allocated信息，info信息，如果PV还在，则继续保留PV部分，且不扣减账本
 	case3.1 已Bound PVC/PV
-			onPVAdd: 如果没有allocated信息，PVC/PV账本扣除并增加allocated信息 2)如果PV没有VG信息，从NLS获取并更新VG annotation
-			onPVUpdate： 1)如果没有allocated信息，PVC/PV账本扣除并增加allocated信息 2)如果PV没有VG信息，从NLS获取并更新VG annotation
-			OnPVCAdd：	1）发现PVC/PV bound，如果没有allocated信息，则创建并扣减账本 2）符合resize逻辑，则做delta更新
-			onPVCUpdate： 1）发现PVC/PV bound，如果没有allocated信息，则创建并扣减账本 2）符合resize逻辑，则做delta更新
+			onPVAdd: 1)如果没有pv allocated信息，账本扣除并增加pv allocated信息 2)如果有pvc allocate信息，则要revert掉
+			onPVUpdate： 同PVAdd
+			OnPVCAdd：	1）发现PVC/PV bound，更新pvc info信息，如果有pvc allocateDetail，更新起request 2）校验pvDetail，符合resize逻辑，则做delta更新
+			onPVCUpdate： 同PVCAdd
 			调度流程：如果一个POD调度含已bound的PVC，则跳过该PVC调度
 
 	case3.2 PV pending状态（上次调度prebind阶段调度器退出？）

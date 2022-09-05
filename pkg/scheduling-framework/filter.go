@@ -46,17 +46,17 @@ func (plugin *LocalPlugin) getPodLocalVolumeInfos(pod *corev1.Pod) (*PodLocalVol
 	}
 
 	if len(unboundDevicePVCs) > 0 {
+		volumeInfos.ssdDevicePVCsNotAllocated, volumeInfos.hddDevicePVCsNotAllocated, err = plugin.filterAllocatedAndDividePVCAccordingToMediaType(unboundDevicePVCs)
 		if err != nil {
 			return nil, err
 		}
-		volumeInfos.ssdDevicePVCsNotAllocated, volumeInfos.hddDevicePVCsNotAllocated, err = plugin.filterAllocatedAndDividePVCAccordingToMediaType(unboundDevicePVCs)
 	}
 
 	if len(unboundLvmPVCs) > 0 {
+		volumeInfos.lvmPVCsWithVgNameNotAllocated, volumeInfos.lvmPVCsWithoutVgNameNotAllocated, volumeInfos.lvmPVCsSnapshot, err = plugin.filterAllocatedAndDivideLVMPVC(unboundLvmPVCs)
 		if err != nil {
 			return nil, err
 		}
-		volumeInfos.lvmPVCsWithVgNameNotAllocated, volumeInfos.lvmPVCsWithoutVgNameNotAllocated, volumeInfos.lvmPVCsSnapshot, err = plugin.filterAllocatedAndDivideLVMPVC(unboundLvmPVCs)
 	}
 
 	inlineVolumeAllocates, err := plugin.getInlineVolumeAllocates(pod)
@@ -121,9 +121,10 @@ func (plugin *LocalPlugin) preAllocate(pod *corev1.Pod, podVolumeInfo *PodLocalV
 	return nodeAllocate, err
 }
 
-func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot []*LVMPVCInfo) error {
+func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot []*LVMPVCInfo) (bool, error) {
 	// if pod has snapshot pvc
 	// select all snapshot pvcs, and check if nodes of them are the same
+	var fits = true
 	if len(lvmPVCsSnapshot) >= 0 {
 
 		var pvcs []*corev1.PersistentVolumeClaim
@@ -131,16 +132,15 @@ func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot []*
 			pvcs = append(pvcs, pvcInfo.pvc)
 		}
 
-		var fits bool
 		var err error
 		if fits, err = algo.ProcessSnapshotPVC(pvcs, nodeName, plugin.coreV1Informers, plugin.snapshotInformers); err != nil {
-			return err
+			return fits, err
 		}
 		if !fits {
-			return fmt.Errorf("pod have snapshot pvc, node %s not fit pod", nodeName)
+			return fits, nil
 		}
 	}
-	return nil
+	return fits, nil
 }
 
 func (plugin *LocalPlugin) preAllocateByVGs(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo, nodeName string, nodeStateClone *cache.NodeStorageState) (*cache.NodeAllocateUnits, error) {
@@ -190,7 +190,9 @@ func (plugin *LocalPlugin) preAllocateLVMPVCs(nodeName string, podVolumeInfo *Po
 	}
 
 	if len(nodeStateClone.VGStates) <= 0 {
-		return allocateUnits, fmt.Errorf("no vg found with node %s", nodeName)
+		err := fmt.Errorf("no vg found with node %s", nodeName)
+		klog.Error(err)
+		return allocateUnits, err
 	}
 
 	for _, pvcInfo := range podVolumeInfo.lvmPVCsWithVgNameNotAllocated {
@@ -314,7 +316,9 @@ func (plugin *LocalPlugin) processDeviceByMediaType(nodeName string, devicePVCs 
 func allocateVgState(nodeName, vgName string, nodeStateClone *cache.NodeStorageState, size int64) error {
 	vgState, ok := nodeStateClone.VGStates[vgName]
 	if !ok {
-		return fmt.Errorf("no vg pool %s in node %s", vgName, nodeName)
+		err := fmt.Errorf("no vg pool %s in node %s", vgName, nodeName)
+		klog.Error(err)
+		return err
 	}
 
 	// free size

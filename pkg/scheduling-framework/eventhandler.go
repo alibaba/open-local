@@ -253,7 +253,7 @@ func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos []loc
 
 	err := retry.RetryOnConflict(
 		retry.DefaultRetry, func() error {
-			nls, err := plugin.localInformers.NodeLocalStorages().Lister().Get(nodeName)
+			nls, err := plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{ResourceVersion: "0"})
 			if err != nil {
 				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, get nls error : %s", pvcInfos, nodeName, err.Error())
 				return err

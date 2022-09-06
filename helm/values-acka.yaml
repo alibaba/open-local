@@ -45,10 +45,6 @@ storageclass:
     name: yoda-device-ssd
   device_hdd:
     name: yoda-device-hdd
-  mountpoint_ssd:
-    name: yoda-mountpoint-ssd
-  mountpoint_hdd:
-    name: yoda-mountpoint-hdd
 monitor:
   # install grafana dashboard
   enabled: false

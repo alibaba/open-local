@@ -62,26 +62,14 @@ reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false
 ---
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
 metadata:
-   name: {{ .Values.storageclass.mountpoint_hdd.name }}
-provisioner: {{ .Values.driver }}
+  name: {{ .Values.storageclass.lvm.name }}
+driver: {{ .Values.driver }}
+deletionPolicy: Delete
 parameters:
-  csi.storage.k8s.io/fstype: ext4
-  volumeType: MountPoint
-  mediaType: hdd
-reclaimPolicy: Delete
-volumeBindingMode: WaitForFirstConsumer
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-   name: {{ .Values.storageclass.mountpoint_ssd.name }}
-provisioner: {{ .Values.driver }}
-parameters:
-  csi.storage.k8s.io/fstype: ext4
-  volumeType: MountPoint
-  mediaType: ssd
-reclaimPolicy: Delete
-volumeBindingMode: WaitForFirstConsumer
+  csi.aliyun.com/readonly: "true"
+  csi.aliyun.com/snapshot-initial-size: 4Gi
+  csi.aliyun.com/snapshot-expansion-size: 1Gi
+  csi.aliyun.com/snapshot-expansion-threshold: 50%

@@ -12,21 +12,21 @@ spec:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ .Values.name }}-csi-node
+  name: {{ .Values.name }}-agent
   namespace: {{ .Values.namespace }}
   labels:
     app: {{ .Values.name }}
-    component: {{ .Values.name }}-csi-node
+    component: {{ .Values.name }}-agent
 spec:
   selector:
     matchLabels:
       app: {{ .Values.name }}
-      component: {{ .Values.name }}-csi-node
+      component: {{ .Values.name }}-agent
   template:
     metadata:
       labels:
         app: {{ .Values.name }}
-        component: {{ .Values.name }}-csi-node
+        component: {{ .Values.name }}-agent
     spec:
       tolerations:
       - operator: Exists
@@ -68,8 +68,10 @@ spec:
             cpu: 50m
             memory: 64Mi
         volumeMounts:
+{{- if .Values.agent.kata }}
         - mountPath: /var/tmp/
           name: spdk
+{{- end }}
         - mountPath: /dev
           mountPropagation: "HostToContainer"
           name: host-dev
@@ -120,7 +122,7 @@ spec:
         - "--endpoint=$(CSI_ENDPOINT)"
         - "--nodeID=$(KUBE_NODE_NAME)"
         - "--driver={{ .Values.driver }}"
-        - --driver-mode=node
+        - "--driver-mode=node"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:
@@ -148,18 +150,22 @@ spec:
           requests:
             cpu: 50m
             memory: 128Mi
+{{- if .Values.agent.kata }}
         lifecycle:
           postStart:
             exec:
               command: ["/bin/sh", "-c",
                         "/usr/sbin/iscsid || echo failed to start iscsid"]
+{{- end }}
         volumeMounts:
+{{- if .Values.agent.kata }}
         - mountPath: /var/tmp/
           name: spdk
         - mountPath: /var/run/kata-containers/vhost-user/block
           name: vhost
         - mountPath: /run/kata-containers/shared/direct-volumes
           name: directvolume
+{{- end }}
         - name: pods-mount-dir
           mountPath: /var/lib/kubelet
           mountPropagation: "Bidirectional"
@@ -175,6 +181,7 @@ spec:
           mountPropagation: Bidirectional
           name: sys
       volumes:
+{{- if .Values.agent.kata }}
       - name: spdk
         hostPath:
           path: /var/tmp/
@@ -184,6 +191,7 @@ spec:
       - name: directvolume
         hostPath:
           path: /run/kata-containers/shared/direct-volumes
+{{- end }}
       - name: host-dev
         hostPath:
           path: /dev

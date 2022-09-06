@@ -112,12 +112,12 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		}
 	}
 	// check if mounted
-	isMnt, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
+	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		return fmt.Errorf("mountLvmFS: fail to check if %s is mounted: %s", targetPath, err.Error())
 	}
 	// Step 3: mount if not mounted
-	if !isMnt {
+	if notMounted {
 		var options []string
 		if req.GetReadonly() || isSnapshotReadOnly {
 			options = append(options, "ro")
@@ -165,8 +165,8 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 	if !isBlock {
 		return fmt.Errorf("mountLvmBlock: %s is not block device", devicePath)
 	}
-	// checking if the target file is already mounted with a device.
-	mounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
+	// checking if the target file is already notMounted with a device.
+	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		return status.Errorf(codes.Internal, "mountLvmBlock: check if %s is mountpoint failed: %s", targetPath, err)
 	}
@@ -175,7 +175,7 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 	if req.GetReadonly() {
 		mountOptions = append(mountOptions, "ro")
 	}
-	if !mounted {
+	if notMounted {
 		log.Infof("mountLvmBlock: mounting %s at %s", devicePath, targetPath)
 		if err := utils.EnsureBlock(targetPath); err != nil {
 			if removeErr := os.Remove(targetPath); removeErr != nil {
@@ -261,11 +261,11 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 		}
 	}
 
-	isMnt, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
+	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		return fmt.Errorf("mountDeviceVolumeFS: fail to check if %s is mounted: %s", targetPath, err.Error())
 	}
-	if !isMnt {
+	if notMounted {
 		var options []string
 		if req.GetReadonly() {
 			options = append(options, "ro")
@@ -305,8 +305,8 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 		return fmt.Errorf("mountDeviceVolumeBlock: %s is not block device", sourceDevice)
 	}
 
-	// Step 3: Checking if the target file is already mounted with a device.
-	mounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
+	// Step 3: Checking if the target file is already notMounted with a device.
+	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		return fmt.Errorf("mountDeviceVolumeBlock: fail to check if %s is mountpoint: %s", targetPath, err)
 	}
@@ -316,7 +316,7 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 	if req.GetReadonly() {
 		mountOptions = append(mountOptions, "ro")
 	}
-	if !mounted {
+	if notMounted {
 		log.Infof("mountDeviceVolumeBlock: mounting %s at %s", sourceDevice, targetPath)
 		if err := utils.EnsureBlock(targetPath); err != nil {
 			if removeErr := os.Remove(targetPath); removeErr != nil {

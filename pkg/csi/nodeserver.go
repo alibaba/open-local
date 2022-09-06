@@ -331,14 +331,14 @@ func (ns *nodeServer) addDirectVolume(volumePath, device, fsType string) error {
 }
 
 func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
-	mounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
+	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		log.Errorf("mountBlockDevice - check if %s is mounted failed: %s", targetPath, err.Error())
 		return status.Errorf(codes.Internal, "check if %s is mounted failed: %s", targetPath, err.Error())
 	}
 
 	mountOptions := []string{"bind"}
-	if mounted {
+	if !notMounted {
 		log.Infof("Target path %s is already mounted", targetPath)
 	} else {
 		log.Infof("mounting %s at %s", device, targetPath)

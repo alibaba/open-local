@@ -141,9 +141,9 @@ const (
 	/*
 		record: PVC->VG mapper
 		- update by schedulerFramework prebind
-		- read by schedulerFramework eventHandlers onNodeLocalStorageAdd/Update
+		- read by schedulerFramework eventHandlers onPodAdd/Update
 	*/
-	AnnotationNodeStorageAllocatedInfoKey = "csi.aliyun.com/node-allocated"
+	AnnotationPodPVCAllocatedNeedMigrateKey = "csi.aliyun.com/pod-pvc-migrate"
 
 	/*
 		record: vgName to PV
@@ -154,18 +154,18 @@ const (
 )
 
 var (
-	ValidProvisionerNames []string = []string{
+	ValidProvisionerNames = []string{
 		ProvisionerNameYoda,
 		ProvisionerName,
 	}
-	ValidVolumeType []VolumeType = []VolumeType{
+	ValidVolumeType = []VolumeType{
 		VolumeTypeMountPoint,
 		VolumeTypeLVM,
 		VolumeTypeDevice,
 		VolumeTypeQuota,
 	}
-	SupportedFS                    = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
-	SchedulerStrategy StrategyType = StrategyBinpack
+	SupportedFS       = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
+	SchedulerStrategy = StrategyBinpack
 )
 
 type UpdateStatus string
@@ -183,14 +183,14 @@ type StorageSpecUpdateStatus struct {
 	NewSpec  nodelocalstorage.NodeLocalStorageSpec `json:"newSpec"`
 }
 
-type NodeStoragePVCAllocateInfo struct {
+type PVCAllocateInfo struct {
 	PVCName         string `json:"pvcName"`
 	PVCNameSpace    string `json:"pvcNameSpace"`
 	PVAllocatedInfo `json:",inline"`
 }
 
-type NodeStorageAllocateInfo struct {
-	PvcAllocates map[string] /*PVCKey = PVCNameSpace/PVCName */ NodeStoragePVCAllocateInfo `json:"pvcAllocates"`
+type PodPVCAllocateInfo struct {
+	PvcAllocates map[string] /*PVCKey = PVCNameSpace/PVCName */ PVCAllocateInfo `json:"pvcAllocates"`
 }
 
 type PVAllocatedInfo struct {
@@ -232,24 +232,24 @@ func GetAllocatedInfoFromPVAnnotation(pv *corev1.PersistentVolume) (*PVAllocated
 	return &info, nil
 }
 
-func GetAllocateInfoFromNLS(nodeLocal *nodelocalstorage.NodeLocalStorage) (*NodeStorageAllocateInfo, error) {
-	infoJson := GetAllocateInfoJsonFromNLS(nodeLocal)
+func GetAllocateInfoFromPod(pod *corev1.Pod) (*PodPVCAllocateInfo, error) {
+	infoJson := GetAllocateInfoJSONFromPod(pod)
 	if infoJson == "" {
 		return nil, nil
 	}
-	info := NodeStorageAllocateInfo{}
+	info := PodPVCAllocateInfo{}
 	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
 		return nil, err
 	}
 	return &info, nil
 }
 
-func GetAllocateInfoJsonFromNLS(nodeLocal *nodelocalstorage.NodeLocalStorage) string {
-	if nodeLocal == nil || nodeLocal.Annotations == nil {
+func GetAllocateInfoJSONFromPod(pod *corev1.Pod) string {
+	if pod == nil || pod.Annotations == nil {
 		return ""
 	}
 
-	return nodeLocal.Annotations[AnnotationNodeStorageAllocatedInfoKey]
+	return pod.Annotations[AnnotationPodPVCAllocatedNeedMigrateKey]
 }
 
 func VolumeTypeFromString(s string) (VolumeType, error) {

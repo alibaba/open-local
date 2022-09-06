@@ -54,15 +54,15 @@ func (units *NodeAllocateUnits) ResetAllocatedSize() {
 	if units == nil {
 		return
 	}
-	for i, _ := range units.LVMPVCAllocateUnits {
+	for i := range units.LVMPVCAllocateUnits {
 		units.LVMPVCAllocateUnits[i].Allocated = 0
 	}
 
-	for i, _ := range units.DevicePVCAllocateUnits {
+	for i := range units.DevicePVCAllocateUnits {
 		units.DevicePVCAllocateUnits[i].Allocated = 0
 	}
 
-	for i, _ := range units.InlineVolumeAllocateUnits {
+	for i := range units.InlineVolumeAllocateUnits {
 		units.InlineVolumeAllocateUnits[i].Allocated = 0
 	}
 }
@@ -333,6 +333,7 @@ func (c *NodeStorageAllocatedCache) reserveLVMPVC(nodeName string, units *NodeAl
 		vgState.Requested = vgState.Requested + unit.Requested
 		units.LVMPVCAllocateUnits[i].Allocated = unit.Requested
 		c.pvAllocatedDetails.AssumeByPVC(units.LVMPVCAllocateUnits[i].DeepCopy())
+		klog.V(6).Infof("reserve for lvm pvc unit (%#v) success, current vgState: %#v", unit, vgState)
 	}
 	return nil
 }
@@ -395,6 +396,7 @@ func (c *NodeStorageAllocatedCache) reserveInlineVolumes(nodeName string, podUid
 
 		podDetails = append(podDetails, units[i].DeepCopy())
 		nodeDetails[podUid] = &podDetails
+		klog.V(6).Infof("reserve for inlineVolume unit (%#v) success, current vgState: %#v", unit, vgState)
 	}
 	return nil
 }
@@ -436,6 +438,7 @@ func (c *NodeStorageAllocatedCache) unreserveInlineVolumesDirect(nodeName, podUi
 		}
 
 		vgState.Requested = vgState.Requested - detail.Allocated
+		klog.V(6).Infof("unreserve for inlineVolume (%#v) success, current vgState: %#v", detail, vgState)
 	}
 
 	nodeDetails[podUid] = &PodInlineVolumeAllocatedDetails{}
@@ -483,6 +486,7 @@ func (c *NodeStorageAllocatedCache) reserveDevicePVC(nodeName string, units *Nod
 		units.DevicePVCAllocateUnits[i].Allocated = deviceState.Allocatable
 		c.pvAllocatedDetails.AssumeByPVC(units.DevicePVCAllocateUnits[i].DeepCopy())
 	}
+	klog.V(6).Infof("reserve for device units (%#v) success, current allocated device: %#v", units.DevicePVCAllocateUnits, currentStorageState.DeviceStates)
 	return nil
 }
 
@@ -496,7 +500,7 @@ func (c *NodeStorageAllocatedCache) unreserveDevicePVCs(nodeName string, units *
 		if unit.Allocated == 0 {
 			continue
 		}
-		c.revertDeviceByPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName, true)
+		c.revertDeviceByPVCIfNeed(nodeName, unit.PVCNamespace, unit.PVCName)
 		units.DevicePVCAllocateUnits[i].Allocated = 0
 	}
 }
@@ -696,8 +700,7 @@ func (c *NodeStorageAllocatedCache) AllocateLVMByPVCEvent(pvc *corev1.Persistent
 
 	vgState.Requested = vgState.Requested + deltaAllocate
 	c.pvAllocatedDetails.AssumeAllocateSizeToPVDetail(volumeName, maxRequest)
-
-	return
+	klog.V(6).Infof("expand for lvm pvc old detail(%#v) to %d success, current vgState: %#v", oldPVDetail, maxRequest, vgState)
 }
 
 func (c *NodeStorageAllocatedCache) AllocateLVMByPV(pv *corev1.PersistentVolume, nodeName string) {
@@ -710,16 +713,39 @@ func (c *NodeStorageAllocatedCache) AllocateLVMByPV(pv *corev1.PersistentVolume,
 		return
 	}
 
+	c.Lock()
+	defer c.Unlock()
+
 	vgName := utils.GetVGNameFromCsiPV(pv)
+
 	if vgName == "" {
-		klog.V(6).Infof("pv %s is not bound to any volume group, skipped", pv.Name)
+		switch pv.Status.Phase {
+		case corev1.VolumeBound:
+			pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
+			if pvcName == "" {
+				klog.Errorf("pv(%s) is bound, but not found pvcName on pv", pv.Name)
+				return
+			}
+			pvcDetail := c.pvAllocatedDetails.GetByPVC(pvcNamespace, pvcName)
+			if pvcDetail == nil {
+				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetPVCKey(pvcNamespace, pvcName))
+				return
+			}
+			lvmDetail := pvcDetail.(*LVMPVAllocated)
+			vgName = lvmDetail.VGName
+		default:
+			klog.V(6).Infof("pv %s is not bound to any volume group, skipped", pv.Name)
+			return
+
+		}
+	}
+
+	if vgName == "" {
+		klog.Errorf("AllocateLVMByPV skip : vgName not found", pv.Name)
 		return
 	}
 
 	new := NewLVMPVAllocatedFromPV(pv, vgName, nodeName)
-
-	c.Lock()
-	defer c.Unlock()
 
 	pvcRequest := c.getRequestFromPVCInfos(pv)
 
@@ -752,8 +778,7 @@ func (c *NodeStorageAllocatedCache) AllocateLVMByPV(pv *corev1.PersistentVolume,
 	vgState.Requested = vgState.Requested + deltaAllocate
 	new.Allocated = maxRequest
 	c.pvAllocatedDetails.AssumeByPVEvent(new)
-
-	return
+	klog.V(6).Infof("allocate for lvm pv (%#v) success, current vgState: %#v", new, vgState)
 }
 
 func (c *NodeStorageAllocatedCache) revertLVMPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
@@ -795,6 +820,7 @@ func (c *NodeStorageAllocatedCache) revertLVMPVCIfNeed(nodeName, pvcNameSpace, p
 
 	vgState.Requested = vgState.Requested - lvmAllocated.Allocated
 	c.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
+	klog.V(6).Infof("revert for pvc (%s) success, current vgState: %#v", utils.GetPVCKey(pvcNameSpace, pvcName), vgState)
 }
 
 func (c *NodeStorageAllocatedCache) DeleteLVM(pv *corev1.PersistentVolume, nodeName string) {
@@ -830,6 +856,29 @@ func (c *NodeStorageAllocatedCache) AllocateDevice(pv *corev1.PersistentVolume, 
 	}
 
 	deviceName := utils.GetDeviceNameFromCsiPV(pv)
+
+	if deviceName == "" {
+		switch pv.Status.Phase {
+		case corev1.VolumeBound:
+			pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
+			if pvcName == "" {
+				klog.Errorf("pv(%s) is bound, but not found pvcName on pv", pv.Name)
+				return
+			}
+			pvcDetail := c.pvAllocatedDetails.GetByPVC(pvcNamespace, pvcName)
+			if pvcDetail == nil {
+				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetPVCKey(pvcNamespace, pvcName))
+				return
+			}
+			deviceDetail := pvcDetail.(*DeviceTypePVAllocated)
+			deviceName = deviceDetail.DeviceName
+		default:
+			klog.V(6).Infof("pv %s is not bound to any device, skipped", pv.Name)
+			return
+
+		}
+	}
+
 	if deviceName == "" {
 		klog.Errorf("allocateDevice : pv %s is not a valid open-local pv(device with name)", pv.Name)
 		return
@@ -850,14 +899,15 @@ func (c *NodeStorageAllocatedCache) AllocateDevice(pv *corev1.PersistentVolume, 
 	}
 
 	//resolve allocated duplicate for staticBounding by volumeBinding plugin may allocate pvc on on other device,so should revert
-	c.revertDeviceByPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName, false)
+	c.revertDeviceByPVCIfNeed(nodeName, new.PVCNamespace, new.PVCName)
 
 	c.allocateDeviceForState(nodeName, deviceName, new.Allocated)
 	c.pvAllocatedDetails.AssumeByPVEvent(new)
+	klog.V(6).Infof("allocate for device pv (%#v) success, current deviceState: %#v", new, deviceState)
 	return
 }
 
-func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpace, pvcName string, needDeleted bool) {
+func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
 	if pvcNameSpace == "" && pvcName == "" {
 		return
 	}
@@ -876,11 +926,7 @@ func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpa
 	}
 
 	c.revertDeviceForState(nodeName, deviceAllocated.DeviceName)
-	deviceAllocated.Allocated = 0
-	deviceAllocated.DeviceName = ""
-	if needDeleted {
-		c.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
-	}
+	c.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
 }
 
 func (c *NodeStorageAllocatedCache) DeleteDevice(pv *corev1.PersistentVolume, nodeName string) {

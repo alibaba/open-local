@@ -64,6 +64,8 @@ type Controller struct {
 
 	nodeLister            corelisters.NodeLister
 	nodeSynced            cache.InformerSynced
+	podLister             corelisters.PodLister
+	podSynced             cache.InformerSynced
 	snapshotLister        snapshotlisters.VolumeSnapshotLister
 	snapshotSynced        cache.InformerSynced
 	snapshotContentLister snapshotlisters.VolumeSnapshotContentLister
@@ -90,20 +92,9 @@ type SyncNLSItem struct {
 	nlsName  string
 }
 
-type SyncPVByNlsItem struct {
-	nlsName string
-}
-
-type PVItem struct {
-	pvcNameSpace string
-	pvcName      string
-	volumeName   string
-}
-
-type PVCDeleteItem struct {
-	pvcNameSpace string
-	pvcName      string
-	nlsName      string
+type SyncPVByPodItem struct {
+	podNameSpace string
+	podName      string
 }
 
 // NewController returns a new sample c
@@ -117,6 +108,7 @@ func NewController(
 	nlscName string) *Controller {
 
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
+	podInformer := kubeInformerFactory.Core().V1().Pods()
 	pvcInformer := kubeInformerFactory.Core().V1().PersistentVolumeClaims()
 	pvInformer := kubeInformerFactory.Core().V1().PersistentVolumes()
 
@@ -138,6 +130,8 @@ func NewController(
 		snapshotclientset:     snapclientset,
 		nodeLister:            nodeInformer.Lister(),
 		nodeSynced:            nodeInformer.Informer().HasSynced,
+		podLister:             podInformer.Lister(),
+		podSynced:             podInformer.Informer().HasSynced,
 		pvcLister:             pvcInformer.Lister(),
 		pvcSynced:             pvcInformer.Informer().HasSynced,
 		pvLister:              pvInformer.Lister(),
@@ -175,15 +169,11 @@ func NewController(
 		UpdateFunc: c.handleNLS,
 	})
 
-	pvcInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		DeleteFunc: c.deletePVC,
-	})
-
-	pvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.updatePV,
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			c.updatePV(newObj)
+	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			c.handlePod(nil, obj)
 		},
+		UpdateFunc: c.handlePod,
 	})
 
 	return c
@@ -231,35 +221,16 @@ func (c *Controller) processNextWorkItem() bool {
 	err := func(obj interface{}) error {
 		defer c.workqueue.Done(obj)
 
-		switch obj.(type) {
+		switch item := obj.(type) {
 		case SyncNLSItem:
-			item := obj.(SyncNLSItem)
 			if err := c.syncHandler(item); err != nil {
 				c.workqueue.AddRateLimited(item)
-				return fmt.Errorf("error syncing '%#v': %s, requeuing", item, err.Error())
+				return fmt.Errorf("error SyncNLSItem '%#v': %s, requeuing", item, err.Error())
 			}
-		case PVItem:
-			item := obj.(PVItem)
-			if err := c.patchPVByPVEvent(item.volumeName, item.pvcNameSpace, item.pvcName); err != nil {
-				c.workqueue.AddRateLimited(item)
-				return fmt.Errorf("error syncing '%#v': %s, requeuing", item, err.Error())
-			}
-
-		case PVCDeleteItem:
-			item := obj.(PVCDeleteItem)
-			if err := c.removePVCAllocatedInfoFromNLS(item.pvcNameSpace, item.pvcName, item.nlsName); err != nil {
-				c.workqueue.AddRateLimited(item)
-				return fmt.Errorf("error syncing '%#v': %s, requeuing", item, err.Error())
-			}
-		case SyncPVByNlsItem:
-			item := obj.(SyncPVByNlsItem)
-			if err := c.addVGInfoToPVsOnNode(item.nlsName); err != nil {
-				if c.workqueue.NumRequeues(item) > 5 {
-					c.workqueue.Forget(obj)
-				} else {
-					c.workqueue.AddRateLimited(item)
-				}
-				return fmt.Errorf("error syncing '%#v': %s, requeuing", item, err.Error())
+		case SyncPVByPodItem:
+			if err := c.addVGInfoToPVsForPod(item.podNameSpace, item.podName); err != nil {
+				c.workqueue.AddAfter(item, time.Millisecond*500)
+				return fmt.Errorf("error SyncPVByPodItem '%#v': %s, requeuing", item, err.Error())
 			}
 		default:
 			c.workqueue.Forget(obj)
@@ -272,6 +243,7 @@ func (c *Controller) processNextWorkItem() bool {
 	}(obj)
 
 	if err != nil {
+		klog.Error(err)
 		utilruntime.HandleError(err)
 		return true
 	}
@@ -403,105 +375,40 @@ func (c *Controller) handleNLS(old, new interface{}) {
 		return
 	}
 	c.enqueueNLSC(c.nlscName, nlsName)
-	c.enqueueSyncPVItemByNls(old, new)
 }
 
-func (c *Controller) enqueueSyncPVItemByNls(old, new interface{}) (skip bool) {
+func (c *Controller) handlePod(old, new interface{}) {
+	c.enqueueSyncPVItemByPod(old, new)
+}
+
+func (c *Controller) enqueueSyncPVItemByPod(old, new interface{}) (skip bool) {
 	// check
-	nodeLocal, ok := new.(*localv1alpha1.NodeLocalStorage)
+	pod, ok := new.(*corev1.Pod)
 	if !ok {
-		klog.Errorf("[OnNodeLocalStorageUpdate]cannot convert newObj to *NodeLocalStorage: %v", new)
+		klog.Errorf("[OnPodUpdate]cannot convert newObj to *Pod: %#v", new)
 		return true
 	}
 
 	if old != nil {
-		oldNodeLocal, ok := old.(*localv1alpha1.NodeLocalStorage)
+		oldPod, ok := old.(*corev1.Pod)
 		if !ok {
-			klog.Errorf("[OnNodeLocalStorageUpdate]cannot convert oldObj to *NodeLocalStorage: %v", old)
+			klog.Errorf("[OnPodUpdate]cannot convert oldObj to *Pod: %v", old)
 			return true
 		}
 
-		oldAllocatedJson := localtype.GetAllocateInfoJsonFromNLS(oldNodeLocal)
-		newAllocatedJson := localtype.GetAllocateInfoJsonFromNLS(nodeLocal)
+		oldAllocatedJson := localtype.GetAllocateInfoJSONFromPod(oldPod)
+		newAllocatedJson := localtype.GetAllocateInfoJSONFromPod(pod)
 
 		if newAllocatedJson == "" || newAllocatedJson == oldAllocatedJson {
 			return true
 		}
 	}
 
-	c.workqueue.Add(SyncPVByNlsItem{
-		nlsName: nodeLocal.Name,
+	c.workqueue.Add(SyncPVByPodItem{
+		podNameSpace: pod.Namespace,
+		podName:      pod.Name,
 	})
 	return false
-}
-
-func (c *Controller) updatePV(obj interface{}) {
-	c.enqueuePVItem(obj)
-}
-
-func (c *Controller) enqueuePVItem(obj interface{}) (skip bool) {
-	if obj == nil {
-		return true
-	}
-	pv, ok := obj.(*corev1.PersistentVolume)
-	if !ok {
-		klog.Errorf("can't convert obj to pvc %+v", obj)
-		return true
-	}
-
-	if pv.Status.Phase == corev1.VolumePending {
-		return true
-	}
-
-	isLocalPV, volumeType := utils.IsOpenLocalPV(pv, false)
-	if !isLocalPV {
-		return true
-	}
-
-	switch volumeType {
-	case localtype.VolumeTypeLVM:
-		vgName := utils.GetVGNameFromCsiPV(pv)
-		if vgName != "" {
-			return true
-		}
-	case localtype.DeviceName:
-		deviceName := utils.GetDeviceNameFromCsiPV(pv)
-		if deviceName != "" {
-			return true
-		}
-	}
-
-	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
-	if pvcNamespace == "" || pvcName == "" {
-		return true
-	}
-	c.workqueue.Add(PVItem{
-		volumeName:   pv.Name,
-		pvcNameSpace: pvcNamespace,
-		pvcName:      pvcName,
-	})
-	return false
-}
-
-func (c *Controller) deletePVC(obj interface{}) {
-	if obj == nil {
-		return
-	}
-	pvc, ok := obj.(*corev1.PersistentVolumeClaim)
-	if !ok {
-		klog.Errorf("can't convert obj to pvc %+v", obj)
-		return
-	}
-	nodeName := utils.NodeNameFromPVC(pvc)
-	if nodeName == "" {
-		return
-	}
-	c.workqueue.Add(PVCDeleteItem{
-		pvcNameSpace: pvc.Namespace,
-		pvcName:      pvc.Name,
-		nlsName:      nodeName,
-	})
-
 }
 
 func (c *Controller) createNLSByNode(obj interface{}) {

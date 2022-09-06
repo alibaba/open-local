@@ -31,7 +31,8 @@ import (
 func NewNodeCache(nodeName string) *NodeCache {
 	return &NodeCache{
 		rwLock: sync.RWMutex{},
-		NodeInfo: NodeInfo{NodeName: nodeName,
+		NodeInfo: NodeInfo{
+			NodeName:     nodeName,
 			SupportSPDK:  false,
 			VGs:          make(map[ResourceName]SharedResource),
 			MountPoints:  make(map[ResourceName]ExclusiveResource),
@@ -40,6 +41,7 @@ func NewNodeCache(nodeName string) *NodeCache {
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
 			LocalPVs:            make(map[string]corev1.PersistentVolume),
 			PodInlineVolumeInfo: make(map[string][]InlineVolumeInfo)},
+		PVCRecordsByExtend: make(map[string]AllocatedUnit),
 	}
 }
 
@@ -332,7 +334,11 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 			oldRequest := vg.Requested
 			newPVsize := pv.Spec.Capacity[corev1.ResourceStorage]
 			oldPVsize := old.Spec.Capacity[corev1.ResourceStorage]
-			vg.Requested = oldRequest + newPVsize.Value() - oldPVsize.Value()
+			if nc.IsPVAllocated(pv) {
+				vg.Requested = oldRequest + newPVsize.Value() - oldPVsize.Value()
+			} else {
+				vg.Requested = oldRequest + newPVsize.Value()
+			}
 			nc.VGs[ResourceName(vgName)] = vg
 			log.V(6).Infof("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)

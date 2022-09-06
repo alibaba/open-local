@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"fmt"
 	"sync"
 
 	localtype "github.com/alibaba/open-local/pkg"
@@ -46,11 +47,37 @@ type NodeInfo struct {
 	AllocatedNum        int64
 	LocalPVs            map[string]corev1.PersistentVolume
 	PodInlineVolumeInfo map[string][]InlineVolumeInfo
+	PVCRecordsByExtend  map[string] /*PVCNameSpace/PVCName*/ AllocatedUnit //add by extend schedule
+}
+
+func (nodeInfo *NodeInfo) IsPVAllocated(pv *corev1.PersistentVolume) bool {
+	if nodeInfo == nil {
+		return false
+	}
+	if len(nodeInfo.LocalPVs) > 0 {
+		if _, ok := nodeInfo.LocalPVs[pv.Name]; ok {
+			return true
+		}
+	}
+
+	if len(nodeInfo.PVCRecordsByExtend) <= 0 {
+		return false
+	}
+
+	if pv.Spec.ClaimRef == nil {
+		return false
+	}
+	pvcKey := fmt.Sprintf("%s/%s", pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
+	if _, ok := nodeInfo.PVCRecordsByExtend[pvcKey]; ok {
+		return true
+	}
+	return false
 }
 
 type NodeCache struct {
 	rwLock sync.RWMutex
 	NodeInfo
+	PVCRecordsByExtend map[string]AllocatedUnit
 }
 
 type ResourceType string

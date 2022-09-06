@@ -8,7 +8,9 @@ import (
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 )
@@ -245,67 +247,56 @@ func (plugin *LocalPlugin) deleteByPV(pv *corev1.PersistentVolume) {
 	}
 }
 
-func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) error {
+func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(originPod *corev1.Pod, pvcInfos map[string]localtype.PVCAllocateInfo) error {
 
 	if len(pvcInfos) == 0 {
 		return nil
 	}
 
-	err := retry.RetryOnConflict(
-		retry.DefaultRetry, func() error {
-			nls, err := plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{})
+	newPod := originPod.DeepCopy()
+
+	if newPod.Annotations == nil {
+		newPod.Annotations = map[string]string{}
+	}
+
+	allocateInfo := localtype.PodPVCAllocateInfo{PvcAllocates: map[string]localtype.PVCAllocateInfo{}}
+
+	for _, pvcInfo := range pvcInfos {
+		allocateInfo.PvcAllocates[utils.GetPVCKey(pvcInfo.PVCNameSpace, pvcInfo.PVCName)] = pvcInfo
+	}
+
+	infoJsonBytes, err := json.Marshal(allocateInfo)
+	if err != nil {
+		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s/%s) fail, marshal allocate info error : %s", pvcInfos, newPod.Namespace, newPod.Name, err.Error())
+		return err
+	}
+	newPod.Annotations[localtype.AnnotationPodPVCAllocatedNeedMigrateKey] = string(infoJsonBytes)
+
+	patchBytes, err := utils.GeneratePodPatch(originPod, newPod)
+	if err != nil {
+		return fmt.Errorf("GeneratePVPatch fail: allocateInfo(%#+v) to pod(%s/%s) ! error: %s", allocateInfo, newPod.Namespace, newPod.Name, err.Error())
+	}
+	if string(patchBytes) == "{}" {
+		return nil
+	}
+
+	err = retry.OnError(
+		retry.DefaultRetry,
+		errors.IsTooManyRequests,
+		func() error {
+			_, err := plugin.kubeClientSet.CoreV1().Pods(newPod.Namespace).
+				Patch(context.Background(), newPod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
-				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, get nls error : %s", pvcInfos, nodeName, err.Error())
-				return err
+				klog.Error("Failed to patch Pod %s/%s, patch: %v, err: %v", newPod.Namespace, newPod.Name, string(patchBytes), err)
 			}
-			newNls := nls.DeepCopy()
-			if newNls.Annotations == nil {
-				newNls.Annotations = map[string]string{}
-			}
-
-			nlsAllocateInfo, err := localtype.GetAllocateInfoFromNLS(newNls)
-			if err != nil {
-				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, get allocate info from nls error : %s", pvcInfos, nodeName, err.Error())
-				return err
-			}
-
-			if nlsAllocateInfo == nil {
-				nlsAllocateInfo = &localtype.NodeStorageAllocateInfo{}
-			}
-
-			if nlsAllocateInfo.PvcAllocates == nil {
-				nlsAllocateInfo.PvcAllocates = map[string]localtype.NodeStoragePVCAllocateInfo{}
-			}
-
-			for _, pvcInfo := range pvcInfos {
-				if oldPvcInfo, ok := nlsAllocateInfo.PvcAllocates[utils.GetPVCKey(pvcInfo.PVCNameSpace, pvcInfo.PVCName)]; ok {
-					if oldPvcInfo.VGName == pvcInfo.VGName && oldPvcInfo.DeviceName == pvcInfo.DeviceName {
-						klog.V(6).Infof("skip update pvc(%s/%s) allocateInfo to nls(%s), info exist!", pvcInfo.PVCNameSpace, pvcInfo.PVCName, nodeName)
-						continue
-					}
-				}
-				nlsAllocateInfo.PvcAllocates[utils.GetPVCKey(pvcInfo.PVCNameSpace, pvcInfo.PVCName)] = pvcInfo
-			}
-
-			infoJsonBytes, err := json.Marshal(nlsAllocateInfo)
-			if err != nil {
-				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, marshal allocate info error : %s", pvcInfos, nodeName, err.Error())
-				return err
-			}
-			newNls.Annotations[localtype.AnnotationNodeStorageAllocatedInfoKey] = string(infoJsonBytes)
-			_, err = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), newNls, metav1.UpdateOptions{})
-			if err != nil {
-				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail,error : %s", pvcInfos, nodeName, err.Error())
-				return err
-			}
-			return nil
+			return err
 		})
 
 	if err != nil {
-		klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail after retry ,error : %s", pvcInfos, nodeName, err.Error())
+		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s/%s) fail after retry ,error : %s", pvcInfos, newPod.Namespace, newPod.Name, err.Error())
 		return err
 	}
 
-	klog.V(4).Infof("update pvc(%+v) allocateInfo to nls(%s) success", pvcInfos, nodeName)
+	klog.V(4).Infof("patch pvc allocateInfo(%#+v) to pod(%s/%s) success", pvcInfos, newPod.Namespace, newPod.Name)
 	return nil
 }

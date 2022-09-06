@@ -92,6 +92,9 @@ spec:
         - --nodeID=$(KUBE_NODE_NAME)
         - --driver={{ .Values.driver }}
         - --driver-mode=controller
+{{- if .Values.controller.framework_scheduler_names }}
+        - --framework-scheduler-names={{ .Values.controller.framework_scheduler_names }}
+{{- end }}
         env:
         - name: KUBE_NODE_NAME
           valueFrom:

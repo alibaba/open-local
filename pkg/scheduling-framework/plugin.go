@@ -99,7 +99,6 @@ func (info *PodLocalVolumeInfo) HaveLocalVolumes() bool {
 
 type LocalPlugin struct {
 	handle                 framework.Handle
-	args                   OpenLocalArg
 	allocateStrategy       AllocateStrategy
 	nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight
 
@@ -189,6 +188,8 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		snapClientSet:  snapClient,
 	}
 
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshots().Informer()
+
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
 		AddFunc:    localPlugin.OnNodeLocalStorageAdd,
@@ -227,13 +228,6 @@ func (plugin *LocalPlugin) Name() string {
 	return PluginName
 }
 
-type CacheUnit struct {
-	name     string
-	kind     string
-	poolName string
-	request  uint64
-}
-
 func (plugin *LocalPlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	podVolumeInfo, err := plugin.getPodLocalVolumeInfos(pod)
 	if err != nil {
@@ -250,16 +244,7 @@ func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {
 
 //TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
 func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-
-	return plugin.FilterReservation(ctx, state, pod, nil, nodeInfo)
-}
-
-func (plugin *LocalPlugin) FilterReservation(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, reservationPod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	nodeName := nodeInfo.Node().Name
-
-	if reservationPod != nil && reservationPod.Spec.NodeName != nodeName {
-		return framework.NewStatus(framework.Unschedulable, "node not fit for reservation pod")
-	}
 
 	podVolumeInfo, err := plugin.getPodVolumeInfoFromState(state)
 	if err != nil {
@@ -281,7 +266,7 @@ func (plugin *LocalPlugin) FilterReservation(ctx context.Context, state *framewo
 		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
 	}
 
-	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, reservationPod, nodeName)
+	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nil, nodeName)
 	if err != nil {
 		klog.V(4).Infof("filter fail: preAllocate err for nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
@@ -385,20 +370,12 @@ func (plugin *LocalPlugin) UnreserveReservation(ctx context.Context, state *fram
 
 	// if allocated size
 	plugin.cache.Unreserve(reservedAllocate, reservationPodUid, reservationInlineVolumes)
-	return
 }
 
-//TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to NLS.
+//TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to pod.
 //TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
-//TODO 2) if Prebind step error, we will not revert patch info of nls, it can update next schedule cycle
+//TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
 func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
-	reservedAllocate, err := plugin.getReserveState(state, nodeName)
-	if err != nil {
-		return framework.AsStatus(err)
-	}
-	if reservedAllocate == nil || reservedAllocate.Units == nil {
-		return framework.NewStatus(framework.Success)
-	}
 
 	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false, false)
 	if err != nil {
@@ -410,73 +387,18 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 		return framework.NewStatus(framework.Success)
 	}
 
-	lvmAllocates := reservedAllocate.Units.LVMPVCAllocateUnits
-	deviceAllocates := reservedAllocate.Units.DevicePVCAllocateUnits
-
-	pvcInfos := map[string]localtype.NodeStoragePVCAllocateInfo{}
-	for _, allocate := range lvmAllocates {
-		addLVMInfos(allocate, pvcInfos)
-	}
-	for _, allocate := range deviceAllocates {
-		addDeviceInfo(allocate, pvcInfos)
-	}
+	pvcInfos := map[string]localtype.PVCAllocateInfo{}
 
 	for _, pvc := range lvmPVCs {
-		if pvc.Status.Phase != corev1.ClaimBound {
-			continue
-		}
-		if _, ok := pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)]; ok {
-			continue
-		}
 
-		pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
-		if pv != nil && utils.GetVGNameFromCsiPV(pv) != "" {
-			continue
-		}
-
-		detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
-		if detail == nil {
-			detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
-		}
-		if detail != nil {
-			lvmDetail, ok := detail.(*cache.LVMPVAllocated)
-			if !ok {
-				klog.Errorf("convert to lvm detail fail for pvc %s", utils.GetPVCKey(pvc.Namespace, pvc.Name))
-				continue
-			}
-			addLVMInfos(lvmDetail, pvcInfos)
-			continue
-		}
+		plugin.patchPVOrAddPVCInfo(pvc, nodeName, pvcInfos)
 	}
 
 	for _, pvc := range devicePVCs {
-		if pvc.Status.Phase != corev1.ClaimBound {
-			continue
-		}
-		if _, ok := pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)]; ok {
-			continue
-		}
-
-		pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
-		if pv != nil && utils.GetDeviceNameFromCsiPV(pv) != "" {
-			continue
-		}
-
-		detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
-		if detail == nil {
-			detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
-		}
-		if detail != nil {
-			deviceDetail, ok := detail.(*cache.DeviceTypePVAllocated)
-			if !ok {
-				klog.Errorf("convert to lvm detail fail for pvc %s", utils.GetPVCKey(pvc.Namespace, pvc.Name))
-				continue
-			}
-			addDeviceInfo(deviceDetail, pvcInfos)
-		}
+		plugin.patchPVOrAddPVCInfo(pvc, nodeName, pvcInfos)
 	}
 
-	err = plugin.addAllocatedInfoToNLS(nodeName, pvcInfos)
+	err = plugin.patchAllocatedNeedMigrateToPod(p, pvcInfos)
 	if err != nil {
 		klog.Errorf("patch allocate info(%#v) to nls(%s) fail for pod(%s)", pvcInfos, nodeName, p.UID, err.Error())
 		return framework.AsStatus(err)
@@ -484,30 +406,77 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 	return framework.NewStatus(framework.Success)
 }
 
-func addLVMInfos(allocate *cache.LVMPVAllocated, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) {
-	if allocate.VGName != "" && allocate.Allocated > 0 {
-		pvcInfos[utils.GetPVCKey(allocate.PVCNamespace, allocate.PVCName)] = localtype.NodeStoragePVCAllocateInfo{
-			PVCNameSpace: allocate.PVCNamespace,
-			PVCName:      allocate.PVCName,
-			PVAllocatedInfo: localtype.PVAllocatedInfo{
-				VGName:     allocate.VGName,
-				VolumeType: string(localtype.VolumeTypeLVM),
-			},
+func (plugin *LocalPlugin) patchPVOrAddPVCInfo(pvc *corev1.PersistentVolumeClaim, nodeName string, pvcInfos map[string]localtype.PVCAllocateInfo) {
+	detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
+	if detail == nil {
+		detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
+	}
+	pvAllocateInfo := getPVAllocateInfo(detail)
+	if pvAllocateInfo == nil {
+		return
+	}
+
+	if pvc.Status.Phase != corev1.ClaimBound {
+		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
+		return
+	}
+
+	pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
+	if pv == nil {
+		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
+		return
+	}
+	switch pvAllocateInfo.VolumeType {
+	case string(localtype.VolumeTypeLVM):
+		if utils.GetVGNameFromCsiPV(pv) != "" {
+			return
 		}
+	case string(localtype.VolumeTypeDevice):
+		if utils.GetDeviceNameFromCsiPV(pv) != "" {
+			return
+		}
+	}
+
+	err := utils.PatchAllocateInfoToPV(plugin.kubeClientSet, pv, &pvAllocateInfo.PVAllocatedInfo)
+	if err != nil {
+		klog.Errorf("PatchAllocateInfoToPV err and add info to pod: %s", err.Error())
+		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 	}
 }
 
-func addDeviceInfo(deviceDetail *cache.DeviceTypePVAllocated, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) {
-	if deviceDetail.DeviceName != "" && deviceDetail.Allocated > 0 {
-		pvcInfos[utils.GetPVCKey(deviceDetail.PVCNamespace, deviceDetail.PVCName)] = localtype.NodeStoragePVCAllocateInfo{
-			PVCNameSpace: deviceDetail.PVCNamespace,
-			PVCName:      deviceDetail.PVCName,
-			PVAllocatedInfo: localtype.PVAllocatedInfo{
-				DeviceName: deviceDetail.DeviceName,
-				VolumeType: string(localtype.VolumeTypeDevice),
-			},
-		}
+func getPVAllocateInfo(allocate cache.PVAllocated) *localtype.PVCAllocateInfo {
+	if allocate == nil {
+		return nil
 	}
+
+	switch allocateDetail := allocate.(type) {
+	case *cache.LVMPVAllocated:
+		if allocateDetail.VGName != "" && allocateDetail.Allocated > 0 {
+			return &localtype.PVCAllocateInfo{
+				PVCNameSpace: allocateDetail.PVCNamespace,
+				PVCName:      allocateDetail.PVCName,
+				PVAllocatedInfo: localtype.PVAllocatedInfo{
+					VGName:     allocateDetail.VGName,
+					VolumeType: string(localtype.VolumeTypeLVM),
+				},
+			}
+		}
+	case *cache.DeviceTypePVAllocated:
+		if allocateDetail.DeviceName != "" && allocateDetail.Allocated > 0 {
+			return &localtype.PVCAllocateInfo{
+				PVCNameSpace: allocateDetail.PVCNamespace,
+				PVCName:      allocateDetail.PVCName,
+				PVAllocatedInfo: localtype.PVAllocatedInfo{
+					DeviceName: allocateDetail.DeviceName,
+					VolumeType: string(localtype.VolumeTypeDevice),
+				},
+			}
+		}
+	default:
+		klog.Warningf("Unknown allocate Type : %#v", allocate)
+		return nil
+	}
+	return nil
 }
 
 // ScoreExtensions of the Score plugin.

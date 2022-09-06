@@ -17,21 +17,11 @@ limitations under the License.
 package scheduler
 
 import (
-	"testing"
-	"time"
-
 	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	log "k8s.io/klog/v2"
-)
-
-var (
-	noResyncPeriodFunc = func() time.Duration {
-		log.Info("test noResyncPeriodFunc")
-		return 0
-	}
+	"testing"
 )
 
 const (

@@ -2013,7 +2013,8 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 				pendingPVC.Status.Phase = corev1.ClaimPending
 				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvc.Namespace).Create(context.Background(), pendingPVC, metav1.CreateOptions{})
 				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pendingPVC)
-				cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
+				err := cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
+				assert.NoError(t, err)
 				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
 			}
 

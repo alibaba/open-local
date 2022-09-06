@@ -277,6 +277,12 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 	// handle according to different type
 	switch pvType {
 	case pkg.VolumeTypeLVM:
+		// todo:
+		// 此处仅处理了 extender 更新 cache 的情况
+		// 当出现双模式共存（extender 和 framework）时，cache 会不准确
+		// AllocatedNum 没有+1
+		// request 没有新增
+		// 此处引发的 bug 是: 当删除 PV 后会出现 request 值为负数。
 		err := nc.UpdateLVM(old, pv)
 		if err != nil {
 			log.Errorf("failed to update local pv %s (type: %s) on node %s: %s", pv.Name, pvType, nc.NodeName, err.Error())

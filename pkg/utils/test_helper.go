@@ -491,7 +491,6 @@ func GetTestPVCPVSnapshot() *TestPVCPVInfo {
 			VolumeName: "pv-" + PVCSnapshot,
 			VolumeSize: "40Gi",
 			VolumeType: string(localtype.VolumeTypeLVM),
-			VgName:     VGHDD,
 			NodeName:   NodeName3,
 			ClaimRef: &corev1.ObjectReference{
 				Name:      PVCSnapshot,

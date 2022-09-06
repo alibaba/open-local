@@ -355,7 +355,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	// Step 3: check if volume content source is snapshot
 	pv, err := cs.pvLister.Get(volumeID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
+		return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get pv: %s", err.Error())
 	}
 	isSnapshot := false
 	isSnapshotReadOnly := false

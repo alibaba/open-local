@@ -247,7 +247,7 @@ func (plugin *LocalPlugin) preAllocateLVMPVCs(nodeName string, podVolumeInfo *Po
 
 	vgStateList := make([]*cache.VGStoragePool, 0, len(nodeStateClone.VGStates))
 
-	for key, _ := range nodeStateClone.VGStates {
+	for key := range nodeStateClone.VGStates {
 		vgStateList = append(vgStateList, nodeStateClone.VGStates[key])
 	}
 

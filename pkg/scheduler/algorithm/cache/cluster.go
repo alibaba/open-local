@@ -142,7 +142,7 @@ func (c *ClusterNodeCache) assumeMountPointAllocatedUnit(unit AllocatedUnit, nod
 		Capacity:    unit.Allocated,
 		IsAllocated: true,
 	}
-
+	nodeCache.PVCRecordsByExtend[unit.PVCName] = unit
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil
 }
@@ -158,7 +158,7 @@ func (c *ClusterNodeCache) assumeLVMAllocatedUnit(unit AllocatedUnit, nodeCache 
 		return nil, fmt.Errorf("vg %s/%s is not found in cache, please retry later", nodeCache.NodeName, unit.VgName)
 	}
 	nodeCache.AllocatedNum += 1
-
+	nodeCache.PVCRecordsByExtend[unit.PVCName] = unit
 	nodeCache.VGs[ResourceName(vg.Name)] = SharedResource{
 		Name:      vg.Name,
 		Capacity:  vg.Capacity,
@@ -184,6 +184,7 @@ func (c *ClusterNodeCache) assumeDeviceAllocatedUnit(unit AllocatedUnit, nodeCac
 		MediaType:   nodeCache.Devices[ResourceName(unit.Device)].MediaType,
 		IsAllocated: true,
 	}
+	nodeCache.PVCRecordsByExtend[unit.PVCName] = unit
 	log.V(6).Infof("assume node cache successfully: node = %s, device = %s", nodeCache.NodeName, unit.Device)
 	c.SetNodeCache(nodeCache)
 	return nodeCache, nil

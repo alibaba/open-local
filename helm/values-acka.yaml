@@ -34,6 +34,7 @@ extender:
   init_job: true
 controller:
   update_nls: "false"
+  framework_scheduler_names: ahe-scheduler
 storageclass:
   lvm:
     name: yoda-lvm-default

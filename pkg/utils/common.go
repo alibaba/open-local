@@ -607,17 +607,17 @@ func PodPvcAllowReschedule(pvcs []*corev1.PersistentVolumeClaim, fakeNow *time.T
 	return false
 }
 
-func GeneratePVCPatch(oldPVC, newPVC *corev1.PersistentVolumeClaim) ([]byte, error) {
-	oldData, err := json.Marshal(oldPVC)
+func GeneratePodPatch(oldPod, newPod *corev1.Pod) ([]byte, error) {
+	oldData, err := json.Marshal(oldPod)
 	if err != nil {
 		return nil, err
 	}
 
-	newData, err := json.Marshal(newPVC)
+	newData, err := json.Marshal(newPod)
 	if err != nil {
 		return nil, err
 	}
-	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.PersistentVolumeClaim{})
+	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.Pod{})
 }
 
 func GeneratePVPatch(oldPV, newPV *corev1.PersistentVolume) ([]byte, error) {

@@ -439,7 +439,7 @@ func GetTestPVCPVWithoutVG() *TestPVCPVInfo {
 		PVCBounding: &TestPVCInfo{
 			PVCName:      PVCWithoutVG,
 			PVCNameSpace: LocalNameSpace,
-			VolumeName:   "pv-" + PVCWithDevice,
+			VolumeName:   "pv-" + PVCWithoutVG,
 			Size:         "40Gi",
 			SCName:       SCLVMWithoutVG,
 			NodeName:     NodeName3,

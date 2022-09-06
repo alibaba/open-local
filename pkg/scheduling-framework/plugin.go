@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"k8s.io/klog/v2"
 	"math"
 	"sync"
@@ -399,40 +400,114 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 		return framework.NewStatus(framework.Success)
 	}
 
+	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false, false)
+	if err != nil {
+		klog.Errorf("PreBind fail,GetPodPvcsByLister for pod(%s) error: %s", p.UID, err.Error())
+		return framework.AsStatus(err)
+	}
+
+	if len(lvmPVCs)+len(devicePVCs) <= 0 {
+		return framework.NewStatus(framework.Success)
+	}
+
 	lvmAllocates := reservedAllocate.Units.LVMPVCAllocateUnits
 	deviceAllocates := reservedAllocate.Units.DevicePVCAllocateUnits
 
-	var pvcInfos []localtype.NodeStoragePVCAllocateInfo
+	pvcInfos := map[string]localtype.NodeStoragePVCAllocateInfo{}
 	for _, allocate := range lvmAllocates {
-		if allocate.VGName != "" && allocate.Allocated > 0 {
-			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
-				PVCNameSpace: allocate.PVCNamespace,
-				PVCName:      allocate.PVCName,
-				PVAllocatedInfo: localtype.PVAllocatedInfo{
-					VGName:     allocate.VGName,
-					VolumeType: string(localtype.VolumeTypeLVM),
-				},
-			})
-		}
+		addLVMInfos(allocate, pvcInfos)
 	}
 	for _, allocate := range deviceAllocates {
-		if allocate.DeviceName != "" && allocate.Allocated > 0 {
-			pvcInfos = append(pvcInfos, localtype.NodeStoragePVCAllocateInfo{
-				PVCNameSpace: allocate.PVCNamespace,
-				PVCName:      allocate.PVCName,
-				PVAllocatedInfo: localtype.PVAllocatedInfo{
-					DeviceName: allocate.DeviceName,
-					VolumeType: string(localtype.VolumeTypeDevice),
-				},
-			})
+		addDeviceInfo(allocate, pvcInfos)
+	}
+
+	for _, pvc := range lvmPVCs {
+		if pvc.Status.Phase != corev1.ClaimBound {
+			continue
+		}
+		if _, ok := pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)]; ok {
+			continue
+		}
+
+		pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
+		if pv != nil && utils.GetVGNameFromCsiPV(pv) != "" {
+			continue
+		}
+
+		detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
+		if detail == nil {
+			detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
+		}
+		if detail != nil {
+			lvmDetail, ok := detail.(*cache.LVMPVAllocated)
+			if !ok {
+				klog.Errorf("convert to lvm detail fail for pvc %s", utils.GetPVCKey(pvc.Namespace, pvc.Name))
+				continue
+			}
+			addLVMInfos(lvmDetail, pvcInfos)
+			continue
 		}
 	}
+
+	for _, pvc := range devicePVCs {
+		if pvc.Status.Phase != corev1.ClaimBound {
+			continue
+		}
+		if _, ok := pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)]; ok {
+			continue
+		}
+
+		pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
+		if pv != nil && utils.GetDeviceNameFromCsiPV(pv) != "" {
+			continue
+		}
+
+		detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
+		if detail == nil {
+			detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
+		}
+		if detail != nil {
+			deviceDetail, ok := detail.(*cache.DeviceTypePVAllocated)
+			if !ok {
+				klog.Errorf("convert to lvm detail fail for pvc %s", utils.GetPVCKey(pvc.Namespace, pvc.Name))
+				continue
+			}
+			addDeviceInfo(deviceDetail, pvcInfos)
+		}
+	}
+
 	err = plugin.addAllocatedInfoToNLS(nodeName, pvcInfos)
 	if err != nil {
 		klog.Errorf("patch allocate info(%#v) to nls(%s) fail for pod(%s)", pvcInfos, nodeName, p.UID, err.Error())
 		return framework.AsStatus(err)
 	}
 	return framework.NewStatus(framework.Success)
+}
+
+func addLVMInfos(allocate *cache.LVMPVAllocated, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) {
+	if allocate.VGName != "" && allocate.Allocated > 0 {
+		pvcInfos[utils.GetPVCKey(allocate.PVCNamespace, allocate.PVCName)] = localtype.NodeStoragePVCAllocateInfo{
+			PVCNameSpace: allocate.PVCNamespace,
+			PVCName:      allocate.PVCName,
+			PVAllocatedInfo: localtype.PVAllocatedInfo{
+				VGName:     allocate.VGName,
+				VolumeType: string(localtype.VolumeTypeLVM),
+			},
+		}
+	}
+}
+
+func addDeviceInfo(deviceDetail *cache.DeviceTypePVAllocated, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) {
+	if deviceDetail.DeviceName != "" && deviceDetail.Allocated > 0 {
+		pvcInfos[utils.GetPVCKey(deviceDetail.PVCNamespace, deviceDetail.PVCName)] = localtype.NodeStoragePVCAllocateInfo{
+			PVCNameSpace: deviceDetail.PVCNamespace,
+			PVCName:      deviceDetail.PVCName,
+			PVAllocatedInfo: localtype.PVAllocatedInfo{
+				DeviceName: deviceDetail.DeviceName,
+				VolumeType: string(localtype.VolumeTypeDevice),
+			},
+		}
+	}
 }
 
 // ScoreExtensions of the Score plugin.

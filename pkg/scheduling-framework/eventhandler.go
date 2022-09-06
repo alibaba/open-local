@@ -245,7 +245,7 @@ func (plugin *LocalPlugin) deleteByPV(pv *corev1.PersistentVolume) {
 	}
 }
 
-func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos []localtype.NodeStoragePVCAllocateInfo) error {
+func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos map[string]localtype.NodeStoragePVCAllocateInfo) error {
 
 	if len(pvcInfos) == 0 {
 		return nil
@@ -253,7 +253,7 @@ func (plugin *LocalPlugin) addAllocatedInfoToNLS(nodeName string, pvcInfos []loc
 
 	err := retry.RetryOnConflict(
 		retry.DefaultRetry, func() error {
-			nls, err := plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{ResourceVersion: "0"})
+			nls, err := plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), nodeName, metav1.GetOptions{})
 			if err != nil {
 				klog.Errorf("update pvc(%+v) allocateInfo to nls(%s) fail, get nls error : %s", pvcInfos, nodeName, err.Error())
 				return err

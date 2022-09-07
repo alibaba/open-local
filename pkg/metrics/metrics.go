@@ -139,11 +139,12 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 
 	// metrics update
 	for nodeName := range c.Nodes {
-		for vgname, info := range c.Nodes[nodeName].VGs {
+		cache := c.GetNodeCache(nodeName)
+		for vgname, info := range cache.VGs {
 			VolumeGroupTotal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Capacity))
 			VolumeGroupUsedByLocal.WithLabelValues(nodeName, string(vgname)).Set(float64(info.Requested))
 		}
-		for mpname, info := range c.Nodes[nodeName].MountPoints {
+		for mpname, info := range cache.MountPoints {
 			MountPointTotal.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
 			MountPointAvailable.WithLabelValues(nodeName, string(mpname), string(info.MediaType)).Set(float64(info.Capacity))
 			if info.IsAllocated {
@@ -152,7 +153,7 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 				MountPointBind.WithLabelValues(nodeName, string(mpname)).Set(0)
 			}
 		}
-		for devicename, info := range c.Nodes[nodeName].Devices {
+		for devicename, info := range cache.Devices {
 			DeviceAvailable.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
 			DeviceTotal.WithLabelValues(nodeName, string(devicename), string(info.MediaType)).Set(float64(info.Capacity))
 			if info.IsAllocated {
@@ -162,7 +163,7 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 			}
 		}
 		var pvType, storageName string
-		for pvname, pv := range c.Nodes[nodeName].LocalPVs {
+		for pvname, pv := range cache.LocalPVs {
 			switch pv.Spec.CSI.VolumeAttributes[pkg.VolumeTypeKey] {
 			case string(pkg.VolumeTypeLVM):
 				pvType = string(pkg.VolumeTypeLVM)
@@ -184,7 +185,7 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 				storageName).Set(float64(utils.GetPVStorageSize(&pv)))
 		}
 
-		for _, volumes := range c.Nodes[nodeName].PodInlineVolumeInfo {
+		for _, volumes := range cache.PodInlineVolumeInfo {
 			for _, volume := range volumes {
 				InlineVolume.WithLabelValues(
 					volume.PodName,
@@ -196,6 +197,6 @@ func UpdateMetrics(c *cache.ClusterNodeCache) {
 			}
 		}
 
-		AllocatedNum.WithLabelValues(nodeName).Set(float64(c.Nodes[nodeName].AllocatedNum))
+		AllocatedNum.WithLabelValues(nodeName).Set(float64(cache.AllocatedNum))
 	}
 }

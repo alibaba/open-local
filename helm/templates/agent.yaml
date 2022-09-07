@@ -177,12 +177,15 @@ spec:
       - name: spdk
         hostPath:
           path: /var/tmp/
+          type: DirectoryOrCreate
       - name: vhost
         hostPath:
           path: /var/run/kata-containers/vhost-user/block
+          type: DirectoryOrCreate
       - name: directvolume
         hostPath:
           path: /run/kata-containers/shared/direct-volumes
+          type: DirectoryOrCreate
       - name: host-dev
         hostPath:
           path: /dev

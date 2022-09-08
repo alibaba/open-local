@@ -82,7 +82,7 @@ case1：正常调度流程-动态绑定
 	1. Create PVC 延迟binding（调度器watch到PVC创建，未bind node不处理）
 	2. Create Pod，调度器开始调度Pod
 	3. reserve阶段：调度PVC，更新cache，
-    4. 开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到NLS ##注意，这里不清楚哪个prebind先执行
+	4. 开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到NLS ##注意，这里不清楚哪个prebind先执行
 	5. external_provisional create Volume and PV(pending状态)
 	6. 调度器Watch PV创建（pending状态），不处理
 	7. pv_controller：bind PVC/PV
@@ -97,15 +97,15 @@ Case2：正常调度流程-静态绑定-（调度之前pv_controller提前已绑
 	3.调度器：已bound的PVC跳过
 
 
-TODO：目前无法在reserve阶段获取这种静态绑定的，因此会扣减账本
+
 case3：正常调度流程-静态绑定-调度器prebind阶段绑定
 	1. onPVAdd/onPVUpdate：1）未bound阶段非pending，创建PV的调度信息 2）bound，则向cache写入Volume信息，并删除pvc的调度信息，防止重复扣减
 	2. onPVCAdd/onPVCUpdate：1）未bound阶段，则不处理 2）bound阶段，bound阶段，则更新PVC info信息
-	3. 调度器：volume_binding plugin prebind阶段才做PVC/PV静态bound操作，如果是static binding的PVC，则跳过（如何获取static binding，可以从cyclestate里获取volume_binding的结果）
+	3. 调度器：正常reserve，后续PV收到消息，会自动revert PVC调度记录，并加上pv账本
 
 
 case4:调度器重建流程以及各类异常调度流程
-	onPVDelete： 删除（PVC/PV）allocated信息，删除账本信息
+	onPVDelete： 删除PV allocated信息，删除账本信息
 	onPVCDelete： 删除PVC allocated信息，info信息，如果PV还在，则继续保留PV部分，且不扣减账本
 	case3.1 已Bound PVC/PV
 			onPVAdd: 1)如果没有pv allocated信息，账本扣除并增加pv allocated信息 2)如果有pvc allocate信息，则要revert掉
@@ -119,36 +119,32 @@ case4:调度器重建流程以及各类异常调度流程
 			onPVUpdate： 不处理，返回
 			OnPVCAdd：	没bound，则不处理（属于调度器处理流程）
 			onPVCUpdate： 没bound，则不处理（属于调度器处理流程）
-			调度流程：1）正常调度Pod 2）如果有Pod共享PVC，第二个Pod根据cache情况，自动跳过
 
 	case3.3 PV其他状态
-			onPVAdd： 1）根据PV创建allocated信息，更新node账本（此时无PVC信息），2）如果PV没有VG信息，从NLS获取并更新VG annotation
-			onPVUpdate： 1）根据PV创建allocated信息，更新node账本（此时无PVC信息），2）如果PV没有VG信息，从NLS获取并更新VG annotation
-			OnPVCAdd：	1）发现PVC/PV bound，如果没有allocated信息，则创建并扣减账本 2）符合resize逻辑，则做delta更新
-			onPVCUpdate： 1）发现PVC/PV bound，如果没有allocated信息，则创建并扣减账本 2）符合resize逻辑，则做delta更新
-			调度流程：
+			onPVAdd： 根据PV创建allocated信息，更新node账本（此时无PVC信息）
+			onPVUpdate： 同add
 
 	case3.4 pod prebind阶段异常或重启，并重调度Pod：
 			1）如果prebind阶段，volume_binding prebind阶段部分PVC/PV已bound，该部分不会回滚，会按PVC/PV bound情况重新调度回该Node
-			2）如果prebind阶段，volume_binding prebind阶段所有PVC/PV都未执行，那可以调度到其他节点
+			2）如果prebind阶段，volume_binding prebind阶段所有PVC/PV都未执行，则会回滚pvc调度信息
 
 
 eventHandlers完整流程（PVC/PV）
-	onPVCAdd/onPVCUpdate：
-		1.未bound，则不处理（调度器会处理）
+	onPVCAdd/onPVCUpdate：在是local pvc情况下，记录或者更新pvc info request信息
+		1.未bound，返回
 		2. 和PV bound,获取spec里的request信息
-			2.1. if 没有allocated信息: 如果之前内存没有allocated信息，则创建allocated，并更新账本
-			2.2. else : 和allocated不一致，需要扩容，且账本足够扩容
-				2.2.1. 满足扩容：走扩容流程，更新allocated信息，对账本做delta, 并patch allocated信息到PVC（用于controllerServer判断扩容调度）
-				2.2.2. 不满足扩容：直接返回
-	onPVCDelete： 删除PVC allocated信息，如果PV还在，则继续保留PV部分，将allocated里的pvcName，Namespace等清理掉，且不扣减账本
+			2.1. 如果pvc有明细信息，则更新明细request
+			2.2. 如果没有pv明细，则返回
+			2.3。如果有pv明细，则判断是否是pvc扩容，计算delta，如果是扩容，则更新扩容size
+
+	onPVCDelete： 删除PVC info信息等
 
 	onPVAdd/onPVUpdate：
 		1. pending:不处理，返回
 		2. 获取capacity，并判断是否已有allocated信息
 			2.1. 没有allocated：如果之前内存没有allocated信息，则创建allocated，并更新账本
-			2.2. 已allocated：capcacity>allocated,更新allocated，更新账本
-			2.3  移除PVC allocate信息，避免删除PVC重复扣
+			2.2. revert PVC allocate信息，避免删除PVC重复扣
+			2.3  已allocated：计算是否resize,更新allocated，更新账本
 	onPVDelete： 删除（PVC/PV）allocated信息，删除账本信息
 
 	onPodAdd/opPodUpdate:

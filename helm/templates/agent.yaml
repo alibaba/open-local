@@ -68,8 +68,10 @@ spec:
             cpu: 50m
             memory: 64Mi
         volumeMounts:
+{{- if .Values.agent.spdk }}
         - mountPath: /var/tmp/
           name: spdk
+{{- end }}
         - mountPath: /dev
           mountPropagation: "HostToContainer"
           name: host-dev
@@ -147,18 +149,25 @@ spec:
           requests:
             cpu: 50m
             memory: 128Mi
+{{- if .Values.agent.spdk }}
         lifecycle:
           postStart:
             exec:
               command: ["/bin/sh", "-c",
-                        "/usr/sbin/iscsid || echo failed to start iscsid"]
+                        "/usr/sbin/iscsid -p /run/iscsid.pid || echo failed to start iscsid"]
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c","cat /run/iscsid.pid | xargs  kill -9"]
+{{- end }}
         volumeMounts:
+{{- if .Values.agent.spdk }}
         - mountPath: /var/tmp/
           name: spdk
         - mountPath: /var/run/kata-containers/vhost-user/block
           name: vhost
         - mountPath: /run/kata-containers/shared/direct-volumes
           name: directvolume
+{{- end }}
         - name: pods-mount-dir
           mountPath: /var/lib/kubelet
           mountPropagation: "Bidirectional"
@@ -174,6 +183,7 @@ spec:
           mountPropagation: Bidirectional
           name: sys
       volumes:
+{{- if .Values.agent.spdk }}
       - name: spdk
         hostPath:
           path: /var/tmp/
@@ -186,6 +196,7 @@ spec:
         hostPath:
           path: /run/kata-containers/shared/direct-volumes
           type: DirectoryOrCreate
+{{- end }}
       - name: host-dev
         hostPath:
           path: /dev

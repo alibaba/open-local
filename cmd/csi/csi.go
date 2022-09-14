@@ -88,7 +88,9 @@ func Start(opt *csiOption) error {
 		csi.WithSnapshotClient(snapClient),
 		csi.WithLocalClient(localclient),
 	)
-	driver.Run()
+	if err := driver.Run(); err != nil {
+		return err
+	}
 
 	return nil
 }

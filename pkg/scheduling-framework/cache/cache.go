@@ -286,7 +286,10 @@ func (c *NodeStorageAllocatedCache) Unreserve(reservedAllocateState *NodeAllocat
 	c.unreserveInlineVolumes(reservedAllocateState.NodeName, reservedAllocateState.PodUid, reservedAllocateState.Units, nodeState)
 	c.unreserveDevicePVCs(reservedAllocateState.NodeName, reservedAllocateState.Units)
 	if reservationPodUid != "" {
-		c.reserveInlineVolumes(reservedAllocateState.NodeName, reservationPodUid, reservationPodUnits, nodeState)
+		err := c.reserveInlineVolumes(reservedAllocateState.NodeName, reservationPodUid, reservationPodUnits, nodeState)
+		if err != nil {
+			klog.Errorf("fail to reserve inline volome: %s", err.Error())
+		}
 	}
 }
 
@@ -402,7 +405,7 @@ func (c *NodeStorageAllocatedCache) unreserveInlineVolumes(nodeName, podUid stri
 		return
 	}
 
-	for i, _ := range units.InlineVolumeAllocateUnits {
+	for i := range units.InlineVolumeAllocateUnits {
 		units.InlineVolumeAllocateUnits[i].Allocated = 0
 	}
 
@@ -838,7 +841,6 @@ func (c *NodeStorageAllocatedCache) DeleteLVM(pv *corev1.PersistentVolume, nodeN
 
 	c.updateVGRequestByDelta(nodeName, vgName, -old.GetBasePVAllocated().Allocated)
 	c.pvAllocatedDetails.DeleteByPV(old)
-	return
 }
 
 func (c *NodeStorageAllocatedCache) AllocateDevice(pv *corev1.PersistentVolume, nodeName string) {
@@ -900,7 +902,6 @@ func (c *NodeStorageAllocatedCache) AllocateDevice(pv *corev1.PersistentVolume, 
 	c.allocateDeviceForState(nodeName, deviceName, new.Allocated)
 	c.pvAllocatedDetails.AssumeByPVEvent(new)
 	klog.V(6).Infof("allocate for device pv (%#v) success, current deviceState: %#v", new, deviceState)
-	return
 }
 
 func (c *NodeStorageAllocatedCache) revertDeviceByPVCIfNeed(nodeName, pvcNameSpace, pvcName string) {
@@ -943,7 +944,6 @@ func (c *NodeStorageAllocatedCache) DeleteDevice(pv *corev1.PersistentVolume, no
 
 	c.revertDeviceForState(nodeName, deviceName)
 	c.pvAllocatedDetails.DeleteByPV(old)
-	return
 }
 
 func (c *NodeStorageAllocatedCache) initIfNeedAndGetVGState(nodeName, vgName string) (*VGStoragePool, bool) {

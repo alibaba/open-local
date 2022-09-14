@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -122,7 +123,10 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	plugin.allocatedByPVCEvent(nodeName, pvc, pvName)
+	err := plugin.allocatedByPVCEvent(nodeName, pvc, pvName)
+	if err != nil {
+		klog.Errorf("fail to allocate by pvc event: %s", err.Error())
+	}
 
 	klog.V(4).Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }

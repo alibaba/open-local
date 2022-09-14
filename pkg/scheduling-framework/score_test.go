@@ -17,9 +17,10 @@ package plugin
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
@@ -1053,10 +1054,10 @@ func Test_score_device(t *testing.T) {
 					utils.NodeName3: framework.NewStatus(framework.Success),
 				},
 				nodeScores: map[string]int64{
-					utils.NodeName2: int64(math.Floor((1.0+float64(200)/float64(300))/2*float64(utils.MaxScore)) /*capacity*/) +
-						int64(math.Floor(float64(2)/float64(3)*float64(utils.MaxScore))), /*count*/
-					utils.NodeName3: int64(math.Floor((1.0+float64(200)/float64(200))/2*float64(utils.MaxScore)) /*capacity*/) +
-						int64(math.Floor(float64(2)/float64(3)*float64(utils.MaxScore))), /*count*/
+					utils.NodeName2: int64(math.Floor((1.0+float64(200)/300)/2*float64(utils.MaxScore)) /*capacity*/) +
+						int64(math.Floor(float64(2)/3*float64(utils.MaxScore))), /*count*/
+					utils.NodeName3: int64(math.Floor((1.0+float64(200)/200)/2*float64(utils.MaxScore)) /*capacity*/) +
+						int64(math.Floor(float64(2)/3*float64(utils.MaxScore))), /*count*/
 				},
 				stateData: &stateData{
 					allocateStateByNode: map[string]*cache.NodeAllocateState{
@@ -1222,10 +1223,10 @@ func Test_score_device(t *testing.T) {
 					utils.NodeName3: framework.NewStatus(framework.Success),
 				},
 				nodeScores: map[string]int64{
-					utils.NodeName2: int64(math.Floor((1.0+float64(200)/float64(300))/2*float64(utils.MaxScore)) /*capacity*/) +
-						int64(math.Floor((1.0-float64(2)/float64(3))*float64(utils.MaxScore))), /*count*/
-					utils.NodeName3: int64(math.Floor((1.0+float64(200)/float64(200))/2*float64(utils.MaxScore)) /*capacity*/) +
-						int64(math.Floor((1.0-float64(2)/float64(3))*float64(utils.MaxScore))), /*count*/
+					utils.NodeName2: int64(math.Floor((1.0+float64(200)/300)/2*float64(utils.MaxScore)) /*capacity*/) +
+						int64(math.Floor((1.0-float64(2)/3)*float64(utils.MaxScore))), /*count*/
+					utils.NodeName3: int64(math.Floor((1.0+float64(200)/200)/2*float64(utils.MaxScore)) /*capacity*/) +
+						int64(math.Floor((1.0-float64(2)/3)*float64(utils.MaxScore))), /*count*/
 				},
 				stateData: &stateData{
 					allocateStateByNode: map[string]*cache.NodeAllocateState{

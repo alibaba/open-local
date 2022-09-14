@@ -18,8 +18,9 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
@@ -137,7 +138,7 @@ func prepare(plugin *LocalPlugin) []*framework.NodeInfo {
 
 		plugin.OnNodeLocalStorageAdd(nls)
 		nodeInfo := &framework.NodeInfo{}
-		nodeInfo.SetNode(&corev1.Node{
+		_ = nodeInfo.SetNode(&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: nls.Name,
 			},
@@ -271,7 +272,6 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 		nodeName string
 	}
 	type fields struct {
-		node     *nodelocalstorage.NodeLocalStorage
 		pvcs     map[string]*corev1.PersistentVolumeClaim
 		pvs      map[string]*corev1.PersistentVolume
 		snapshot *volumesnapshotv1.VolumeSnapshot
@@ -723,7 +723,6 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 					if tt.fields.pvcBoundBeforeReserve != nil && tt.fields.pvcBoundBeforeReserve.Name == unit.PVCName {
 						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s/%s) should not allocate", unit.PVCNamespace, unit.PVCName)
 						cacheAllocated = plugin.cache.GetPVAllocatedDetailCopy(tt.fields.pvBoundBeforeReserve.Name).GetBasePVAllocated().Allocated
-						continue
 					} else {
 						assert.True(t, unit.Allocated > 0, "unBound pvc(%s/%s) should allocate > 0", unit.PVCNamespace, unit.PVCName)
 						cacheAllocated = plugin.cache.GetPVCAllocatedDetailCopy(unit.PVCNamespace, unit.PVCName).GetBasePVAllocated().Allocated
@@ -1182,7 +1181,6 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 					if tt.fields.pvcBoundBeforeReserve != nil && tt.fields.pvcBoundBeforeReserve.Name == unit.PVCName {
 						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s/%s) should not allocate", unit.PVCNamespace, unit.PVCName)
 						cacheAllocated = plugin.cache.GetPVAllocatedDetailCopy(tt.fields.pvBoundBeforeReserve.Name).GetBasePVAllocated().Allocated
-						continue
 					} else {
 						assert.True(t, unit.Allocated > 0, "unBound pvc(%s/%s) should allocate > 0", unit.PVCNamespace, unit.PVCName)
 						cacheAllocated = plugin.cache.GetPVCAllocatedDetailCopy(unit.PVCNamespace, unit.PVCName).GetBasePVAllocated().Allocated
@@ -1415,7 +1413,7 @@ func Test_Prebind(t *testing.T) {
 			}
 
 			if tt.fields.lastReserved != nil {
-				plugin.cache.Reserve(tt.fields.lastReserved, "")
+				_ = plugin.cache.Reserve(tt.fields.lastReserved, "")
 			}
 
 			for _, pvc := range tt.fields.pvcs {

@@ -18,10 +18,11 @@ package cache
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 
@@ -295,8 +296,8 @@ func Test_reserveLVMPVC(t *testing.T) {
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
@@ -1477,7 +1478,7 @@ func Test_unreserveInlineVolumes(t *testing.T) {
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
-			cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units.InlineVolumeAllocateUnits, currentStorageState)
+			_ = cache.reserveInlineVolumes(tt.args.nodeName, tt.args.podUid, tt.args.units.InlineVolumeAllocateUnits, currentStorageState)
 			nodeDetails := cache.inlineVolumeAllocatedDetails[tt.args.nodeName]
 			assert.NotEmpty(t, nodeDetails)
 			podDetails := nodeDetails[tt.args.podUid]
@@ -2636,8 +2637,8 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 			}
 
 			if tt.fields.pvcDetail != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvcPending.Namespace).Create(context.Background(), pvcPending, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvcPending)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvcPending.Namespace).Create(context.Background(), pvcPending, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvcPending)
 				cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
 				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
 			}

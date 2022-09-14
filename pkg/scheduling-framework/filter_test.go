@@ -17,8 +17,9 @@ package plugin
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
@@ -402,7 +403,6 @@ func Test_Filter_LVMPVC_NotSnapshot(t *testing.T) {
 	}
 	type fields struct {
 		pvcs map[string]*corev1.PersistentVolumeClaim
-		pvs  map[string]*corev1.PersistentVolume
 	}
 
 	tests := []struct {
@@ -1093,7 +1093,6 @@ func Test_Filter_DevicePVC(t *testing.T) {
 	}
 	type fields struct {
 		pvcs map[string]*corev1.PersistentVolumeClaim
-		pvs  map[string]*corev1.PersistentVolume
 	}
 
 	tests := []struct {

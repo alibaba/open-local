@@ -48,7 +48,7 @@ func PatchAllocateInfoToPV(kubeclientset kubernetes.Interface, originPV *corev1.
 	if string(patchBytes) == "{}" {
 		return nil
 	}
-	kubeclientset.CoreV1().PersistentVolumes().Patch(context.Background(), originPV.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	_, err = kubeclientset.CoreV1().PersistentVolumes().Patch(context.Background(), originPV.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return fmt.Errorf("patch vgName to PV fail: allocateInfo(%+v), pv(%s), error: %s", pvAllocatedInfo, originPV.Name, err.Error())
 	}

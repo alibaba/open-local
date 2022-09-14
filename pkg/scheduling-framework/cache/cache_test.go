@@ -583,8 +583,8 @@ func Test_unreserveLVMPVC(t *testing.T) {
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cache.states = tt.fields.states
@@ -863,8 +863,8 @@ func Test_reserveDevicePVC(t *testing.T) {
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			currentStorageState := cache.states[tt.args.nodeName]
@@ -1150,8 +1150,8 @@ func Test_unreserveDevicePVC(t *testing.T) {
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cache.states = tt.fields.states
@@ -2012,8 +2012,8 @@ func Test_AllocateLVM_ByPV(t *testing.T) {
 			if tt.fields.pvcDetail != nil {
 				pendingPVC := tt.fields.pvc.DeepCopy()
 				pendingPVC.Status.Phase = corev1.ClaimPending
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvc.Namespace).Create(context.Background(), pendingPVC, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pendingPVC)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvc.Namespace).Create(context.Background(), pendingPVC, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pendingPVC)
 				err := cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
 				assert.NoError(t, err)
 				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
@@ -2734,13 +2734,13 @@ func Test_DeleteLVM(t *testing.T) {
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
 			}
 
 			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
 			}
 
 			//prepare data
@@ -3203,13 +3203,13 @@ func Test_DeleteDevice(t *testing.T) {
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.args.pvc != nil {
-				kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(tt.args.pvc.Namespace).Create(context.Background(), tt.args.pvc, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.args.pvc)
 			}
 
 			if tt.args.pv != nil {
-				kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
-				cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
+				_, _ = kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.args.pv, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.args.pv)
 			}
 
 			cache.AllocateDevice(tt.args.pv, tt.args.nodeName)
@@ -3823,13 +3823,13 @@ func Test_UpdatePod(t *testing.T) {
 			cache.AddNodeStorage(tt.fields.nodeLocal)
 
 			if tt.fields.podBefore != nil {
-				kubeClientSet.CoreV1().Pods(tt.fields.podBefore.Namespace).Create(context.Background(), tt.fields.podBefore, metav1.CreateOptions{})
-				cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.fields.podBefore)
+				_, _ = kubeClientSet.CoreV1().Pods(tt.fields.podBefore.Namespace).Create(context.Background(), tt.fields.podBefore, metav1.CreateOptions{})
+				_ = cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.fields.podBefore)
 				cache.AddPod(tt.fields.podBefore)
 			}
 
-			kubeClientSet.CoreV1().Pods(tt.args.pod.Namespace).Create(context.Background(), tt.args.pod, metav1.CreateOptions{})
-			cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.args.pod)
+			_, _ = kubeClientSet.CoreV1().Pods(tt.args.pod.Namespace).Create(context.Background(), tt.args.pod, metav1.CreateOptions{})
+			_ = cache.coreV1Informers.Pods().Informer().GetIndexer().Add(tt.args.pod)
 
 			cache.UpdatePod(tt.args.pod)
 			assert.Equal(t, tt.expect.states, cache.states, "check cache states")

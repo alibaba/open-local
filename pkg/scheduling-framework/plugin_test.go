@@ -133,8 +133,8 @@ func prepare(plugin *LocalPlugin) []*framework.NodeInfo {
 	nlses := utils.CreateTestNodeLocalStorage()
 	for _, nls := range nlses {
 
-		plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
-		plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nls)
+		_, _ = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), nls, metav1.CreateOptions{})
+		_ = plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(nls)
 
 		plugin.OnNodeLocalStorageAdd(nls)
 		nodeInfo := &framework.NodeInfo{}
@@ -148,8 +148,8 @@ func prepare(plugin *LocalPlugin) []*framework.NodeInfo {
 
 	scs := utils.CreateTestStorageClass()
 	for _, sc := range scs {
-		plugin.kubeClientSet.StorageV1().StorageClasses().Create(context.Background(), sc, metav1.CreateOptions{})
-		plugin.storageV1Informers.StorageClasses().Informer().GetIndexer().Add(sc)
+		_, _ = plugin.kubeClientSet.StorageV1().StorageClasses().Create(context.Background(), sc, metav1.CreateOptions{})
+		_ = plugin.storageV1Informers.StorageClasses().Informer().GetIndexer().Add(sc)
 	}
 
 	return nodeInfos
@@ -167,16 +167,16 @@ func createPodComplex() (*corev1.Pod, utils.TestPVCPVInfoList) {
 	return createPod(pvcPVInfos), pvcPVInfos
 }
 
-func createPodConplexWithoutSnapshot() (*corev1.Pod, utils.TestPVCPVInfoList) {
-	pvcPVInfos := []*utils.TestPVCPVInfo{
-		utils.GetTestPVCPVWithVG(),
-		utils.GetTestPVCPVDevice(),
-		utils.GetTestPVCPVWithoutVG(),
-		utils.GetTestPVCPVNotLocal(), //not local pv
-	}
+// func createPodConplexWithoutSnapshot() (*corev1.Pod, utils.TestPVCPVInfoList) {
+// 	pvcPVInfos := []*utils.TestPVCPVInfo{
+// 		utils.GetTestPVCPVWithVG(),
+// 		utils.GetTestPVCPVDevice(),
+// 		utils.GetTestPVCPVWithoutVG(),
+// 		utils.GetTestPVCPVNotLocal(), //not local pv
+// 	}
 
-	return createPod(pvcPVInfos), pvcPVInfos
-}
+// 	return createPod(pvcPVInfos), pvcPVInfos
+// }
 
 func createPod(pvcPVInfos []*utils.TestPVCPVInfo) *corev1.Pod {
 	var pvcInfos []*utils.TestPVCInfo
@@ -327,18 +327,18 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 			plugin := CreateTestPlugin()
 			nodeInfos := prepare(plugin)
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			for _, pv := range tt.fields.pvs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
 			}
 
 			if tt.fields.snapshot != nil {
-				plugin.snapClientSet.SnapshotV1().VolumeSnapshots(tt.fields.snapshot.Namespace).Create(context.Background(), tt.fields.snapshot, metav1.CreateOptions{})
-				plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(tt.fields.snapshot)
+				_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshots(tt.fields.snapshot.Namespace).Create(context.Background(), tt.fields.snapshot, metav1.CreateOptions{})
+				_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(tt.fields.snapshot)
 			}
 
 			cycleState := framework.NewCycleState()
@@ -690,20 +690,20 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 			prepare(plugin)
 			plugin.OnPodAdd(tt.args.pod)
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 				plugin.OnPVCAdd(pvc)
 			}
 
 			if tt.fields.pvcBoundBeforeReserve != nil {
 				//update pvc
 				oldPVC, _ := plugin.coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Get(tt.fields.pvcBoundBeforeReserve.Name)
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
 				plugin.OnPVCUpdate(oldPVC, tt.fields.pvcBoundBeforeReserve)
 				//update pv
-				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
 				plugin.OnPVAdd(tt.fields.pvBoundBeforeReserve)
 			}
 
@@ -1131,8 +1131,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 
 			plugin.OnPodAdd(tt.args.pod)
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 				plugin.OnPVCAdd(pvc)
 			}
 
@@ -1145,8 +1145,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 						nlsNew := nls.DeepCopy()
 						nlsNew.Spec.ListConfig.Devices.Include = tt.fields.deviceIncludes
 						nlsNew.Status.FilteredStorageInfo.Devices = tt.fields.deviceIncludes
-						plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
-						plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
+						_, _ = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
+						_ = plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
 						//update nls
 						plugin.OnNodeLocalStorageUpdate(nls, nlsNew)
 					}
@@ -1156,12 +1156,12 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 			if tt.fields.pvcBoundBeforeReserve != nil {
 				//update pvc
 				oldPVC, _ := plugin.coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Get(tt.fields.pvcBoundBeforeReserve.Name)
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
 				plugin.OnPVCUpdate(oldPVC, tt.fields.pvcBoundBeforeReserve)
 				//update pv
-				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
 				plugin.OnPVAdd(tt.fields.pvBoundBeforeReserve)
 			}
 
@@ -1397,18 +1397,18 @@ func Test_Prebind(t *testing.T) {
 			plugin := CreateTestPlugin()
 			prepare(plugin)
 
-			plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, metav1.CreateOptions{})
-			plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
+			_, _ = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Create(context.Background(), tt.fields.nodeLocal, metav1.CreateOptions{})
+			_ = plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Add(tt.fields.nodeLocal)
 			plugin.OnNodeLocalStorageAdd(tt.fields.nodeLocal)
 
 			podCopy := complexPod.DeepCopy()
-			plugin.kubeClientSet.CoreV1().Pods(complexPod.Namespace).Create(context.Background(), podCopy, metav1.CreateOptions{})
-			plugin.coreV1Informers.Pods().Informer().GetIndexer().Add(podCopy)
+			_, _ = plugin.kubeClientSet.CoreV1().Pods(complexPod.Namespace).Create(context.Background(), podCopy, metav1.CreateOptions{})
+			_ = plugin.coreV1Informers.Pods().Informer().GetIndexer().Add(podCopy)
 			plugin.OnPodAdd(podCopy)
 
 			for _, pvc := range pvcsPending {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 				plugin.OnPVCAdd(pvc)
 			}
 
@@ -1417,15 +1417,15 @@ func Test_Prebind(t *testing.T) {
 			}
 
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 				plugin.OnPVCAdd(pvc)
 			}
 
 			for _, pv := range tt.fields.pvs {
 				pvCopy := pv.DeepCopy()
-				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pvCopy, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pvCopy)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pvCopy, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pvCopy)
 				plugin.OnPVAdd(pvCopy)
 			}
 
@@ -1659,8 +1659,8 @@ func Test_Unreserve(t *testing.T) {
 			plugin.OnPodAdd(tt.args.pod)
 
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 				plugin.OnPVCAdd(pvc)
 			}
 
@@ -1673,8 +1673,8 @@ func Test_Unreserve(t *testing.T) {
 						nlsNew := nls.DeepCopy()
 						nlsNew.Spec.ListConfig.Devices.Include = tt.fields.deviceIncludes
 						nlsNew.Status.FilteredStorageInfo.Devices = tt.fields.deviceIncludes
-						plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
-						plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
+						_, _ = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
+						_ = plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
 						//update nls
 						plugin.OnNodeLocalStorageUpdate(nls, nlsNew)
 					}
@@ -1708,12 +1708,12 @@ func Test_Unreserve(t *testing.T) {
 			if tt.fields.pvcBoundBeforeReserve != nil {
 				//update pvc
 				oldPVC, _ := plugin.coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Get(tt.fields.pvcBoundBeforeReserve.Name)
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.pvcBoundBeforeReserve.Namespace).Update(context.Background(), tt.fields.pvcBoundBeforeReserve, metav1.UpdateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(tt.fields.pvcBoundBeforeReserve)
 				plugin.OnPVCUpdate(oldPVC, tt.fields.pvcBoundBeforeReserve)
 				//update pv
-				plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), tt.fields.pvBoundBeforeReserve, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(tt.fields.pvBoundBeforeReserve)
 				plugin.OnPVAdd(tt.fields.pvBoundBeforeReserve)
 			}
 

@@ -506,8 +506,8 @@ func Test_score_volumeGroup_binPack(t *testing.T) {
 			plugin := CreateTestPlugin()
 			nodeInfos := prepare(plugin)
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cycleState := framework.NewCycleState()
@@ -967,8 +967,8 @@ func Test_score_volumeGroup_spread(t *testing.T) {
 			plugin.allocateStrategy = NewSpreadStrategy()
 			nodeInfos := prepare(plugin)
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			cycleState := framework.NewCycleState()
@@ -1382,8 +1382,8 @@ func Test_score_device(t *testing.T) {
 			plugin.allocateStrategy = tt.fields.strategy
 
 			for _, pvc := range tt.fields.pvcs {
-				plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
-				plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 			//need more device
 			for _, node := range nodeInfos {
@@ -1393,8 +1393,8 @@ func Test_score_device(t *testing.T) {
 					nlsNew := nls.DeepCopy()
 					nlsNew.Spec.ListConfig.Devices.Include = []string{"/dev/sda", "/dev/sdb", "/dev/sdc"}
 					nlsNew.Status.FilteredStorageInfo.Devices = []string{"/dev/sda", "/dev/sdb", "/dev/sdc"}
-					plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
-					plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
+					_, _ = plugin.localClientSet.CsiV1alpha1().NodeLocalStorages().Update(context.Background(), nlsNew, metav1.UpdateOptions{})
+					_ = plugin.localInformers.NodeLocalStorages().Informer().GetIndexer().Update(nlsNew)
 					//update nls
 					plugin.OnNodeLocalStorageUpdate(nls, nlsNew)
 				}

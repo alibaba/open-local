@@ -27,6 +27,7 @@ agent:
   device: /dev/vdb
   kubelet_dir: /var/lib/kubelet
   volume_name_prefix: local
+  spdk: false
 extender:
   name: open-local-scheduler-extender
   # scheduling strategy: binpack/spread

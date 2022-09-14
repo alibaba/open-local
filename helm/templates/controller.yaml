@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.name }}-controller
-  namespace: {{ .Values.namespace }}
   labels:
     app: {{ .Values.name }}
     component: {{ .Values.name }}-controller
+  name: {{ .Values.name }}-controller
+  namespace: {{ .Values.namespace }}
 spec:
   replicas: 2
   selector:
@@ -18,35 +18,122 @@ spec:
         app: {{ .Values.name }}
         component: {{ .Values.name }}-controller
     spec:
-      priorityClassName: system-cluster-critical
-      tolerations:
-      - operator: Exists
-        effect: NoSchedule
-        key: node-role.kubernetes.io/master
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: Exists
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - {{ .Values.name }}-controller
-            topologyKey: kubernetes.io/hostname
       containers:
-      - args:
+      - name: csi-provisioner
+        args:
+        - --csi-address=$(ADDRESS)
+        - --volume-name-prefix={{ .Values.agent.volume_name_prefix }}
+        - --feature-gates=Topology=True
+        - --strict-topology=True
+        - --extra-create-metadata=true
+        - --timeout=10m
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.provisioner.image }}:{{ .Values.images.provisioner.tag }}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - name: csi-resizer
+        args:
+        - --csi-address=$(ADDRESS)
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - name: csi-snapshotter
+        args:
+        - --csi-address=$(ADDRESS)
+        - --snapshot-name-prefix=snap
+        env:
+        - name: ADDRESS
+          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.snapshotter.image }}:{{ .Values.images.snapshotter.tag }}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - name: csi-plugin
+        args:
+        - csi
+        - --endpoint=$(CSI_ENDPOINT)
+        - --nodeID=$(KUBE_NODE_NAME)
+        - --driver={{ .Values.driver }}
+        - --driver-mode=controller
+{{- if .Values.controller.framework_scheduler_names }}
+        - --framework-scheduler-names={{ .Values.controller.framework_scheduler_names }}
+{{- end }}
+        env:
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: CSI_ENDPOINT
+          value: unix://var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+        - name: TZ
+          value: Asia/Shanghai
+        - name: ISSUE_ORPHANED_POD
+          value: "true"
+        - name: ISSUE_BLOCK_REFERENCE
+          value: "true"
+        - name: ISSUE_MESSAGE_FILE
+          value: "true"
+{{- if .Values.globalconfig.YodaSchedulerSvcIP }}
+        - name: EXTENDER_SVC_IP
+          value: "{{ .Values.globalconfig.YodaSchedulerSvcIP }}"
+{{- end }}
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+          name: socket-dir
+      - name: controller
+        args:
         - controller
         - --initconfig={{ .Values.name }}
         - --feature-gates=UpdateNLS={{ .Values.controller.update_nls }}
         image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: Always
-        name: {{ .Values.name }}-controller
         resources:
           limits:
             cpu: 200m
@@ -57,4 +144,27 @@ spec:
         env:
         - name: TZ
           value: Asia/Shanghai
+      - name: snapshot-controller
+        image: {{ .Values.globalconfig.RegistryURL }}/{{ .Values.images.snapshot_controller.image }}:{{ .Values.images.snapshot_controller.tag }}
+        env:
+          - name: TZ
+            value: Asia/Shanghai
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
       serviceAccount: {{ .Values.name }}
+      serviceAccountName: {{ .Values.name }}
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      volumes:
+      - emptyDir: {}
+        name: socket-dir

@@ -26,11 +26,11 @@ import (
 	"github.com/alibaba/open-local/pkg/signals"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -85,7 +85,7 @@ func Start(opt *controllerOption) error {
 	localInformerFactory := localinformers.NewSharedInformerFactory(localClient, time.Second*30)
 	snapshotInformerFactory := snapshotinformers.NewSharedInformerFactory(snapClient, time.Second*30)
 
-	controller := controller.NewController(kubeClient, localClient, snapClient, kubeInformerFactory.Core().V1().Nodes(), localInformerFactory.Csi().V1alpha1().NodeLocalStorages(), localInformerFactory.Csi().V1alpha1().NodeLocalStorageInitConfigs(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshots(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshotContents(), snapshotInformerFactory.Snapshot().V1().VolumeSnapshotClasses(), opt.InitConfig)
+	controller := controller.NewController(kubeClient, localClient, snapClient, kubeInformerFactory, localInformerFactory, snapshotInformerFactory, opt.InitConfig)
 
 	kubeInformerFactory.Start(stopCh)
 	localInformerFactory.Start(stopCh)

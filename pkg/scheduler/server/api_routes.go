@@ -25,37 +25,14 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 const schedulingPVCPrefix = "/apis/scheduling/:namespace/persistentvolumeclaims/:name"
-const schedulingExpandPVCPrefix = "/apis/expand/:namespace/persistentvolumeclaims/:name"
 
 func AddSchedulingApis(router *httprouter.Router, ctx *algorithm.SchedulingContext) {
 	router.POST(schedulingPVCPrefix, DebugLogging(SchedulingPVCWrap(ctx), schedulingPVCPrefix))
-	router.POST(schedulingExpandPVCPrefix, DebugLogging(SchedulingExpandWrap(ctx), schedulingExpandPVCPrefix))
-}
-
-// SchedulingExpandWrap handles the request from volume expansion for the open-local controller
-func SchedulingExpandWrap(ctx *algorithm.SchedulingContext) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		var pvc *corev1.PersistentVolumeClaim
-		var err error
-		if pvc, err = validatePVCParams(ctx, w, r, ps); err != nil {
-			err = fmt.Errorf("[SchedulingExpandWrap]failed to validate pvc params: %s", err.Error())
-			log.Errorf(err.Error())
-			return
-		}
-		if err = apis.ExpandPVC(ctx, pvc); err != nil {
-			err = fmt.Errorf("failed to expand pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
-			log.Errorf(err.Error())
-			utils.HttpResponse(w, http.StatusInternalServerError, []byte(err.Error()))
-			return
-		}
-		pvcSize := utils.GetPVCRequested(pvc)
-		log.Infof("successfully reserve %d(%d MiB) storage for pvc %s/%s", pvcSize, pvcSize/1024/1024, pvc.Namespace, pvc.Name)
-	}
 }
 
 // SchedulingPVCWrap handles the request during volume provisioning

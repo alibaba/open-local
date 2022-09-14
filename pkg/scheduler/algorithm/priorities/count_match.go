@@ -18,12 +18,13 @@ package priorities
 
 import (
 	"fmt"
+	"github.com/alibaba/open-local/pkg/utils"
 	"time"
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -34,7 +35,7 @@ func CountMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.
 	containReadonlySnapshot := false
 	err, _, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	nc := ctx.ClusterNodeCache.GetNodeCache(node.Name)
 	if nc == nil {
@@ -46,16 +47,16 @@ func CountMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.
 		if err != nil {
 			return 0, err
 		}
-		scoreMP = int(float64(len(mpPVCs)) * float64(MaxScore) / float64(freeMPCount))
-		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
+		scoreMP = int(float64(len(mpPVCs)) * float64(utils.MaxScore) / float64(freeMPCount))
+		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreMP, utils.MaxScore)
 	}
 	freeDeviceCount, err := freeDevices(nc)
 	if len(devicePVCs) > 0 && freeDeviceCount > 0 {
 		if err != nil {
 			return 0, err
 		}
-		scoreDevice = int(float64(len(devicePVCs)) * float64(MaxScore) / float64(freeDeviceCount))
-		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
+		scoreDevice = int(float64(len(devicePVCs)) * float64(utils.MaxScore) / float64(freeDeviceCount))
+		log.Infof("[CountMatch]node %s got %d out of %d", node.Name, scoreDevice, utils.MaxScore)
 	}
 	return (scoreMP + scoreDevice) / 2.0, nil
 }

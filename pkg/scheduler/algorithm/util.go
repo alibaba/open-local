@@ -23,11 +23,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 //GetPodPvcs returns the pending pvcs which are needed for scheduling
@@ -36,49 +38,7 @@ func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, contain
 	lvmPVCs []*corev1.PersistentVolumeClaim,
 	mpPVCs []*corev1.PersistentVolumeClaim,
 	devicePVCs []*corev1.PersistentVolumeClaim) {
-
-	ns := pod.Namespace
-	for _, v := range pod.Spec.Volumes {
-		if v.PersistentVolumeClaim != nil {
-			name := v.PersistentVolumeClaim.ClaimName
-			pvc, err := ctx.CoreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(ns).Get(name)
-			if err != nil {
-				log.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
-				return err, lvmPVCs, mpPVCs, devicePVCs
-			}
-			if pvc.Status.Phase == corev1.ClaimBound && skipBound {
-				log.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
-				continue
-			}
-			scName := pvc.Spec.StorageClassName
-			if scName == nil {
-				continue
-			}
-			_, err = ctx.StorageV1Informers.StorageClasses().Lister().Get(*scName)
-			if err != nil {
-				log.Errorf("failed to get storage class by name %s: %s", *scName, err.Error())
-				return err, lvmPVCs, mpPVCs, devicePVCs
-			}
-			var isLocalPV bool
-			var pvType pkg.VolumeType
-			if isLocalPV, pvType = utils.IsLocalPVC(pvc, ctx.StorageV1Informers, containReadonlySnapshot); isLocalPV {
-				switch pvType {
-				case pkg.VolumeTypeLVM:
-					log.Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
-					lvmPVCs = append(lvmPVCs, pvc)
-				case pkg.VolumeTypeMountPoint:
-					log.Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
-					mpPVCs = append(mpPVCs, pvc)
-				case pkg.VolumeTypeDevice:
-					log.Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
-					devicePVCs = append(devicePVCs, pvc)
-				default:
-					log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
-				}
-			}
-		}
-	}
-	return
+	return GetPodPvcsByLister(pod, ctx.CoreV1Informers.PersistentVolumeClaims().Lister(), ctx.StorageV1Informers.StorageClasses().Lister(), skipBound, containReadonlySnapshot)
 }
 
 func GetPodUnboundPvcs(pvc *corev1.PersistentVolumeClaim, ctx *SchedulingContext, containReadonlySnapshot bool) (
@@ -113,6 +73,56 @@ func GetAllPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, containReadonlySnaps
 	return pvcs, err
 }
 
+func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeClaimLister, scLister storagelisters.StorageClassLister, skipBound bool, containReadonlySnapshot bool) (
+	err error,
+	lvmPVCs []*corev1.PersistentVolumeClaim,
+	mpPVCs []*corev1.PersistentVolumeClaim,
+	devicePVCs []*corev1.PersistentVolumeClaim) {
+
+	ns := pod.Namespace
+	for _, v := range pod.Spec.Volumes {
+		if v.PersistentVolumeClaim != nil {
+			name := v.PersistentVolumeClaim.ClaimName
+			pvc, err := pvcLister.PersistentVolumeClaims(ns).Get(name)
+			if err != nil {
+				log.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
+				return err, lvmPVCs, mpPVCs, devicePVCs
+			}
+			if pvc.Status.Phase == corev1.ClaimBound && skipBound {
+				log.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
+				continue
+			}
+			scName := pvc.Spec.StorageClassName
+			if scName == nil {
+				continue
+			}
+			_, err = scLister.Get(*scName)
+			if err != nil {
+				log.Errorf("failed to get storage class by name %s: %s", *scName, err.Error())
+				return err, lvmPVCs, mpPVCs, devicePVCs
+			}
+			var isLocalPV bool
+			var pvType pkg.VolumeType
+			if isLocalPV, pvType = utils.IsLocalPVC(pvc, scLister, containReadonlySnapshot); isLocalPV {
+				switch pvType {
+				case pkg.VolumeTypeLVM:
+					log.V(4).Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
+					lvmPVCs = append(lvmPVCs, pvc)
+				case pkg.VolumeTypeMountPoint:
+					log.V(4).Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
+					mpPVCs = append(mpPVCs, pvc)
+				case pkg.VolumeTypeDevice:
+					log.V(4).Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
+					devicePVCs = append(devicePVCs, pvc)
+				default:
+					log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
+				}
+			}
+		}
+	}
+	return
+}
+
 func IsLocalNode(nodeName string, ctx *SchedulingContext) bool {
 	nodeCache := ctx.ClusterNodeCache.GetNodeCache(nodeName)
 
@@ -141,7 +151,7 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface, coreInformer corev1informers.Interface) (*cache.AllocatedUnit, error) {
 	_, nodeName := utils.IsLocalPV(pv)
 	containReadonlySnapshot := false
-	_, volumeType := utils.IsOpenLocalPV(pv, scInformer, coreInformer, containReadonlySnapshot)
+	_, volumeType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
 	requested := utils.GetPVSize(pv)
 	allocated := requested
 	vgName := utils.GetVGNameFromCsiPV(pv)

@@ -17,6 +17,7 @@ limitations under the License.
 package scheduler
 
 import (
+	"context"
 	"fmt"
 
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -24,12 +25,11 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/server"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/sample-controller/pkg/signals"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -53,8 +53,7 @@ var Cmd = &cobra.Command{
 }
 
 func Run(opt *extenderOption) error {
-	// set up signals so we handle the first shutdown signal gracefully
-	stopCh := signals.SetupSignalHandler()
+	cxt := context.TODO()
 
 	weights, err := opt.ParseWeight()
 	if err != nil {
@@ -91,10 +90,10 @@ func Run(opt *extenderOption) error {
 	extenderServer := server.NewExtenderServer(kubeClient, localClient, snapClient, kubeInformerFactory, localStorageInformerFactory, snapshotInformerFactory, opt.Port, weights)
 
 	log.Info("starting open-local scheduler extender")
-	kubeInformerFactory.Start(stopCh)
-	localStorageInformerFactory.Start(stopCh)
-	snapshotInformerFactory.Start(stopCh)
-	extenderServer.Start(stopCh)
+	kubeInformerFactory.Start(cxt.Done())
+	localStorageInformerFactory.Start(cxt.Done())
+	snapshotInformerFactory.Start(cxt.Done())
+	extenderServer.Start(cxt.Done())
 	log.Info("quitting now")
 	return nil
 }

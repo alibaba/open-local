@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+	log "k8s.io/klog/v2"
 )
 
 const (
@@ -625,11 +625,11 @@ func (client *SpdkClient) CreateVhostDevice(ctrlrName, bdevName string) (string,
 	dev := client.vhostUserStorePath + "/block/devices/" + ctrlrName
 	if _, err := os.Stat(dev); err != nil {
 		if os.IsExist(err) {
-			log.Warnf("CreateVhostDevice (%s, %s): vhost device already exists", ctrlrName, bdevName)
+			log.Warningf("CreateVhostDevice (%s, %s): vhost device already exists", ctrlrName, bdevName)
 			return dev, nil
 		}
 	} else {
-		log.Warnf("CreateVhostDevice (%s, %s): vhost device already exists", ctrlrName, bdevName)
+		log.Warningf("CreateVhostDevice (%s, %s): vhost device already exists", ctrlrName, bdevName)
 		return dev, nil
 	}
 
@@ -694,7 +694,7 @@ func (client *SpdkClient) DeleteVhostDevice(name string) error {
 
 	dev := client.vhostUserStorePath + "/block/devices/" + name
 	if err := os.Remove(dev); err != nil {
-		log.Warnf("fail to remove (%s): %s", dev, err.Error())
+		log.Warningf("fail to remove (%s): %s", dev, err.Error())
 		return fmt.Errorf("fail to remove (%s): %s", dev, err.Error())
 	}
 
@@ -816,7 +816,7 @@ func GenerateDeviceTempBackingFile(dev string) (string, error) {
 	if err != nil {
 		log.Errorf("run cmd (%s) failed (%s): %s", cmd, string(out), err.Error())
 		if err := os.Remove(tmpfile); err != nil {
-			log.Warnf("fail to remove (%s): %s", tmpfile, err.Error())
+			log.Warningf("fail to remove (%s): %s", tmpfile, err.Error())
 		}
 		return "", fmt.Errorf("Failed to run cmd: " + cmd + ", with output: " + string(out) + ", with error: " + err.Error())
 	}

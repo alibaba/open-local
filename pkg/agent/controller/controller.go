@@ -27,11 +27,11 @@ import (
 	"github.com/alibaba/open-local/pkg/agent/discovery"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	log "k8s.io/klog/v2"
 )
 
 // NewAgent returns a new open-local agent

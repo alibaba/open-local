@@ -23,8 +23,8 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -101,7 +101,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 	if utils.ContainsSnapshotPVC(lvmPVCs) {
 		var fits bool
 		var err error
-		if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node, ctx); err != nil {
+		if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node.Name, ctx.CoreV1Informers, ctx.SnapshotInformers); err != nil {
 			return false, err
 		}
 		if !fits {

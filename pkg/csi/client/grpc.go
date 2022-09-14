@@ -24,11 +24,13 @@ import (
 	"time"
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/csi/test"
+	"google.golang.org/grpc/test/bufconn"
 
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	log "k8s.io/klog/v2"
 )
 
 // Connection lvm connection interface
@@ -53,7 +55,6 @@ type LVMOptions struct {
 	Striping    bool     `json:"striping,omitempty"`
 }
 
-//
 type workerConnection struct {
 	conn *grpc.ClientConn
 }
@@ -61,6 +62,14 @@ type workerConnection struct {
 var (
 	_ Connection = &workerConnection{}
 )
+
+func MustRunThisWhenTest() {
+	const bufSize = 1024 * 1024
+	testfunc := func() {
+		test.Lis = bufconn.Listen(bufSize)
+	}
+	test.Once.Do(testfunc)
+}
 
 // NewGrpcConnection lvm connection
 func NewGrpcConnection(address string, timeout time.Duration) (Connection, error) {
@@ -78,11 +87,18 @@ func (c *workerConnection) Close() error {
 }
 
 func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
-	log.Debugf("New Connecting to %s", address)
+	log.V(6).Infof("New Connecting to %s", address)
+	// only for unit test
+	var bufDialerFunc func(context.Context, string) (net.Conn, error)
 	dialOptions := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		// grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithUnaryInterceptor(logGRPC),
+	}
+	if test.Lis != nil {
+		bufDialerFunc = func(context.Context, string) (net.Conn, error) {
+			return test.Lis.Dial()
+		}
+		dialOptions = append(dialOptions, grpc.WithContextDialer(bufDialerFunc))
 	}
 	// if strings.HasPrefix(address, "/") {
 	// 	dialOptions = append(dialOptions, grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
@@ -109,10 +125,10 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 			return conn, nil // return nil, subsequent GetPluginInfo will show the real connection error
 		}
 		if conn.GetState() == connectivity.Ready {
-			log.Debugf("Connected to %s", address)
+			log.V(6).Infof("Connected to %s", address)
 			return conn, nil
 		}
-		log.Debugf("Still trying to connect %s, connection is %s", address, conn.GetState())
+		log.V(6).Infof("Still trying to connect %s, connection is %s", address, conn.GetState())
 	}
 }
 
@@ -131,7 +147,7 @@ func (c *workerConnection) CreateLvm(ctx context.Context, opt *LVMOptions) (stri
 		log.Errorf("Create Lvm with error: %s", err.Error())
 		return "", err
 	}
-	log.Debugf("Create Lvm with result: %+v", rsp.CommandOutput)
+	log.V(6).Infof("Create Lvm with result: %+v", rsp.CommandOutput)
 	return rsp.GetCommandOutput(), nil
 }
 
@@ -149,7 +165,7 @@ func (c *workerConnection) CreateSnapshot(ctx context.Context, volGroup string, 
 		log.Errorf("Create Lvm Snapshot with error: %s", err.Error())
 		return "", err
 	}
-	log.Debugf("Create Lvm Snapshot with result: %+v", rsp.CommandOutput)
+	log.V(6).Infof("Create Lvm Snapshot with result: %+v", rsp.CommandOutput)
 	return rsp.GetCommandOutput(), nil
 }
 
@@ -168,7 +184,7 @@ func (c *workerConnection) GetLvm(ctx context.Context, volGroup string, volumeID
 		log.Warningf("Volume %s/%s is not exist", volGroup, volumeID)
 		return "", nil
 	}
-	log.Debugf("Get Lvm with result: %+v", rsp.Volumes)
+	log.V(6).Infof("Get Lvm with result: %+v", rsp.Volumes)
 	return rsp.GetVolumes()[0].String(), nil
 }
 
@@ -183,7 +199,7 @@ func (c *workerConnection) DeleteLvm(ctx context.Context, volGroup, volumeID str
 		log.Errorf("Remove Lvm with error: %v", err.Error())
 		return err
 	}
-	log.Debugf("Remove Lvm with result: %v", response.GetCommandOutput())
+	log.V(6).Infof("Remove Lvm with result: %v", response.GetCommandOutput())
 	return err
 }
 
@@ -198,7 +214,7 @@ func (c *workerConnection) DeleteSnapshot(ctx context.Context, volGroup string, 
 		log.Errorf("Remove Lvm Snapshot with error: %v", err.Error())
 		return err
 	}
-	log.Debugf("Remove Lvm Snapshot with result: %v", response.GetCommandOutput())
+	log.V(6).Infof("Remove Lvm Snapshot with result: %v", response.GetCommandOutput())
 	return err
 }
 
@@ -212,7 +228,7 @@ func (c *workerConnection) CleanPath(ctx context.Context, path string) error {
 		log.Errorf("CleanPath with error: %v", err.Error())
 		return err
 	}
-	log.Debugf("CleanPath with result: %v", response.GetCommandOutput())
+	log.V(6).Infof("CleanPath with result: %v", response.GetCommandOutput())
 	return err
 }
 
@@ -226,7 +242,7 @@ func (c *workerConnection) CleanDevice(ctx context.Context, device string) error
 		log.Errorf("fail to clean device %s: %s", device, err.Error())
 		return err
 	}
-	log.Debugf("clean device %s successfully with result: %s", device, response.GetCommandOutput())
+	log.V(6).Infof("clean device %s successfully with result: %s", device, response.GetCommandOutput())
 	return err
 }
 
@@ -242,13 +258,13 @@ func (c *workerConnection) ExpandLvm(ctx context.Context, volGroup string, volum
 		log.Errorf("Expand Lvm with error: %v", err.Error())
 		return err
 	}
-	log.Debugf("Expand Lvm with result: %v", response.GetCommandOutput())
+	log.V(6).Infof("Expand Lvm with result: %v", response.GetCommandOutput())
 	return err
 }
 
 func logGRPC(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	log.Debugf("GRPC request: %s, %+v", method, req)
+	log.V(6).Infof("GRPC request: %s, %+v", method, req)
 	err := invoker(ctx, method, req, reply, cc, opts...)
-	log.Debugf("GRPC response: %+v, %v", reply, err)
+	log.V(6).Infof("GRPC response: %+v, %v", reply, err)
 	return err
 }

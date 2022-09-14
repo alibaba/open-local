@@ -25,8 +25,8 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	units "github.com/docker/go-units"
-	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	log "k8s.io/klog/v2"
 )
 
 func (d *Discoverer) ExpandSnapshotLVIfNeeded() {

@@ -28,8 +28,8 @@ import (
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	spdk "github.com/alibaba/open-local/pkg/utils/spdk"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	log "k8s.io/klog/v2"
 )
 
 type SpdkCommands struct {
@@ -96,7 +96,7 @@ func (cmd *SpdkCommands) RemoveLV(ctx context.Context, vg string, name string) (
 	}
 
 	if len(*lv) == 0 {
-		log.Warnf("Logical volume (%s) isn't found", alias)
+		log.Warningf("Logical volume (%s) isn't found", alias)
 		return "", errors.New("Logical volume isn't found")
 	}
 

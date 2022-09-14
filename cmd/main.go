@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	"github.com/alibaba/open-local/cmd/agent"
 	"github.com/alibaba/open-local/cmd/controller"
 	"github.com/alibaba/open-local/cmd/csi"
 	"github.com/alibaba/open-local/cmd/doc"
 	"github.com/alibaba/open-local/cmd/scheduler"
 	"github.com/alibaba/open-local/cmd/version"
-	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"k8s.io/component-base/logs"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -62,27 +62,14 @@ func addCommands() {
 }
 
 func init() {
-	flag.Parse()
-	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
-	MainCmd.DisableAutoGenTag = true
-	logLevel := os.Getenv(localtype.EnvLogLevel)
-	switch logLevel {
-	case localtype.LogPanic:
-		log.SetLevel(log.PanicLevel)
-	case localtype.LogFatal:
-		log.SetLevel(log.FatalLevel)
-	case localtype.LogError:
-		log.SetLevel(log.ErrorLevel)
-	case localtype.LogWarn:
-		log.SetLevel(log.WarnLevel)
-	case localtype.LogInfo:
-		log.SetLevel(log.InfoLevel)
-	case localtype.LogDebug:
-		log.SetLevel(log.DebugLevel)
-	case localtype.LogTrace:
-		log.SetLevel(log.TraceLevel)
-	default:
-		log.SetLevel(log.InfoLevel)
-	}
 	addCommands()
+	MainCmd.SetGlobalNormalizationFunc(utils.WordSepNormalizeFunc)
+	MainCmd.Flags().AddGoFlagSet(flag.CommandLine)
+	MainCmd.DisableAutoGenTag = true
+
+	pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	_ = flag.CommandLine.Parse([]string{})
+	logs.InitLogs()
 }

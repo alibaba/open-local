@@ -18,12 +18,13 @@ package priorities
 
 import (
 	"fmt"
+	"github.com/alibaba/open-local/pkg/utils"
 	"time"
 
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -34,7 +35,7 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 	containReadonlySnapshot := false
 	err, _, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
 	if err != nil {
-		return MinScore, err
+		return utils.MinScore, err
 	}
 	nc := ctx.ClusterNodeCache.GetNodeCache(node.Name)
 	if nc == nil {
@@ -63,7 +64,7 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 			if len(mpPVCs) <= 0 && (!isLocal || (freeMPCount <= 0)) {
 				// non-open-local Pod and Node is not enough open-local volume of this type
 				scoreMP = weight * 1
-				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, MaxScore)
+				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreMP, utils.MaxScore)
 				volumeTypeAntiFound[volumeType] = true
 			}
 		case pkg.VolumeTypeDevice:
@@ -71,7 +72,7 @@ func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *c
 			if len(devicePVCs) <= 0 && (!isLocal || (freeDeviceCount <= 0)) {
 				scoreDevice = weight * 1
 
-				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreDevice, MaxScore)
+				log.Infof("[NodeAntiAffinity]node %s got %d out of %d", node.Name, scoreDevice, utils.MaxScore)
 				volumeTypeAntiFound[volumeType] = true
 			}
 		case pkg.VolumeTypeLVM:

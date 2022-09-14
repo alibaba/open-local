@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 const (

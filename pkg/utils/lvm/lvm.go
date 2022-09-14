@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	localtype "github.com/alibaba/open-local/pkg"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 // Control verbose output of all LVM CLI commands
@@ -447,7 +447,7 @@ func (lv *LogicalVolume) Remove() error {
 func (lv *LogicalVolume) Expand(size uint64) error {
 	args := []string{localtype.NsenterCmd, "lvextend", fmt.Sprintf("--size=+%db", size), lv.vg.name + "/" + lv.name}
 	cmd := strings.Join(args, " ")
-	log.Debugf("[Expand]cmd: %s", cmd)
+	log.V(6).Infof("[Expand]cmd: %s", cmd)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		return err
@@ -710,8 +710,8 @@ func run(cmd string, v interface{}, extraArgs ...string) error {
 		errstr := ignoreWarnings(stderr.String())
 		// log.Infof("stdout: " + stdout.String())
 		// log.Infof("stderr: " + errstr)
-		log.Debugf("[debug run]: command %s", c.String())
-		log.Debugf("[debug run]: error %s", err.Error())
+		log.V(6).Infof("[debug run]: command %s", c.String())
+		log.V(6).Infof("[debug run]: error %s", err.Error())
 		return errors.New(errstr)
 	}
 	stdoutbuf := stdout.Bytes()

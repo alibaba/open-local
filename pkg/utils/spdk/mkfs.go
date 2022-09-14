@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	defaultPort = "3260"
 )
 
-//iscsi_create_initiator_group
+// iscsi_create_initiator_group
 func (client *SpdkClient) iscsiCreateInitiatorGroup(tag uint, initiators, netmasks []string) error {
 	conn, err := client.Connect()
 	if err != nil {
@@ -57,7 +57,7 @@ func (client *SpdkClient) iscsiCreateInitiatorGroup(tag uint, initiators, netmas
 	return nil
 }
 
-//iscsi_delete_initiator_group
+// iscsi_delete_initiator_group
 func (client *SpdkClient) iscsiDeleteInitiatorGroup(tag uint) error {
 	conn, err := client.Connect()
 	if err != nil {
@@ -79,7 +79,7 @@ func (client *SpdkClient) iscsiDeleteInitiatorGroup(tag uint) error {
 	return nil
 }
 
-//iscsi_create_portal_group
+// iscsi_create_portal_group
 func (client *SpdkClient) iscsiCreatePortalGroup(tag uint, host, port string) error {
 	conn, err := client.Connect()
 	if err != nil {
@@ -107,7 +107,7 @@ func (client *SpdkClient) iscsiCreatePortalGroup(tag uint, host, port string) er
 	return nil
 }
 
-//iscsi_delete_portal_group
+// iscsi_delete_portal_group
 func (client *SpdkClient) iscsiDeletePortalGroup(tag uint) error {
 	conn, err := client.Connect()
 	if err != nil {
@@ -128,7 +128,7 @@ func (client *SpdkClient) iscsiDeletePortalGroup(tag uint) error {
 	return err
 }
 
-//iscsi_create_target_node
+// iscsi_create_target_node
 func (client *SpdkClient) iscsiCreateTargetNode(name, bdevName string, igTag, pgTag int) error {
 	conn, err := client.Connect()
 	if err != nil {
@@ -168,7 +168,7 @@ func (client *SpdkClient) iscsiCreateTargetNode(name, bdevName string, igTag, pg
 	return nil
 }
 
-//iscsi_delete_target_node
+// iscsi_delete_target_node
 func (client *SpdkClient) iscsiDeleteTargetNode(name string) error {
 	conn, err := client.Connect()
 	if err != nil {

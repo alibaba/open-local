@@ -19,18 +19,25 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/csi/test"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
-	serverhelpers "github.com/google/go-microservice-helpers/server"
-	log "github.com/sirupsen/logrus"
+	"github.com/google/credstore/client"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	"github.com/opentracing/opentracing-go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/test/bufconn"
+	"k8s.io/client-go/rest"
+	log "k8s.io/klog/v2"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -39,10 +46,6 @@ var (
 
 // Start start lvmd
 func Start(port string) {
-	lvmdPort = port
-	address := fmt.Sprintf(":%s", port)
-	log.Infof("Lvmd Starting with socket: %s ...", address)
-
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Errorf("Failed to build config: %v", err)
@@ -72,15 +75,21 @@ func Start(port string) {
 			}
 		}
 	}
-
 	if cmd == nil {
 		log.Errorf("retrieve nls failed, try to run as LVM")
 		cmd = &LvmCommads{}
 	}
 	svr := NewServer(cmd)
 
-	serverhelpers.ListenAddress = &address
-	grpcServer, _, err := serverhelpers.NewServer()
+	lvmdPort = port
+	address := fmt.Sprintf(":%s", port)
+	log.Infof("Lvmd Starting with socket: %s ...", address)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	grpcServer, _, err := NewGRPCServer()
 	if err != nil {
 		log.Errorf("failed to init GRPC server: %v", err)
 		return
@@ -88,12 +97,52 @@ func Start(port string) {
 
 	lib.RegisterLVMServer(grpcServer, &svr)
 
-	err = serverhelpers.ListenAndServe(grpcServer, nil)
-	if err != nil {
-		log.Errorf("failed to serve: %v", err)
-		return
+	if err := grpcServer.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %v", err)
 	}
 	log.Infof("Lvmd End ...")
+}
+
+func MustRunThisWhenTest() {
+	const bufSize = 1024 * 1024
+	testfunc := func() {
+		test.Lis = bufconn.Listen(bufSize)
+	}
+	test.Once.Do(testfunc)
+}
+
+func StartFake() {
+	svr := NewServer(&FakeCommands{})
+
+	grpcServer, _, err := NewGRPCServer()
+	if err != nil {
+		log.Errorf("failed to init GRPC server: %v", err)
+		return
+	}
+
+	lib.RegisterLVMServer(grpcServer, &svr)
+
+	go func() {
+		log.Infof("start fake server")
+		if err := grpcServer.Serve(test.Lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+}
+
+// NewServer creates a new GRPC server stub with credstore auth (if requested).
+func NewGRPCServer() (*grpc.Server, *client.CredstoreClient, error) {
+	var grpcServer *grpc.Server
+	var cc *client.CredstoreClient
+
+	grpcServer = grpc.NewServer(
+		grpc.UnaryInterceptor(
+			otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())))
+
+	reflection.Register(grpcServer)
+	grpc_prometheus.Register(grpcServer)
+
+	return grpcServer, cc, nil
 }
 
 // GetLvmdPort get lvmd port

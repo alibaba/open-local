@@ -122,6 +122,7 @@ spec:
         - "--endpoint=$(CSI_ENDPOINT)"
         - "--nodeID=$(KUBE_NODE_NAME)"
         - "--driver={{ .Values.driver }}"
+        - "--driver-mode=node"
         env:
         - name: KUBE_NODE_NAME
           valueFrom:

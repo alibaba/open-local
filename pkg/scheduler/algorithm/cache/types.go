@@ -17,12 +17,13 @@ limitations under the License.
 package cache
 
 import (
+	"fmt"
 	"sync"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	log "k8s.io/klog/v2"
 )
 
 type InlineVolumeInfo struct {
@@ -46,11 +47,37 @@ type NodeInfo struct {
 	AllocatedNum        int64
 	LocalPVs            map[string]corev1.PersistentVolume
 	PodInlineVolumeInfo map[string][]InlineVolumeInfo
+	PVCRecordsByExtend  map[string] /*PVCNameSpace/PVCName*/ AllocatedUnit //add by extend schedule
+}
+
+func (nodeInfo *NodeInfo) IsPVAllocated(pv *corev1.PersistentVolume) bool {
+	if nodeInfo == nil {
+		return false
+	}
+	if len(nodeInfo.LocalPVs) > 0 {
+		if _, ok := nodeInfo.LocalPVs[pv.Name]; ok {
+			return true
+		}
+	}
+
+	if len(nodeInfo.PVCRecordsByExtend) <= 0 {
+		return false
+	}
+
+	if pv.Spec.ClaimRef == nil {
+		return false
+	}
+	pvcKey := fmt.Sprintf("%s/%s", pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
+	if _, ok := nodeInfo.PVCRecordsByExtend[pvcKey]; ok {
+		return true
+	}
+	return false
 }
 
 type NodeCache struct {
 	rwLock sync.RWMutex
 	NodeInfo
+	PVCRecordsByExtend map[string]AllocatedUnit
 }
 
 type ResourceType string
@@ -138,7 +165,7 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 		info[pvcName] = f
 		p.PvcPod[pvcName] = podName
 		p.PodPvcInfo[podName] = info
-		log.Debugf("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+		log.V(6).Infof("[Put]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 	}
 }
 
@@ -146,12 +173,12 @@ func (p *PodPvcMapping) PutPod(podName string, pvcs []*corev1.PersistentVolumeCl
 func (p *PodPvcMapping) DeletePod(podName string, pvcs []*corev1.PersistentVolumeClaim) {
 	var pvcName string
 	delete(p.PodPvcInfo, podName)
-	log.Debugf("[DeletePod]deleted pod cache %s", podName)
+	log.V(6).Infof("[DeletePod]deleted pod cache %s", podName)
 
 	for _, pvc := range pvcs {
 		pvcName = utils.PVCName(pvc)
 		delete(p.PvcPod, pvcName)
-		log.Debugf("[DeletePod]deleted pvc %s from cache", pvcName)
+		log.V(6).Infof("[DeletePod]deleted pvc %s from cache", pvcName)
 	}
 }
 
@@ -162,19 +189,19 @@ func (p *PodPvcMapping) PutPvc(pvc *corev1.PersistentVolumeClaim) {
 	podName := p.PvcPod[pvcName]
 	info := p.PodPvcInfo[podName]
 	if len(podName) <= 0 || info == nil {
-		log.Debugf("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
+		log.V(6).Infof("pvc %s is not yet in pvc mapping", utils.PVCName(pvc))
 		return
 	}
 	f := utils.PvcContainsSelectedNode(pvc)
 	info[pvcName] = f
-	log.Debugf("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
+	log.V(6).Infof("[PutPvc]pvc (%s on %s) status changed to %t ", pvcName, podName, f)
 }
 
 // DeletePvc deletes pvc key from change
 func (p *PodPvcMapping) DeletePvc(pvc *corev1.PersistentVolumeClaim) {
 	pvcName := utils.PVCName(pvc)
 	delete(p.PvcPod, pvcName)
-	log.Debugf("[DeletePvc]deleted pvc %s from cache", pvcName)
+	log.V(6).Infof("[DeletePvc]deleted pvc %s from cache", pvcName)
 }
 
 // IsPodPvcReady defines whether a pvc and its related pvcs are ready(with selected node)

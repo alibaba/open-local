@@ -20,15 +20,18 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alibaba/open-local/pkg/scheduler/errors"
-
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/utils"
-	log "github.com/sirupsen/logrus"
+
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	corev1informers "k8s.io/client-go/informers/core/v1"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/klog/v2"
 )
 
 const MinScore int = 0
@@ -42,7 +45,7 @@ func AllocateLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, no
 	if pod == nil {
 		return fits, units, fmt.Errorf("pod is nil")
 	}
-	log.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+	klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
 
 	fits, units, err = ProcessLVMPVCPredicate(pvcs, node, ctx)
 	if err != nil {
@@ -52,8 +55,8 @@ func AllocateLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, no
 	if len(units) <= 0 {
 		return false, units, nil
 	}
-	log.Infof("node %s is capable of lvm %d pvcs", node.Name, len(pvcs))
-	log.Debugf("pod=%s/%s, node=%s, units:%#v", pod.Namespace, pod.Name, node.Name, units)
+	klog.Infof("node %s is capable of lvm %d pvcs", node.Name, len(pvcs))
+	klog.V(6).Infof("pod=%s/%s, node=%s, units:%#v", pod.Namespace, pod.Name, node.Name, units)
 	return true, units, nil
 }
 
@@ -66,7 +69,10 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
-		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers)
+		vgName, err := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
+		if err != nil {
+			return false, units, err
+		}
 		requestedSize := utils.GetPVCRequested(pvc)
 
 		vg, ok := cacheVGsMap[cache.ResourceName(vgName)]
@@ -75,7 +81,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 		}
 
 		freeSize := vg.Capacity - vg.Requested
-		log.Debugf("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vgName, freeSize, pvc.Name, requestedSize)
+		klog.V(6).Infof("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vgName, freeSize, pvc.Name, requestedSize)
 
 		if freeSize < requestedSize {
 			return false, units, errors.NewInsufficientLVMError(requestedSize, vg.Requested, vg.Capacity, vg.Name, node.GetName())
@@ -116,7 +122,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 		for i, vg := range cacheVGsSlice {
 			freeSize := vg.Capacity - vg.Requested
-			log.Debugf("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vg.Name, freeSize, pvc.Name, requestedSize)
+			klog.V(6).Infof("validating vg(name=%s,free=%d) for pvc(name=%s,requested=%d)", vg.Name, freeSize, pvc.Name, requestedSize)
 
 			if freeSize < requestedSize {
 				if i == len(cacheVGsSlice)-1 {
@@ -188,7 +194,11 @@ func HandleInlineLVMVolume(ctx *algorithm.SchedulingContext, node *corev1.Node, 
 // DivideLVMPVCs divide pvcs into pvcsWithVG and pvcsWithoutVG
 func DivideLVMPVCs(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithVG, pvcsWithoutVG []*corev1.PersistentVolumeClaim) {
 	for _, pvc := range pvcs {
-		if vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers); vgName == "" {
+		vgName, err := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
+		if err != nil {
+			return
+		}
+		if vgName == "" {
 			pvcsWithoutVG = append(pvcsWithoutVG, pvc)
 		} else {
 			pvcsWithVG = append(pvcsWithVG, pvc)
@@ -220,17 +230,21 @@ func AllocateMountPointVolume(
 		return
 	}
 	if pod != nil {
-		log.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
-	log.Debugf("pvcs: %#v, node: %#v", pvcs, node)
+	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
 	fits, units, err = ProcessMPPVC(pod, pvcs, node, ctx)
 
 	return fits, units, err
 }
 
 func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (fits bool, units []cache.AllocatedUnit, err error) {
-	pvcsWithTypeSSD, pvcsWithTypeHDD := DividePVCAccordingToMediaType(pvcs, ctx)
+	pvcsWithTypeSSD, pvcsWithTypeHDD, err := DividePVCAccordingToMediaType(pvcs, ctx.StorageV1Informers.StorageClasses().Lister())
+	if err != nil {
+		return false, units, err
+	}
+
 	freeMPSSD, freeMPHDD, err := GetFreeMP(node, ctx)
 	if err != nil {
 		return false, units, err
@@ -268,7 +282,7 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 
 	// process pvcsWithTypeHDD second.
 	if freeMPHDDCount < requestedHDDCount {
-		log.Infof("there is no enough mount point volume on node %s, want(cnt) %d, actual(cnt) %d, type hdd", node.Name, requestedHDDCount, freeMPHDDCount)
+		klog.Infof("there is no enough mount point volume on node %s, want(cnt) %d, actual(cnt) %d, type hdd", node.Name, requestedHDDCount, freeMPHDDCount)
 		return false, units, errors.NewInsufficientMountPointCountError(
 			requestedHDDCount,
 			freeMPHDDCount,
@@ -286,21 +300,27 @@ func ProcessMPPVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *c
 	}
 	units = append(units, rstUnits...)
 
-	log.Debugf("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
+	klog.V(6).Infof("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
 	return true, units, nil
 }
 
 // DividePVCAccordingToMediaType divide pvcs into pvcsWithSSD and pvcsWithHDD
-func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, ctx *algorithm.SchedulingContext) (pvcsWithTypeSSD, pvcsWithTypeHDD []*corev1.PersistentVolumeClaim) {
+func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (pvcsWithTypeSSD, pvcsWithTypeHDD []*corev1.PersistentVolumeClaim, err error) {
 	for _, pvc := range pvcs {
-		if mediaType := utils.GetMediaTypeFromPVC(pvc, ctx.StorageV1Informers); mediaType == localtype.MediaTypeSSD {
+		var mediaType localtype.MediaType
+		mediaType, err = utils.GetMediaTypeFromPVC(pvc, scLister)
+		if err != nil {
+			return
+		}
+		switch mediaType {
+		case localtype.MediaTypeSSD:
 			pvcsWithTypeSSD = append(pvcsWithTypeSSD, pvc)
-		} else if mediaType == localtype.MediaTypeHDD {
+		case localtype.MediaTypeHDD:
 			pvcsWithTypeHDD = append(pvcsWithTypeHDD, pvc)
-		} else if mediaType == "" {
-			log.Infof("empty mediaType in storageClass! pvc: %s/%s", pvc.Namespace, pvc.Name)
-		} else {
-			log.Infof("mediaType %s not support! pvc: %s/%s", mediaType, pvc.Namespace, pvc.Name)
+		default:
+			err = fmt.Errorf("mediaType %s not support! pvc: %s/%s", mediaType, pvc.Namespace, pvc.Name)
+			klog.Errorf(err.Error())
+			return
 		}
 	}
 	return
@@ -360,7 +380,7 @@ func CheckExclusiveResourceMeetsPVCSize(resource localtype.VolumeType, ers []cac
 		if requestedSize > int64(maxSize) {
 			maxSize = requestedSize
 		}
-		log.Debugf("[CheckExclusiveResourceMeetsPVCSize]%s(%s) capacity=%d, pvc requestedSize=%d", er.Name, string(er.MediaType), er.Capacity, requestedSize)
+		klog.V(6).Infof("[CheckExclusiveResourceMeetsPVCSize]%s(%s) capacity=%d, pvc requestedSize=%d", er.Name, string(er.MediaType), er.Capacity, requestedSize)
 		if er.Capacity < requestedSize {
 			if j == int(disksCount)-1 {
 				return false, units, errors.NewInsufficientExclusiveResourceError(
@@ -382,7 +402,7 @@ func CheckExclusiveResourceMeetsPVCSize(resource localtype.VolumeType, ers []cac
 			PVCName:    utils.PVCName(pvc),
 		}
 
-		log.Debugf("found unit: %#v for pvc %#v", u, pvc)
+		klog.V(6).Infof("found unit: %#v for pvc %#v", u, pvc)
 		units = append(units, u)
 		i++
 		if i == int(pvcsCount) {
@@ -399,9 +419,9 @@ func AllocateDeviceVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim,
 		return
 	}
 	if pod != nil {
-		log.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
-	log.Debugf("pvcs: %#v, node: %#v", pvcs, node)
+	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
 	fits, units, err = ProcessDevicePVC(pod, pvcs, node, ctx)
 
 	return fits, units, err
@@ -436,7 +456,10 @@ func GetCacheDeviceCount(node *corev1.Node, ctx *algorithm.SchedulingContext) (c
 }
 
 func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (fits bool, units []cache.AllocatedUnit, err error) {
-	pvcsWithTypeSSD, pvcsWithTypeHDD := DividePVCAccordingToMediaType(pvcs, ctx)
+	pvcsWithTypeSSD, pvcsWithTypeHDD, err := DividePVCAccordingToMediaType(pvcs, ctx.StorageV1Informers.StorageClasses().Lister())
+	if err != nil {
+		return false, units, err
+	}
 	freeDeviceSSD, freeDeviceHDD, err := GetFreeDevice(node, ctx)
 	if err != nil {
 		return false, units, err
@@ -491,38 +514,37 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 	}
 	units = append(units, rstUnits...)
 
-	log.Debugf("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
+	klog.V(6).Infof("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
 	return true, units, nil
 }
 
 // If there is no snapshot pvc, just return true
-func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (fits bool, err error) {
-	nodeName := node.Name
+func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, coreV1Informers corev1informers.Interface, snapshotInformers volumesnapshotinformers.Interface) (fits bool, err error) {
 	for _, pvc := range pvcs {
 		// step 0: check if is snapshot pvc
 		if !utils.IsSnapshotPVC(pvc) {
 			continue
 		}
-		log.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is snapshot", pvc.Namespace, pvc.Name)
+		klog.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is snapshot", pvc.Namespace, pvc.Name)
 		// step 1: get snapshot api
 		snapName := pvc.Spec.DataSource.Name
 		snapNamespace := pvc.Namespace
-		snapshot, err := ctx.SnapshotInformers.VolumeSnapshots().Lister().VolumeSnapshots(snapNamespace).Get(snapName)
+		snapshot, err := snapshotInformers.VolumeSnapshots().Lister().VolumeSnapshots(snapNamespace).Get(snapName)
 		if err != nil {
 			return false, fmt.Errorf("[ProcessSnapshotPVC]get snapshot %s/%s failed: %s", snapNamespace, snapName, err.Error())
 		}
-		log.Infof("[ProcessSnapshotPVC]snapshot is %s", snapshot.Name)
+		klog.Infof("[ProcessSnapshotPVC]snapshot is %s", snapshot.Name)
 		// step 2: get src pvc
 		srcPVCName := *snapshot.Spec.Source.PersistentVolumeClaimName
 		srcPVCNamespace := snapNamespace
-		srcPVC, err := ctx.CoreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(srcPVCNamespace).Get(srcPVCName)
+		srcPVC, err := coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(srcPVCNamespace).Get(srcPVCName)
 		if err != nil {
 			return false, fmt.Errorf("[ProcessSnapshotPVC]get src pvc %s/%s failed: %s", snapNamespace, snapName, err.Error())
 		}
-		log.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
+		klog.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
 		// step 3: get src node name
 		srcNodeName := srcPVC.Annotations[localtype.AnnoSelectedNode]
-		log.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
+		klog.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
 		// step 4: check
 		if srcNodeName != nodeName {
 			return false, nil
@@ -534,7 +556,7 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node,
 
 func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
 	if pod != nil {
-		log.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
 	fits, units, err := HandleInlineLVMVolume(ctx, node, pod)
@@ -558,7 +580,7 @@ func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node 
 		return
 	}
 	if pod != nil {
-		log.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
 	fits, units, err := ProcessLVMPVCPriority(pod, pvcs, node, ctx)
@@ -586,7 +608,10 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
-		vgName := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers)
+		vgName, err := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
+		if err != nil {
+			return false, units, err
+		}
 		if _, ok := cacheVGsMap[cache.ResourceName(vgName)]; !ok {
 			return false, units, fmt.Errorf("no vg named %s on node %s", vgName, node.Name)
 		}
@@ -783,10 +808,10 @@ func ScoreMountPointVolume(
 		return
 	}
 	if pod != nil {
-		log.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
-	log.Debugf("pvcs: %#v, node: %#v", pvcs, node)
+	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
 	fits, units, err := ProcessMPPVC(pod, pvcs, node, ctx)
 	if err != nil {
 		return MinScore, units, err
@@ -819,10 +844,10 @@ func ScoreDeviceVolume(
 		return
 	}
 	if pod != nil {
-		log.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
 	}
 
-	log.Debugf("pvcs: %#v, node: %#v", pvcs, node)
+	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
 
 	fits, units, err := ProcessDevicePVC(pod, pvcs, node, ctx)
 	if err != nil {

@@ -34,7 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/peter-wangxu/simple-golang-tools/pkg/httputil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
@@ -62,7 +62,7 @@ func PredicateRoute(predicate predicates.Predicate) httprouter.Handle {
 
 		var buf bytes.Buffer
 		body := io.TeeReader(r.Body, &buf)
-		log.Debugf("predicate name: %s, ExtenderArgs = %s", predicate.Name, buf.String())
+		log.V(6).Infof("predicate name: %s, ExtenderArgs = %s", predicate.Name, buf.String())
 
 		var extenderArgs schedulerapi.ExtenderArgs
 		var extenderFilterResult *schedulerapi.ExtenderFilterResult
@@ -83,7 +83,7 @@ func PredicateRoute(predicate predicates.Predicate) httprouter.Handle {
 		if resultBody, err := json.Marshal(extenderFilterResult); err != nil {
 			panic(err)
 		} else {
-			log.Debugf("predicate name: %s, extenderFilterResult = %s", predicate.Name, string(resultBody))
+			log.V(6).Infof("predicate name: %s, extenderFilterResult = %s", predicate.Name, string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			if _, err = w.Write(resultBody); err != nil {
@@ -99,7 +99,7 @@ func PrioritizeRoute(prioritize priorities.Prioritize) httprouter.Handle {
 
 		var buf bytes.Buffer
 		body := io.TeeReader(r.Body, &buf)
-		log.Debugf("prioritize name: %s, ExtenderArgs = %s", prioritize.Name, buf.String())
+		log.V(6).Infof("prioritize name: %s, ExtenderArgs = %s", prioritize.Name, buf.String())
 
 		var extenderArgs schedulerapi.ExtenderArgs
 		var hostPriorityList *schedulerapi.HostPriorityList
@@ -117,7 +117,7 @@ func PrioritizeRoute(prioritize priorities.Prioritize) httprouter.Handle {
 		if resultBody, err := json.Marshal(hostPriorityList); err != nil {
 			panic(err)
 		} else {
-			log.Debugf("prioritize name: %s, hostPriorityList = %s", prioritize.Name, string(resultBody))
+			log.V(6).Infof("prioritize name: %s, hostPriorityList = %s", prioritize.Name, string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			if _, err = w.Write(resultBody); err != nil {
@@ -133,7 +133,7 @@ func BindRoute(bind bind.Bind) httprouter.Handle {
 
 		var buf bytes.Buffer
 		body := io.TeeReader(r.Body, &buf)
-		log.Debugf("extenderBindingArgs = %s", buf.String())
+		log.V(6).Infof("extenderBindingArgs = %s", buf.String())
 
 		var extenderBindingArgs schedulerapi.ExtenderBindingArgs
 		var extenderBindingResult *schedulerapi.ExtenderBindingResult
@@ -149,7 +149,7 @@ func BindRoute(bind bind.Bind) httprouter.Handle {
 		if resultBody, err := json.Marshal(extenderBindingResult); err != nil {
 			panic(err)
 		} else {
-			log.Debugf("extenderBindingResult = %s", string(resultBody))
+			log.V(6).Infof("extenderBindingResult = %s", string(resultBody))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			if _, err = w.Write(resultBody); err != nil {
@@ -165,7 +165,7 @@ func PreemptionRoute(preemption preemptions.Preemption) httprouter.Handle {
 
 		var buf bytes.Buffer
 		body := io.TeeReader(r.Body, &buf)
-		log.Debugf("extenderPreemptionArgs = %s", buf.String())
+		log.V(6).Infof("extenderPreemptionArgs = %s", buf.String())
 
 		var extenderPreemptionArgs schedulerapi.ExtenderPreemptionArgs
 		var extenderPreemptionResult *schedulerapi.ExtenderPreemptionResult
@@ -180,7 +180,7 @@ func PreemptionRoute(preemption preemptions.Preemption) httprouter.Handle {
 		if resultBody, err := json.Marshal(extenderPreemptionResult); err != nil {
 			panic(err)
 		} else {
-			log.Debugf("extenderPreemptionResult = %s", string(resultBody))
+			log.V(6).Infof("extenderPreemptionResult = %s", string(resultBody))
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -213,9 +213,9 @@ func DebugLogging(h httprouter.Handle, path string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		wr := httputil.NewWrappedRequest(r)
 		ww := httputil.NewWrappedResponseWriter(w)
-		log.Debugf("path: %s, request body: %s", path, string(wr.GetRequestBytes()))
+		log.V(6).Infof("path: %s, request body: %s", path, string(wr.GetRequestBytes()))
 		h(ww, r, p)
-		log.Debugf("path: %s, code=%d, response body=%s", path, ww.Code(), string(ww.Get()))
+		log.V(6).Infof("path: %s, code=%d, response body=%s", path, ww.Code(), string(ww.Get()))
 	}
 }
 

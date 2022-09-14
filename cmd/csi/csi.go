@@ -19,9 +19,13 @@ package csi
 import (
 	"github.com/alibaba/open-local/pkg/csi"
 	lvmserver "github.com/alibaba/open-local/pkg/csi/server"
+	local "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/om"
-	log "github.com/sirupsen/logrus"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -40,6 +44,7 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
+	// Cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	opt.addFlags(Cmd.Flags())
 }
 
@@ -53,8 +58,39 @@ func Start(opt *csiOption) error {
 	// GRPC server to provide volume manage
 	go lvmserver.Start(opt.LVMDPort)
 
-	driver := csi.NewDriver(opt.Driver, opt.NodeID, opt.Endpoint, opt.SysPath, opt.CgroupDriver, opt.GrpcConnectionTimeout)
-	driver.Run()
+	cfg, err := clientcmd.BuildConfigFromFlags("", "")
+	if err != nil {
+		log.Fatalf("Error building kubeconfig: %s", err.Error())
+	}
+	kubeClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
+	}
+	snapClient, err := snapshot.NewForConfig(cfg)
+	if err != nil {
+		log.Fatalf("Error building snapshot clientset: %s", err.Error())
+	}
+	localclient, err := local.NewForConfig(cfg)
+	if err != nil {
+		log.Fatalf("Error building local clientset: %s", err.Error())
+	}
+
+	driver := csi.NewDriver(
+		opt.Driver,
+		opt.NodeID,
+		opt.Endpoint,
+		csi.WithSysPath(opt.SysPath),
+		csi.WithCgroupDriver(opt.CgroupDriver),
+		csi.WithGrpcConnectionTimeout(opt.GrpcConnectionTimeout),
+		csi.WithExtenderSchedulerNames(opt.ExtenderSchedulerNames),
+		csi.WithFrameworkSchedulerNames(opt.FrameworkSchedulerNames),
+		csi.WithKubeClient(kubeClient),
+		csi.WithSnapshotClient(snapClient),
+		csi.WithLocalClient(localclient),
+	)
+	if err := driver.Run(); err != nil {
+		return err
+	}
 
 	return nil
 }

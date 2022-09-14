@@ -17,8 +17,11 @@ limitations under the License.
 package pkg
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 )
@@ -64,6 +67,7 @@ const (
 	IOPSReadFile  = "blkio.throttle.read_iops_device"
 	IOPSWriteFile = "blkio.throttle.write_iops_device"
 
+	PVName       = "csi.storage.k8s.io/pv/name"
 	PVCName      = "csi.storage.k8s.io/pvc/name"
 	PVCNameSpace = "csi.storage.k8s.io/pvc/namespace"
 	VGName       = "vgName"
@@ -132,22 +136,36 @@ const (
 	// EVENT
 	EventCreateVGFailed = "CreateVGFailed"
 
-	NsenterCmd = "/bin/nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
+	NsenterCmd = "nsenter --mount=/proc/1/ns/mnt --ipc=/proc/1/ns/ipc --net=/proc/1/ns/net --uts=/proc/1/ns/uts "
+
+	/*
+		record: PVC->VG mapper
+		- update by schedulerFramework prebind
+		- read by schedulerFramework eventHandlers onPodAdd/Update
+	*/
+	AnnotationPodPVCAllocatedNeedMigrateKey = "csi.aliyun.com/pod-pvc-migrate"
+
+	/*
+		record: vgName to PV
+		- update by nsl controller
+		- read by csi: nodeServer publishVolume
+	*/
+	AnnotationPVAllocatedInfoKey = "csi.aliyun.com/pv-allocated"
 )
 
 var (
-	ValidProvisionerNames []string = []string{
+	ValidProvisionerNames = []string{
 		ProvisionerNameYoda,
 		ProvisionerName,
 	}
-	ValidVolumeType []VolumeType = []VolumeType{
+	ValidVolumeType = []VolumeType{
 		VolumeTypeMountPoint,
 		VolumeTypeLVM,
 		VolumeTypeDevice,
 		VolumeTypeQuota,
 	}
-	SupportedFS                    = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
-	SchedulerStrategy StrategyType = StrategyBinpack
+	SupportedFS       = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
+	SchedulerStrategy = StrategyBinpack
 )
 
 type UpdateStatus string
@@ -165,6 +183,75 @@ type StorageSpecUpdateStatus struct {
 	NewSpec  nodelocalstorage.NodeLocalStorageSpec `json:"newSpec"`
 }
 
+type PVCAllocateInfo struct {
+	PVCName         string `json:"pvcName"`
+	PVCNameSpace    string `json:"pvcNameSpace"`
+	PVAllocatedInfo `json:",inline"`
+}
+
+type PodPVCAllocateInfo struct {
+	PvcAllocates map[string] /*PVCKey = PVCNameSpace/PVCName */ PVCAllocateInfo `json:"pvcAllocates"`
+}
+
+type PVAllocatedInfo struct {
+	VGName     string `json:"vgName"`
+	DeviceName string `json:"deviceName"`
+	VolumeType string `json:"volumeType"`
+}
+
+// BindingInfo represents the pvc and disk/lvm mapping
+type BindingInfo struct {
+	// node is the name of selected node
+	Node string `json:"node"`
+	// path for mount point
+	Disk string `json:"disk"`
+	// VgName is the name of selected volume group
+	VgName string `json:"vgName"`
+	// Device is the name for raw block device: /dev/vdb
+	Device string `json:"device"`
+	// [lvm] or [disk] or [device] or [quota]
+	VolumeType string `json:"volumeType"`
+
+	// PersistentVolumeClaim is the metakey for pvc: {namespace}/{name}
+	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
+}
+
+func GetAllocatedInfoFromPVAnnotation(pv *corev1.PersistentVolume) (*PVAllocatedInfo, error) {
+	if pv == nil || pv.Annotations == nil {
+		return nil, nil
+	}
+
+	infoJson, ok := pv.Annotations[AnnotationPVAllocatedInfoKey]
+	if !ok {
+		return nil, nil
+	}
+	info := PVAllocatedInfo{}
+	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func GetAllocateInfoFromPod(pod *corev1.Pod) (*PodPVCAllocateInfo, error) {
+	infoJson := GetAllocateInfoJSONFromPod(pod)
+	if infoJson == "" {
+		return nil, nil
+	}
+	info := PodPVCAllocateInfo{}
+	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func GetAllocateInfoJSONFromPod(pod *corev1.Pod) string {
+	if pod == nil || pod.Annotations == nil {
+		return ""
+	}
+
+	return pod.Annotations[AnnotationPodPVCAllocatedNeedMigrateKey]
+}
+
 func VolumeTypeFromString(s string) (VolumeType, error) {
 	for _, v := range ValidVolumeType {
 		if string(v) == s {
@@ -179,7 +266,7 @@ type NodeAntiAffinityWeight struct {
 }
 
 func NewNodeAntiAffinityWeight() *NodeAntiAffinityWeight {
-	return &NodeAntiAffinityWeight{}
+	return &NodeAntiAffinityWeight{weights: map[VolumeType]int{}}
 }
 
 func (w *NodeAntiAffinityWeight) Put(volumeType VolumeType, weight int) {

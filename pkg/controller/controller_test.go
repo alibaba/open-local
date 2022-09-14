@@ -17,9 +17,17 @@ limitations under the License.
 package controller
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/types"
 
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
@@ -69,7 +77,49 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
+func newPod(podNameSpace, podName string) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(fmt.Sprintf("%s/%s", podNameSpace, podName)),
+			Name:      podName,
+			Namespace: podNameSpace,
+		},
+		Spec: corev1.PodSpec{
+			Volumes: []corev1.Volume{},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+	allocateInfos := &pkg.PodPVCAllocateInfo{
+		PvcAllocates: map[string]pkg.PVCAllocateInfo{
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithVG,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					VGName:     utils.VGSSD,
+					VolumeType: string(pkg.VolumeTypeLVM),
+				},
+			},
+			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+				PVCNameSpace: utils.LocalNameSpace,
+				PVCName:      utils.PVCWithDevice,
+				PVAllocatedInfo: pkg.PVAllocatedInfo{
+					DeviceName: "/dev/sdc",
+					VolumeType: string(pkg.VolumeTypeDevice),
+				},
+			},
+		},
+	}
+	allocateInfoJson, _ := json.Marshal(allocateInfos)
+	pod.Annotations = map[string]string{
+		pkg.AnnotationPodPVCAllocatedNeedMigrateKey: string(allocateInfoJson),
+	}
+	return pod
+}
+
 func newNLS(name string) *localv1alpha1.NodeLocalStorage {
+
 	return &localv1alpha1.NodeLocalStorage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -81,6 +131,7 @@ func newNLS(name string) *localv1alpha1.NodeLocalStorage {
 }
 
 func newNLSC(name string) *localv1alpha1.NodeLocalStorageInitConfig {
+
 	return &localv1alpha1.NodeLocalStorageInitConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -146,11 +197,13 @@ func (f *fixture) newController() (*Controller, informers.SharedInformerFactory,
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 	snapI := snapshotinformers.NewSharedInformerFactory(f.snapclient, noResyncPeriodFunc())
-	c := NewController(f.kubeclient, f.client, f.snapclient, k8sI.Core().V1().Nodes(), i.Csi().V1alpha1().NodeLocalStorages(), i.Csi().V1alpha1().NodeLocalStorageInitConfigs(), snapI.Snapshot().V1().VolumeSnapshots(), snapI.Snapshot().V1().VolumeSnapshotContents(), snapI.Snapshot().V1().VolumeSnapshotClasses(), "open-local")
+	c := NewController(f.kubeclient, f.client, f.snapclient, k8sI, i, snapI, "open-local")
 
 	c.nlsSynced = alwaysReady
 	c.nlscSynced = alwaysReady
 	c.nodeSynced = alwaysReady
+	c.pvcSynced = alwaysReady
+	c.pvSynced = alwaysReady
 	c.snapshotSynced = alwaysReady
 	c.snapshotContentSynced = alwaysReady
 	c.snapshotClassSynced = alwaysReady
@@ -190,7 +243,7 @@ func (f *fixture) runController(nlscName string, startInformers bool, expectErro
 		k8sI.Start(stopCh)
 	}
 
-	err := c.syncHandler(WorkQueueItem{
+	err := c.syncHandler(SyncNLSItem{
 		nlscName: nlscName,
 		nlsName:  "",
 	})
@@ -358,4 +411,123 @@ func TestUpdateNLS(t *testing.T) {
 
 	f.expectUpdateNLSAction(nls_expected)
 	f.run(nlsc.Name)
+}
+
+func Test_SyncPVByPodItem(t *testing.T) {
+
+	pod := newPod("testNamespace", "testName")
+
+	pvcPVInfos := utils.TestPVCPVInfoList{
+		utils.GetTestPVCPVWithVG(),
+		utils.GetTestPVCPVDevice(),
+	}
+	pvcs := utils.CreateTestPersistentVolumeClaim(pvcPVInfos.GetTestPVCBounding())
+
+	pvsHaveAllocateInfo := utils.CreateTestPersistentVolume(pvcPVInfos.GetTestPVBounding())
+
+	lvmPVInfoWithoutVG := utils.GetTestPVCPVWithVG().PVBounding
+	lvmPVInfoWithoutVG.VgName = ""
+	devicePVInfoWithoutDeviceName := utils.GetTestPVCPVDevice().PVBounding
+	devicePVInfoWithoutDeviceName.DeviceName = ""
+	pvsWithoutAllocateInfo := utils.CreateTestPersistentVolume([]utils.TestPVInfo{*lvmPVInfoWithoutVG, *devicePVInfoWithoutDeviceName})
+
+	type args struct {
+		oldPod *corev1.Pod
+		newPod *corev1.Pod
+	}
+
+	type fields struct {
+		pvs []*corev1.PersistentVolume
+	}
+
+	type expect struct {
+		skipUpdate bool
+		pvs        []*corev1.PersistentVolume
+	}
+
+	tests := []struct {
+		name   string
+		args   args
+		fields fields
+		expect expect
+	}{
+		{
+			name: "test add pod, pv have no vg info",
+			args: args{
+				newPod: pod,
+			},
+			fields: fields{
+				pvs: pvsWithoutAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pvs:        pvsHaveAllocateInfo,
+			},
+		},
+		{
+			name: "test update pod, but allocateInfo not change then skip",
+			args: args{
+				oldPod: pod,
+				newPod: pod,
+			},
+			fields: fields{
+				pvs: pvsWithoutAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: true,
+				pvs:        pvsWithoutAllocateInfo,
+			},
+		},
+		{
+			name: "test add pod, all pv have allocateInfo",
+			args: args{
+				newPod: pod,
+			},
+			fields: fields{
+				pvs: pvsHaveAllocateInfo,
+			},
+			expect: expect{
+				skipUpdate: false,
+				pvs:        pvsHaveAllocateInfo,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			f := newFixture(t)
+			c, localInforms, k8sInformers := f.newController()
+			ctx := context.Background()
+			localInforms.Start(ctx.Done())
+			k8sInformers.Start(ctx.Done())
+			_, err := f.kubeclient.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+			assert.NoError(t, err)
+			err = k8sInformers.Core().V1().Pods().Informer().GetIndexer().Add(pod)
+			assert.NoError(t, err)
+
+			for _, pv := range tt.fields.pvs {
+				_, _ = f.kubeclient.CoreV1().PersistentVolumes().Create(ctx, pv, metav1.CreateOptions{})
+				_ = k8sInformers.Core().V1().PersistentVolumes().Informer().GetIndexer().Add(pv)
+			}
+
+			for _, pvc := range pvcs {
+				_, _ = f.kubeclient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+				_ = k8sInformers.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+			}
+
+			gotSkip := c.enqueueSyncPVItemByPod(tt.args.oldPod, tt.args.newPod)
+			assert.Equal(t, tt.expect.skipUpdate, gotSkip, "checkSkip")
+
+			if gotSkip {
+				return
+			}
+			_ = c.processNextWorkItem()
+
+			for _, expectPV := range tt.expect.pvs {
+				gotPV, _ := f.kubeclient.CoreV1().PersistentVolumes().Get(ctx, expectPV.Name, metav1.GetOptions{})
+				assert.Equal(t, expectPV, gotPV)
+			}
+		})
+	}
 }

@@ -35,7 +35,6 @@ import (
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,6 +42,7 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	clientgocache "k8s.io/client-go/tools/cache"
+	log "k8s.io/klog/v2"
 )
 
 func NewExtenderServer(kubeClient kubernetes.Interface,
@@ -55,7 +55,7 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	corev1Informers := kubeInformerFactory.Core().V1()
 	storagev1Informers := kubeInformerFactory.Storage().V1()
 	localStorageInformers := localStorageInformerFactory.Csi().V1alpha1()
-	snapshotInformers := volumesnapshotInformerFactory.Snapshot().V1beta1()
+	snapshotInformers := volumesnapshotInformerFactory.Snapshot().V1()
 
 	Ctx := algorithm.NewSchedulingContext(corev1Informers, storagev1Informers, localStorageInformers, snapshotInformers, weights)
 
@@ -64,32 +64,32 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	// setup storage class informer
 	scInformer := storagev1Informers.StorageClasses().Informer()
 	informersSyncd = append(informersSyncd, scInformer.HasSynced)
-	log.Debugf("started storage class informer...")
+	log.V(6).Infof("started storage class informer...")
 
 	// setup pv informer
 	pvInformer := corev1Informers.PersistentVolumes().Informer()
 	informersSyncd = append(informersSyncd, pvInformer.HasSynced)
-	log.Debugf("started PV informer...")
+	log.V(6).Infof("started PV informer...")
 
 	// setup pvc informer
 	pvcInformer := corev1Informers.PersistentVolumeClaims().Informer()
 	informersSyncd = append(informersSyncd, pvcInformer.HasSynced)
-	log.Debugf("started PVC informer...")
+	log.V(6).Infof("started PVC informer...")
 
 	// setup node informer
 	nodeInformer := corev1Informers.Nodes().Informer()
 	informersSyncd = append(informersSyncd, nodeInformer.HasSynced)
-	log.Debugf("started Node informer...")
+	log.V(6).Infof("started Node informer...")
 
 	// setup pod informer
 	podInformer := corev1Informers.Pods().Informer()
 	informersSyncd = append(informersSyncd, podInformer.HasSynced)
-	log.Debugf("started Pod informer...")
+	log.V(6).Infof("started Pod informer...")
 
 	// setup node local storage informer
 	localInformer := localStorageInformers.NodeLocalStorages().Informer()
 	informersSyncd = append(informersSyncd, localInformer.HasSynced)
-	log.Debugf("started NodeLocalStorage informer...")
+	log.V(6).Infof("started NodeLocalStorage informer...")
 
 	snapInformer := snapshotInformers.VolumeSnapshots().Informer()
 	informersSyncd = append(informersSyncd, snapInformer.HasSynced)

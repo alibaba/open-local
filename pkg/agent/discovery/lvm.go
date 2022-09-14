@@ -23,7 +23,7 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
-	log "github.com/sirupsen/logrus"
+	log "k8s.io/klog/v2"
 )
 
 func (d *Discoverer) discoverVGs(newStatus *localv1alpha1.NodeLocalStorageStatus, reservedVGInfo map[string]ReservedVGInfo) error {

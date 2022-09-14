@@ -34,12 +34,12 @@ import (
 	"github.com/alibaba/open-local/pkg/utils/spdk"
 	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	log "k8s.io/klog/v2"
 	"k8s.io/utils/mount"
 )
 
@@ -107,7 +107,7 @@ func (d *Discoverer) Discover() {
 	if nls, err := d.getNodeLocalStorage(); err != nil {
 		return
 	} else {
-		log.Debugf("update node local storage %s status", d.Nodename)
+		log.V(4).Infof("update node local storage %s status", d.Nodename)
 		nlsCopy := nls.DeepCopy()
 		// get anno
 		reservedVGInfos := make(map[string]ReservedVGInfo)
@@ -195,7 +195,6 @@ func (d *Discoverer) InitResource() {
 	}
 	vgs := nls.Spec.ResourceToBeInited.VGs
 	mountpoints := nls.Spec.ResourceToBeInited.MountPoints
-
 	if !d.spdk {
 		for _, vg := range vgs {
 			if _, err := lvm.LookupVolumeGroup(vg.Name); err == lvm.ErrVolumeGroupNotFound {
@@ -252,7 +251,6 @@ func (d *Discoverer) InitResource() {
 			}
 		}
 	}
-
 	for _, mp := range mountpoints {
 		notMounted, err := d.K8sMounter.IsLikelyNotMountPoint(mp.Path)
 		if err != nil && strings.Contains(err.Error(), "no such file or directory") {

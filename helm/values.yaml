@@ -4,7 +4,7 @@ driver: local.csi.aliyun.com
 images:
   local:
     image: ecp_builder/open-local
-    tag: v0.5.5
+    tag: v0.6.0-dev
   registrar:
     image: ecp_builder/csi-node-driver-registrar
     tag: v2.3.0
@@ -49,10 +49,6 @@ storageclass:
     name: open-local-device-ssd
   device_hdd:
     name: open-local-device-hdd
-  mountpoint_ssd:
-    name: open-local-mountpoint-ssd
-  mountpoint_hdd:
-    name: open-local-mountpoint-hdd
 monitor:
   # install grafana dashboard
   enabled: false

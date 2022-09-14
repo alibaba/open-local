@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
-	"testing"
-	"time"
 
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
@@ -506,13 +507,13 @@ func Test_SyncPVByPodItem(t *testing.T) {
 			assert.NoError(t, err)
 
 			for _, pv := range tt.fields.pvs {
-				f.kubeclient.CoreV1().PersistentVolumes().Create(ctx, pv, metav1.CreateOptions{})
-				k8sInformers.Core().V1().PersistentVolumes().Informer().GetIndexer().Add(pv)
+				_, _ = f.kubeclient.CoreV1().PersistentVolumes().Create(ctx, pv, metav1.CreateOptions{})
+				_ = k8sInformers.Core().V1().PersistentVolumes().Informer().GetIndexer().Add(pv)
 			}
 
 			for _, pvc := range pvcs {
-				f.kubeclient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
-				k8sInformers.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+				_, _ = f.kubeclient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+				_ = k8sInformers.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 			}
 
 			gotSkip := c.enqueueSyncPVItemByPod(tt.args.oldPod, tt.args.newPod)
@@ -521,7 +522,7 @@ func Test_SyncPVByPodItem(t *testing.T) {
 			if gotSkip {
 				return
 			}
-			c.processNextWorkItem()
+			_ = c.processNextWorkItem()
 
 			for _, expectPV := range tt.expect.pvs {
 				gotPV, _ := f.kubeclient.CoreV1().PersistentVolumes().Get(ctx, expectPV.Name, metav1.GetOptions{})

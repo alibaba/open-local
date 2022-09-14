@@ -2639,7 +2639,7 @@ func Test_AllocateLVM_byPVCEvent(t *testing.T) {
 			if tt.fields.pvcDetail != nil {
 				_, _ = kubeClientSet.CoreV1().PersistentVolumeClaims(pvcPending.Namespace).Create(context.Background(), pvcPending, metav1.CreateOptions{})
 				_ = cache.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvcPending)
-				cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
+				_ = cache.reserveLVMPVC(tt.args.nodeName, &NodeAllocateUnits{LVMPVCAllocateUnits: []*LVMPVAllocated{tt.fields.pvcDetail}}, cache.states[tt.args.nodeName])
 				assert.NotEmpty(t, cache.pvAllocatedDetails.pvcAllocated, "check reserve result")
 			}
 

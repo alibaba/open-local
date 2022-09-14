@@ -400,8 +400,8 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 		nodeName string
 	}
 	type fields struct {
-		pvcs                  map[string]*corev1.PersistentVolumeClaim
-		pvs                   map[string]*corev1.PersistentVolume
+		pvcs map[string]*corev1.PersistentVolumeClaim
+		// pvs                   map[string]*corev1.PersistentVolume
 		pvcBoundBeforeReserve *corev1.PersistentVolumeClaim
 		pvBoundBeforeReserve  *corev1.PersistentVolume
 		stateData             *stateData
@@ -899,8 +899,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 		nodeName string
 	}
 	type fields struct {
-		pvcs                  map[string]*corev1.PersistentVolumeClaim
-		pvs                   map[string]*corev1.PersistentVolume
+		pvcs map[string]*corev1.PersistentVolumeClaim
+		// pvs                   map[string]*corev1.PersistentVolume
 		pvcBoundBeforeReserve *corev1.PersistentVolumeClaim
 		pvBoundBeforeReserve  *corev1.PersistentVolume
 		deviceIncludes        []string

@@ -24,6 +24,7 @@ agent:
   name: yoda-agent
   kubelet_dir: /var/lib/kubelet
   volume_name_prefix: yoda
+  spdk: false
 extender:
   name: yoda-scheduler-extender
   # scheduling strategy: binpack/spread

@@ -126,14 +126,7 @@ func Test_score_volumeGroup_binPack(t *testing.T) {
 					utils.NodeName4: int64(utils.MaxScore),
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
-					},
+					podVolumeInfo:       cache.NewPodLocalVolumeInfo(),
 					allocateStateByNode: map[string]*cache.NodeAllocateState{},
 				},
 			},
@@ -963,8 +956,7 @@ func Test_score_volumeGroup_spread(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plugin := CreateTestPlugin()
-			plugin.allocateStrategy = NewSpreadStrategy()
+			plugin := CreateTestPluginByStrategy(localtype.StrategySpread)
 			nodeInfos := prepare(plugin)
 			for _, pvc := range tt.fields.pvcs {
 				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
@@ -1022,12 +1014,16 @@ func Test_score_device(t *testing.T) {
 	pvc100g := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*pvc100gInfo})[0]
 	pvc200g := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*pvc200gInfo})[0]
 
+	nodeAntiAffinityWeight, _ := utils.ParseWeight("")
+	spreadScorer := NewScoreCalculator(localtype.StrategySpread, nodeAntiAffinityWeight)
+	binpackScorer := NewScoreCalculator(localtype.StrategyBinpack, nodeAntiAffinityWeight)
+
 	type args struct {
 		pod *corev1.Pod
 	}
 	type fields struct {
-		pvcs     map[string]*corev1.PersistentVolumeClaim
-		strategy AllocateStrategy
+		pvcs   map[string]*corev1.PersistentVolumeClaim
+		scorer *ScoreCalculator
 	}
 
 	tests := []struct {
@@ -1046,7 +1042,7 @@ func Test_score_device(t *testing.T) {
 					utils.PVCName(pvc100g): pvc100g,
 					utils.PVCName(pvc200g): pvc200g,
 				},
-				strategy: NewBinPackStrategy(),
+				scorer: binpackScorer,
 			},
 			expectScore: &scoreResult{
 				nodeStatuses: map[string]*framework.Status{
@@ -1215,7 +1211,7 @@ func Test_score_device(t *testing.T) {
 					utils.PVCName(pvc100g): pvc100g,
 					utils.PVCName(pvc200g): pvc200g,
 				},
-				strategy: NewSpreadStrategy(),
+				scorer: spreadScorer,
 			},
 			expectScore: &scoreResult{
 				nodeStatuses: map[string]*framework.Status{
@@ -1379,7 +1375,7 @@ func Test_score_device(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := CreateTestPlugin()
 			nodeInfos := prepare(plugin)
-			plugin.allocateStrategy = tt.fields.strategy
+			plugin.scorer = tt.fields.scorer
 
 			for _, pvc := range tt.fields.pvcs {
 				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})

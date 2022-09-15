@@ -83,14 +83,7 @@ func Test_PreFilter(t *testing.T) {
 			expectPreFilter: &scheduleResult{
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
-					},
+					podVolumeInfo:       cache.NewPodLocalVolumeInfo(),
 					allocateStateByNode: map[string]*cache.NodeAllocateState{},
 				},
 			},
@@ -106,14 +99,7 @@ func Test_PreFilter(t *testing.T) {
 			expectPreFilter: &scheduleResult{
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
-					},
+					podVolumeInfo:       cache.NewPodLocalVolumeInfo(),
 					allocateStateByNode: map[string]*cache.NodeAllocateState{},
 				},
 			},
@@ -129,35 +115,39 @@ func Test_PreFilter(t *testing.T) {
 			expectPreFilter: &scheduleResult{
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated: []*LVMPVCInfo{
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsSnapshot: cache.LVMSnapshotPVCInfos{
 							{
-								vgName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
-								request: getSize(utils.GetTestPVCPVWithVG().PVCPending.Size),
-								pvc:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG)],
+								Request: getSize(utils.GetTestPVCPVSnapshot().PVCPending.Size),
+								PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCSnapshot)],
 							},
 						},
-						lvmPVCsSnapshot: []*LVMPVCInfo{
-							{
-								request: getSize(utils.GetTestPVCPVSnapshot().PVCPending.Size),
-								pvc:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCSnapshot)],
+						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+							LVMPVCsWithVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
+									Request: getSize(utils.GetTestPVCPVWithVG().PVCPending.Size),
+									PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG)],
+								},
+							},
+							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									Request: getSize(utils.GetTestPVCPVWithoutVG().PVCPending.Size),
+									PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
+								},
 							},
 						},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{
-							{
-								request: getSize(utils.GetTestPVCPVWithoutVG().PVCPending.Size),
-								pvc:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
+						DevicePVCs: &cache.DevicePVCInfos{
+							SSDDevicePVCs: []*cache.DevicePVCInfo{},
+							HDDDevicePVCs: []*cache.DevicePVCInfo{
+								{
+									MediaType: localtype.MediaTypeHDD,
+									Request:   getSize(utils.GetTestPVCPVDevice().PVCPending.Size),
+									PVC:       pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice)],
+								},
 							},
 						},
-						ssdDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{
-							{
-								mediaType: localtype.MediaTypeHDD,
-								request:   getSize(utils.GetTestPVCPVDevice().PVCPending.Size),
-								pvc:       pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice)],
-							},
-						},
-						inlineVolumes: []*cache.InlineVolumeAllocated{
+						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
 								VolumeSize:   getSize("10Gi"),
@@ -183,13 +173,11 @@ func Test_PreFilter(t *testing.T) {
 			expectPreFilter: &scheduleResult{
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes: []*cache.InlineVolumeAllocated{
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsSnapshot:    cache.LVMSnapshotPVCInfos{},
+						DevicePVCs:         cache.NewDevicePVCInfos(),
+						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
 								VolumeSize:   getSize("10Gi"),
@@ -291,14 +279,7 @@ func Test_Filter_PodHaveNoLocalPVC(t *testing.T) {
 					utils.NodeName4: framework.NewStatus(framework.Success),
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
-					},
+					podVolumeInfo:       cache.NewPodLocalVolumeInfo(),
 					allocateStateByNode: map[string]*cache.NodeAllocateState{},
 				},
 			},
@@ -319,14 +300,7 @@ func Test_Filter_PodHaveNoLocalPVC(t *testing.T) {
 					utils.NodeName4: framework.NewStatus(framework.Success),
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
-					},
+					podVolumeInfo:       cache.NewPodLocalVolumeInfo(),
 					allocateStateByNode: map[string]*cache.NodeAllocateState{},
 				},
 			},

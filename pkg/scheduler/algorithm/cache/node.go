@@ -40,8 +40,8 @@ func NewNodeCache(nodeName string) *NodeCache {
 			AllocatedNum: 0,
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
 			LocalPVs:            make(map[string]corev1.PersistentVolume),
+			PVCRecordsByExtend:  make(map[string]AllocatedUnit),
 			PodInlineVolumeInfo: make(map[string][]InlineVolumeInfo)},
-		PVCRecordsByExtend: make(map[string]AllocatedUnit),
 	}
 }
 

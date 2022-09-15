@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func PatchAllocateInfoToPV(kubeclientset kubernetes.Interface, originPV *corev1.PersistentVolume, pvAllocatedInfo *localtype.PVAllocatedInfo) error {
+func PatchAllocateInfoToPV(ctx context.Context, kubeclientset kubernetes.Interface, originPV *corev1.PersistentVolume, pvAllocatedInfo *localtype.PVAllocatedInfo) error {
 
 	newPV := originPV.DeepCopy()
 	if newPV.Annotations == nil {
@@ -48,7 +48,7 @@ func PatchAllocateInfoToPV(kubeclientset kubernetes.Interface, originPV *corev1.
 	if string(patchBytes) == "{}" {
 		return nil
 	}
-	_, err = kubeclientset.CoreV1().PersistentVolumes().Patch(context.Background(), originPV.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	_, err = kubeclientset.CoreV1().PersistentVolumes().Patch(ctx, originPV.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return fmt.Errorf("patch vgName to PV fail: allocateInfo(%+v), pv(%s), error: %s", pvAllocatedInfo, originPV.Name, err.Error())
 	}

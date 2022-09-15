@@ -18,9 +18,6 @@ package cache
 import (
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"github.com/alibaba/open-local/pkg/utils"
-
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -119,55 +116,6 @@ func (s DeviceStates) RevertDevice(deviceName string) {
 	}
 	state.Requested = 0
 	state.IsAllocated = false
-}
-
-type DeviceTypePVAllocated struct {
-	BasePVAllocated
-	DeviceName string
-}
-
-func NewDeviceTypePVAllocatedFromPV(pv *corev1.PersistentVolume, deviceName, nodeName string) *DeviceTypePVAllocated {
-
-	allocated := &DeviceTypePVAllocated{BasePVAllocated: BasePVAllocated{
-		VolumeName: pv.Name,
-		NodeName:   nodeName,
-	}, DeviceName: deviceName}
-
-	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
-	if pvcName != "" {
-		allocated.PVCName = pvcName
-		allocated.PVCNamespace = pvcNamespace
-	}
-
-	request, ok := pv.Spec.Capacity[corev1.ResourceStorage]
-	if !ok {
-		klog.Errorf("get request from pv(%s) failed, skipped", pv.Name)
-		return allocated
-	}
-
-	allocated.Requested = request.Value()
-	return allocated
-}
-
-func (device *DeviceTypePVAllocated) GetVolumeType() localtype.VolumeType {
-	return localtype.VolumeTypeDevice
-}
-
-func (device *DeviceTypePVAllocated) DeepCopy() PVAllocated {
-	if device == nil {
-		return nil
-	}
-	return &DeviceTypePVAllocated{
-		BasePVAllocated: *device.BasePVAllocated.DeepCopy(),
-		DeviceName:      device.DeviceName,
-	}
-}
-
-func (device *DeviceTypePVAllocated) GetBasePVAllocated() *BasePVAllocated {
-	if device == nil {
-		return nil
-	}
-	return &device.BasePVAllocated
 }
 
 type DeviceHandler struct {

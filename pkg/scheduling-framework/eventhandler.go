@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -123,10 +122,7 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	err := plugin.allocatedByPVCEvent(nodeName, pvc, pvName)
-	if err != nil {
-		klog.Errorf("fail to allocate by pvc event: %s", err.Error())
-	}
+	plugin.cache.AddOrUpdatePVC(pvc, nodeName, pvName)
 
 	klog.V(4).Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }
@@ -139,7 +135,7 @@ func (plugin *LocalPlugin) OnPVCDelete(obj interface{}) {
 		return
 	}
 
-	plugin.cache.DeleteByPVC(pvc)
+	plugin.cache.DeletePVC(pvc)
 	klog.V(4).Infof("[OnPVCDelete]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
 }
 
@@ -181,26 +177,6 @@ func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
 	klog.V(4).Infof("[OnPodDelete]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 }
 
-// for lvm type pvc expand
-func (plugin *LocalPlugin) allocatedByPVCEvent(nodeName string, pvc *corev1.PersistentVolumeClaim, volumeName string) error {
-	plugin.cache.AddPVCInfo(pvc, nodeName, volumeName)
-	pvDetail := plugin.cache.GetPVAllocatedDetailCopy(volumeName)
-	if pvDetail == nil {
-		return nil
-	}
-	switch pvDetail.GetVolumeType() {
-	case localtype.VolumeTypeLVM:
-		plugin.cache.AllocateLVMByPVCEvent(pvc, volumeName, nodeName)
-	case localtype.VolumeTypeDevice:
-		klog.V(6).Infof("device type pvc %s, type %s, have added by pv", volumeName, pvDetail.GetVolumeType())
-		return nil
-	default:
-		klog.V(6).Infof("not a open-local pv %s, type %s, not add to cache", volumeName, pvDetail.GetVolumeType())
-		return nil
-	}
-	return nil
-}
-
 func (plugin *LocalPlugin) updatePV(pv *corev1.PersistentVolume) {
 	if pv.Status.Phase == corev1.VolumePending {
 		klog.Infof("pv %s is in %s status, skipped", pv.Name, pv.Status.Phase)
@@ -212,20 +188,7 @@ func (plugin *LocalPlugin) updatePV(pv *corev1.PersistentVolume) {
 		klog.Infof("pv %s is not a valid open-local local pv, skipped", pv.Name)
 		return
 	}
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
-	if !isOpenLocalPV {
-		return
-	}
-
-	switch localtype.VolumeType(pvType) {
-	case localtype.VolumeTypeLVM:
-		plugin.cache.AllocateLVMByPV(pv, nodeName)
-	case localtype.VolumeTypeDevice:
-		plugin.cache.AllocateDevice(pv, nodeName)
-	default:
-		klog.V(6).Infof("not a open-local pv %s, type %s, not add to cache", pv.Name, pvType)
-		return
-	}
+	plugin.cache.AddOrUpdatePV(pv, nodeName)
 
 }
 
@@ -235,23 +198,10 @@ func (plugin *LocalPlugin) deleteByPV(pv *corev1.PersistentVolume) {
 		klog.Infof("pv %s is not a valid open-local local pv, skipped", pv.Name)
 		return
 	}
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
-	if !isOpenLocalPV {
-		return
-	}
-
-	switch localtype.VolumeType(pvType) {
-	case localtype.VolumeTypeLVM:
-		plugin.cache.DeleteLVM(pv, nodeName)
-	case localtype.VolumeTypeDevice:
-		plugin.cache.DeleteDevice(pv, nodeName)
-	default:
-		klog.V(6).Infof("not a open-local pv %s, type %s, not add to cache", pv.Name, pvType)
-		return
-	}
+	plugin.cache.DeletePV(pv, nodeName)
 }
 
-func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(originPod *corev1.Pod, pvcInfos map[string]localtype.PVCAllocateInfo) error {
+func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(ctx context.Context, originPod *corev1.Pod, pvcInfos map[string]localtype.PVCAllocateInfo) error {
 
 	if len(pvcInfos) == 0 {
 		return nil
@@ -289,7 +239,7 @@ func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(originPod *corev1.Pod,
 		errors.IsTooManyRequests,
 		func() error {
 			_, err := plugin.kubeClientSet.CoreV1().Pods(newPod.Namespace).
-				Patch(context.Background(), newPod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+				Patch(ctx, newPod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
 				klog.Error("Failed to patch Pod %s/%s, patch: %v, err: %v", newPod.Namespace, newPod.Name, string(patchBytes), err)
 			}

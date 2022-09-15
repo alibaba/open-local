@@ -23,26 +23,84 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 )
 
-func (plugin *LocalPlugin) scoreByCapacity(nodeAllocate *cache.NodeAllocateState) int64 {
-
-	scoreByVgCapacity := plugin.scoreByVgCapacity(nodeAllocate)
-	scoreByDeviceCapacity := plugin.scoreByDeviceCapacity(nodeAllocate)
-
-	return scoreByVgCapacity + scoreByDeviceCapacity
+type Scorer interface {
+	ScoreByCapacity(nodeAllocate *cache.NodeAllocateState) (score int64)
+	ScoreByCount(nodeAllocate *cache.NodeAllocateState) (score int64)
+	ScoreByNodeAntiAffinity(nodeAllocate *cache.NodeAllocateState) (score int64)
 }
 
-func (plugin *LocalPlugin) scoreByVgCapacity(nodeAllocate *cache.NodeAllocateState) int64 {
+type ScoreCalculator struct {
+	scorers []Scorer
+}
 
-	vgStates := nodeAllocate.NodeStorageAllocatedByUnits.VGStates
-	if len(vgStates) <= 0 {
-		return int64(utils.MinScore)
+func NewScoreCalculator(strategy localtype.StrategyType, nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight) *ScoreCalculator {
+	return &ScoreCalculator{
+		scorers: []Scorer{NewVolumeGroupScorer(strategy), NewDeviceScorer(strategy, nodeAntiAffinityWeight)},
 	}
-
-	return plugin.allocateStrategy.ScoreLVM(nodeAllocate)
 }
 
-func (plugin *LocalPlugin) scoreByDeviceCapacity(nodeAllocate *cache.NodeAllocateState) (score int64) {
+func (scorer *ScoreCalculator) Score(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	return scorer.ScoreByCapacity(nodeAllocate) + scorer.ScoreByCount(nodeAllocate) + scorer.ScoreByNodeAntiAffinity(nodeAllocate)
+}
 
+func (scorer *ScoreCalculator) ScoreByCapacity(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	score = 0
+	for _, scorer := range scorer.scorers {
+		score += scorer.ScoreByCapacity(nodeAllocate)
+	}
+	return score
+}
+
+func (scorer *ScoreCalculator) ScoreByCount(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	score = 0
+	for _, scorer := range scorer.scorers {
+		score += scorer.ScoreByCount(nodeAllocate)
+	}
+	return score
+}
+
+func (scorer *ScoreCalculator) ScoreByNodeAntiAffinity(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	score = 0
+	for _, scorer := range scorer.scorers {
+		score += scorer.ScoreByNodeAntiAffinity(nodeAllocate)
+	}
+	return score
+}
+
+type VolumeGroupScorer struct {
+	scoreStrategy cache.VGScheduleStrategy
+}
+
+func NewVolumeGroupScorer(strategy localtype.StrategyType) *VolumeGroupScorer {
+	return &VolumeGroupScorer{
+		scoreStrategy: cache.GetVGScheduleStrategy(strategy),
+	}
+}
+
+func (scorer *VolumeGroupScorer) ScoreByCapacity(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	return scorer.scoreStrategy.ScoreByCapacity(nodeAllocate)
+}
+
+func (scorer *VolumeGroupScorer) ScoreByCount(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	return int64(utils.MinScore)
+}
+
+func (scorer *VolumeGroupScorer) ScoreByNodeAntiAffinity(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	return int64(utils.MinScore)
+}
+
+type DeviceScorer struct {
+	scoreStrategy          cache.DeviceScheduleStrategy
+	nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight
+}
+
+func NewDeviceScorer(strategy localtype.StrategyType, nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight) *DeviceScorer {
+	return &DeviceScorer{
+		scoreStrategy:          cache.GetDeviceScheduleStrategy(strategy),
+		nodeAntiAffinityWeight: nodeAntiAffinityWeight,
+	}
+}
+func (scorer *DeviceScorer) ScoreByCapacity(nodeAllocate *cache.NodeAllocateState) (score int64) {
 	units := nodeAllocate.Units.DevicePVCAllocateUnits
 	if len(units) <= 0 {
 		return int64(utils.MinScore)
@@ -56,33 +114,26 @@ func (plugin *LocalPlugin) scoreByDeviceCapacity(nodeAllocate *cache.NodeAllocat
 	return
 }
 
-func (plugin *LocalPlugin) scoreByCount(nodeAllocate *cache.NodeAllocateState) (score int64) {
-
-	deviceStates := nodeAllocate.NodeStorageAllocatedByUnits.DeviceStates
-	if len(deviceStates) <= 0 {
-		return int64(utils.MinScore)
-	}
-
-	return plugin.allocateStrategy.ScoreDeviceCount(nodeAllocate)
+func (scorer *DeviceScorer) ScoreByCount(nodeAllocate *cache.NodeAllocateState) (score int64) {
+	return scorer.scoreStrategy.ScoreByCount(nodeAllocate)
 }
 
-func (plugin *LocalPlugin) scoreByNodeAntiAffinity(nodeAllocate *cache.NodeAllocateState) (score int64) {
-
+func (scorer *DeviceScorer) ScoreByNodeAntiAffinity(nodeAllocate *cache.NodeAllocateState) (score int64) {
 	var freeDeviceCount = 0
 	for _, state := range nodeAllocate.NodeStorageAllocatedByUnits.DeviceStates {
 		if !state.IsAllocated {
 			freeDeviceCount += 1
 		}
 	}
-	deviceWeight := plugin.nodeAntiAffinityWeight.Get(localtype.VolumeTypeDevice)
+	deviceWeight := scorer.nodeAntiAffinityWeight.Get(localtype.VolumeTypeDevice)
 	if deviceWeight <= 0 {
 		return int64(utils.MinScore)
 	}
 
-	if len(nodeAllocate.Units.DevicePVCAllocateUnits) <= 0 && (!plugin.cache.IsLocalNode(nodeAllocate.NodeName) || (freeDeviceCount <= 0)) {
+	if len(nodeAllocate.Units.DevicePVCAllocateUnits) <= 0 && (!nodeAllocate.NodeStorageAllocatedByUnits.IsLocal() || (freeDeviceCount <= 0)) {
 		score = int64(deviceWeight * 1)
 		klog.Infof("[NodeAntiAffinity]node %s got %d out of %d", nodeAllocate.NodeName, score, utils.MaxScore)
 		return score
 	}
-	return 0
+	return int64(utils.MinScore)
 }

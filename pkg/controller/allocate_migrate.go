@@ -16,6 +16,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"fmt"
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -23,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-func (controller *Controller) addVGInfoToPVsForPod(podNameSpace, podName string) error {
+func (controller *Controller) addVGInfoToPVsForPod(ctx context.Context, podNameSpace, podName string) error {
 	//var errors []error
 	pod, err := controller.podLister.Pods(podNameSpace).Get(podName)
 	if err != nil {
@@ -63,7 +64,7 @@ func (controller *Controller) addVGInfoToPVsForPod(podNameSpace, podName string)
 			continue
 		}
 
-		err = controller.patchAllocateInfoToPV(pv, &pvcAllocated.PVAllocatedInfo)
+		err = controller.patchAllocateInfoToPV(ctx, pv, &pvcAllocated.PVAllocatedInfo)
 		if err != nil {
 			errorList = append(errorList, fmt.Errorf("failed to patch allocateInfo(%#v) to PV(%s) for pod %s/%s error: %s, retry after", pvcAllocated, name, pod.Namespace, pod.Name, err.Error()))
 		}
@@ -75,7 +76,7 @@ func (controller *Controller) addVGInfoToPVsForPod(podNameSpace, podName string)
 	return nil
 }
 
-func (controller *Controller) patchAllocateInfoToPV(originPV *corev1.PersistentVolume, pvAllocatedInfo *localtype.PVAllocatedInfo) error {
+func (controller *Controller) patchAllocateInfoToPV(ctx context.Context, originPV *corev1.PersistentVolume, pvAllocatedInfo *localtype.PVAllocatedInfo) error {
 	if originPV == nil {
 		return nil
 	}
@@ -99,5 +100,5 @@ func (controller *Controller) patchAllocateInfoToPV(originPV *corev1.PersistentV
 		}
 	}
 
-	return utils.PatchAllocateInfoToPV(controller.kubeclientset, originPV, pvAllocatedInfo)
+	return utils.PatchAllocateInfoToPV(ctx, controller.kubeclientset, originPV, pvAllocatedInfo)
 }

@@ -58,6 +58,10 @@ type reserveResult struct {
 }
 
 func CreateTestPlugin() *LocalPlugin {
+	return CreateTestPluginByStrategy(getStrategyType(""))
+}
+
+func CreateTestPluginByStrategy(strategyType localtype.StrategyType) *LocalPlugin {
 
 	// cache
 	ctx := context.Background()
@@ -81,10 +85,10 @@ func CreateTestPlugin() *LocalPlugin {
 	snapshotInformerFactory.Start(ctx.Done())
 	snapshotInformerFactory.WaitForCacheSync(ctx.Done())
 
-	nodeCache := cache.NewNodeStorageAllocatedCache(k8sInformerFactory.Core().V1())
+	nodeCache := cache.NewNodeStorageAllocatedCache(strategyType)
 
 	localPlugin := &LocalPlugin{
-		allocateStrategy:       GetAllocateStrategy(nil),
+		scorer:                 NewScoreCalculator(strategyType, nodeAntiAffinityWeight),
 		nodeAntiAffinityWeight: nodeAntiAffinityWeight,
 
 		cache:              nodeCache,
@@ -424,19 +428,18 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 					utils.PVCName(pvcWithVGPending): pvcWithVGPending,
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated: []*LVMPVCInfo{
-							{
-								vgName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
-								request: utils.GetPVCRequested(pvcWithVGPending),
-								pvc:     pvcWithVGPending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+							LVMPVCsWithVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
+									Request: utils.GetPVCRequested(pvcWithVGPending),
+									PVC:     pvcWithVGPending,
+								},
 							},
 						},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes:                    []*cache.InlineVolumeAllocated{},
+						DevicePVCs:    cache.NewDevicePVCInfos(),
+						InlineVolumes: []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -496,18 +499,18 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 					utils.PVCName(pvcWithoutVGPending): pvcWithoutVGPending,
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated: []*LVMPVCInfo{},
-						lvmPVCsSnapshot:               []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{
-							{
-								request: utils.GetPVCRequested(pvcWithoutVGPending),
-								pvc:     pvcWithoutVGPending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									Request: utils.GetPVCRequested(pvcWithoutVGPending),
+									PVC:     pvcWithoutVGPending,
+								},
 							},
 						},
-						ssdDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						inlineVolumes:             []*cache.InlineVolumeAllocated{},
+						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:      cache.NewDevicePVCInfos(),
+						InlineVolumes:   []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -569,18 +572,18 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				pvcBoundBeforeReserve: pvcWithoutVGBounding,
 				pvBoundBeforeReserve:  pvwithoutVGBounding,
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated: []*LVMPVCInfo{},
-						lvmPVCsSnapshot:               []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{
-							{
-								request: utils.GetPVCRequested(pvcWithoutVGPending),
-								pvc:     pvcWithoutVGPending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									Request: utils.GetPVCRequested(pvcWithoutVGPending),
+									PVC:     pvcWithoutVGPending,
+								},
 							},
 						},
-						ssdDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						inlineVolumes:             []*cache.InlineVolumeAllocated{},
+						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:      cache.NewDevicePVCInfos(),
+						InlineVolumes:   []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -642,18 +645,18 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				pvcBoundBeforeReserve: pvcWithoutVGLargeBounding,
 				pvBoundBeforeReserve:  pvwithoutVGLargeBounding,
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated: []*LVMPVCInfo{},
-						lvmPVCsSnapshot:               []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{
-							{
-								request: utils.GetPVCRequested(pvcWithoutVGLargePending),
-								pvc:     pvcWithoutVGLargePending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
+								{
+									Request: utils.GetPVCRequested(pvcWithoutVGLargePending),
+									PVC:     pvcWithoutVGLargePending,
+								},
 							},
 						},
-						ssdDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{},
-						inlineVolumes:             []*cache.InlineVolumeAllocated{},
+						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:      cache.NewDevicePVCInfos(),
+						InlineVolumes:   []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -775,13 +778,11 @@ func Test_Reserve_inlineVolume(t *testing.T) {
 			},
 			fields: fields{
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						inlineVolumes: []*cache.InlineVolumeAllocated{
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						DevicePVCs:         cache.NewDevicePVCInfos(),
+						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
 								VolumeSize:   getSize("150Gi"),
@@ -924,19 +925,20 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 					utils.PVCName(pvcDevicePending): pvcDevicePending,
 				},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{
-							{
-								mediaType: localtype.MediaTypeHDD,
-								request:   utils.GetPVCRequested(pvcDevicePending),
-								pvc:       pvcDevicePending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						DevicePVCs: &cache.DevicePVCInfos{
+							SSDDevicePVCs: []*cache.DevicePVCInfo{},
+							HDDDevicePVCs: []*cache.DevicePVCInfo{
+								{
+									MediaType: localtype.MediaTypeHDD,
+									Request:   utils.GetPVCRequested(pvcDevicePending),
+									PVC:       pvcDevicePending,
+								},
 							},
 						},
-						inlineVolumes: []*cache.InlineVolumeAllocated{},
+						InlineVolumes: []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -998,19 +1000,20 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				pvcBoundBeforeReserve: pvcDeviceBounding,
 				pvBoundBeforeReserve:  pvDeviceBounding,
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{
-							{
-								mediaType: localtype.MediaTypeHDD,
-								request:   utils.GetPVCRequested(pvcDevicePending),
-								pvc:       pvcDevicePending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						DevicePVCs: &cache.DevicePVCInfos{
+							SSDDevicePVCs: []*cache.DevicePVCInfo{},
+							HDDDevicePVCs: []*cache.DevicePVCInfo{
+								{
+									MediaType: localtype.MediaTypeHDD,
+									Request:   utils.GetPVCRequested(pvcDevicePending),
+									PVC:       pvcDevicePending,
+								},
 							},
 						},
-						inlineVolumes: []*cache.InlineVolumeAllocated{},
+						InlineVolumes: []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -1054,19 +1057,19 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				pvBoundBeforeReserve:  pvDeviceBounding,
 				deviceIncludes:        []string{"/dev/sdb", "/dev/sdc"},
 				stateData: &stateData{
-					podVolumeInfo: &PodLocalVolumeInfo{
-						lvmPVCsWithVgNameNotAllocated:    []*LVMPVCInfo{},
-						lvmPVCsSnapshot:                  []*LVMPVCInfo{},
-						lvmPVCsWithoutVgNameNotAllocated: []*LVMPVCInfo{},
-						ssdDevicePVCsNotAllocated:        []*DevicePVCInfo{},
-						hddDevicePVCsNotAllocated: []*DevicePVCInfo{
-							{
-								mediaType: localtype.MediaTypeHDD,
-								request:   utils.GetPVCRequested(pvcDevicePending),
-								pvc:       pvcDevicePending,
+					podVolumeInfo: &cache.PodLocalVolumeInfo{
+						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						DevicePVCs: &cache.DevicePVCInfos{
+							SSDDevicePVCs: []*cache.DevicePVCInfo{},
+							HDDDevicePVCs: []*cache.DevicePVCInfo{
+								{
+									MediaType: localtype.MediaTypeHDD,
+									Request:   utils.GetPVCRequested(pvcDevicePending),
+									PVC:       pvcDevicePending,
+								},
 							},
 						},
-						inlineVolumes: []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -1751,4 +1754,93 @@ func Test_Unreserve(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_Reservation(t *testing.T) {
+
+	pvcWithoutVG := utils.GetTestPVCPVWithoutVG()
+	pvcWithoutVG.PVBounding.VgName = utils.VGSSD
+
+	complexPVCPVInfos := utils.TestPVCPVInfoList{
+		utils.GetTestPVCPVWithVG(),
+		utils.GetTestPVCPVDevice(),
+		pvcWithoutVG,
+		utils.GetTestPVCPVNotLocal(), //not local pv
+	}
+
+	complexPod := createPod(complexPVCPVInfos)
+	reservationPod := complexPod.DeepCopy()
+	reservationPod.UID = "reservationPod"
+	reservationPod.Name = "reservationPod"
+
+	//pvc,pv pending
+	pvcsPending := createPVC(complexPVCPVInfos.GetTestPVCPending())
+	pvcsBounding := createPVC(complexPVCPVInfos.GetTestPVCBounding())
+	pvsBounding := createPV(complexPVCPVInfos.GetTestPVBounding())
+
+	nodeName := utils.NodeName3
+
+	plugin := CreateTestPlugin()
+	prepare(plugin)
+
+	//prepare pvcs pending
+	for _, pvc := range pvcsPending {
+		_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+		_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+		plugin.OnPVCAdd(pvc)
+	}
+	//reservation now is Pending, can not add
+	plugin.OnPodAdd(reservationPod)
+	assert.Empty(t, plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(reservationPod.UID)), "check add reservationPod pending")
+
+	cycleState := framework.NewCycleState()
+
+	//schedule reservationPod
+	gotStatus := plugin.PreFilter(context.Background(), cycleState, reservationPod)
+	assert.Equal(t, framework.Success, gotStatus.Code(), "reservationPod should prefilter success!")
+	gotStatus = plugin.Reserve(context.Background(), cycleState, reservationPod, nodeName)
+	assert.Equal(t, framework.Success, gotStatus.Code(), "reservationPod should reserve success!")
+	for _, pvc := range pvcsPending {
+		isLocal, _ := utils.IsLocalPVC(pvc, plugin.scLister, false)
+		assert.Equal(t, isLocal, plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name) != nil, "reservation PVC should schedule success")
+	}
+
+	//check reservationPod schedule success
+	for _, pv := range pvsBounding {
+		//update pv
+		_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
+		_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
+		plugin.OnPVUpdate(nil, pv)
+		isLocal, _ := utils.IsOpenLocalPV(pv, false)
+		assert.Equal(t, isLocal, plugin.cache.GetPVAllocatedDetailCopy(pv.Name) != nil, "reservation pv should bound success")
+	}
+	for _, pvc := range pvcsBounding {
+		_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.Background(), pvc, metav1.UpdateOptions{})
+		_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Update(pvc)
+		plugin.OnPVCAdd(pvc)
+		assert.Nil(t, plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name), "pvc detail should revert after pv bounding")
+	}
+	reservationPod.Status.Phase = corev1.PodRunning
+	reservationPod.Spec.NodeName = nodeName
+	plugin.OnPodAdd(reservationPod)
+	assert.NotEmpty(t, plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(reservationPod.UID)), "check add reservationPod Running")
+
+	nodeStorageByReservation := plugin.cache.GetNodeStorageStateCopy(nodeName)
+
+	//schedule pod which use reservation
+	cycleState = framework.NewCycleState()
+	gotStatus = plugin.PreFilter(context.Background(), cycleState, complexPod)
+	assert.Equal(t, framework.Success, gotStatus.Code(), "pod should prefilter success!")
+	gotStatus = plugin.ReserveReservation(context.Background(), cycleState, complexPod, reservationPod, nodeName)
+	assert.Equal(t, framework.Success, gotStatus.Code(), "pod should reserve success!")
+	assert.NotEmpty(t, plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(complexPod.UID)), "check reserve pod inlineVolumes")
+	nodeStorageByRealPod := plugin.cache.GetNodeStorageStateCopy(nodeName)
+	assert.Equal(t, nodeStorageByReservation, nodeStorageByRealPod, "nodeStorage should not change after reserve pod")
+
+	//unreserve pod
+	plugin.UnreserveReservation(context.Background(), cycleState, complexPod, reservationPod, nodeName)
+	assert.NotEmpty(t, plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(reservationPod.UID)), "check unreserve pod inlineVolumes")
+	nodeStorageUnreserve := plugin.cache.GetNodeStorageStateCopy(nodeName)
+	assert.Equal(t, nodeStorageByReservation, nodeStorageUnreserve, "nodeStorage should not change after unreserve pod")
+
 }

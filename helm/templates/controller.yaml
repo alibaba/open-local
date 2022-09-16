@@ -1,22 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-controller
+{{ include "local.labels" . | indent 2 }}
+    app.kubernetes.io/component: {{ .Values.name }}-controller
   name: {{ .Values.name }}-controller
   namespace: {{ .Values.namespace }}
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.name }}
-      component: {{ .Values.name }}-controller
+      app.kubernetes.io/component: {{ .Values.name }}-controller
   template:
     metadata:
-      labels:
-        app: {{ .Values.name }}
-        component: {{ .Values.name }}-controller
+{{ include "local.labels" . | indent 6 }}
+        app.kubernetes.io/component: {{ .Values.name }}-controller
     spec:
       containers:
       - name: csi-provisioner

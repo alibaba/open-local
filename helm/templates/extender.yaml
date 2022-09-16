@@ -3,19 +3,16 @@ kind: Deployment
 metadata:
   name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
-  labels:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-scheduler-extender
+{{ include "local.labels" . | indent 2 }}
+    app.kubernetes.io/component: {{ .Values.name }}-scheduler-extender
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.name }}
-      component: {{ .Values.name }}-scheduler-extender
+      app.kubernetes.io/component: {{ .Values.name }}-scheduler-extender
   template:
     metadata:
-      labels:
-        app: {{ .Values.name }}
-        component: {{ .Values.name }}-scheduler-extender
+{{ include "local.labels" . | indent 6 }}
+        app.kubernetes.io/component: {{ .Values.name }}-scheduler-extender
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -63,9 +60,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-scheduler-extender
+{{ include "local.labels" . | indent 2 }}
   name: {{ .Values.name }}-scheduler-extender
   namespace: {{ .Values.namespace }}
 spec:
@@ -73,8 +68,8 @@ spec:
   clusterIP: {{ .Values.globalconfig.YodaSchedulerSvcIP }}
 {{- end }}
   selector:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-scheduler-extender
+    app.kubernetes.io/name: {{ .Values.name }}
+    app.kubernetes.io/component: {{ .Values.name }}-scheduler-extender
   ports:
   - protocol: TCP
     port: {{ .Values.extender.port }}

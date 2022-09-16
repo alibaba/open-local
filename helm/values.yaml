@@ -1,6 +1,7 @@
 name: open-local
 namespace: kube-system
 driver: local.csi.aliyun.com
+customLabels: {}
 images:
   local:
     image: ecp_builder/open-local

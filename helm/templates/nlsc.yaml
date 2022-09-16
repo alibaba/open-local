@@ -2,6 +2,7 @@ apiVersion: csi.aliyun.com/v1alpha1
 kind: NodeLocalStorageInitConfig
 metadata:
   name: {{ .Values.name }}
+{{ include "local.labels" . | indent 2 }}
 spec:
 # globalConfig is the default global node configuration
 # when the agent creates the NodeLocalStorage resource, the value will be filled in spec of the NodeLocalStorage

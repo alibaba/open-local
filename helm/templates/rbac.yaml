@@ -1,8 +1,8 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: {{ .Values.name }}
+{{ include "local.labels" . | indent 2 }}
 rules:
   - apiGroups:
       - csi.aliyun.com
@@ -125,11 +125,13 @@ metadata:
   name: {{ .Values.name }}
   # replace with the same namespace name with plugin
   namespace: {{ .Values.namespace }}
+{{ include "local.labels" . | indent 2 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ .Values.name }}
+{{ include "local.labels" . | indent 2 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

@@ -815,6 +815,7 @@ kind: ServiceMonitor
 metadata:
   name: {{ .Values.name }}
   namespace: {{ .Values.monitor.namespace }}
+{{ include "local.labels" . | indent 2 }}
 spec:
   endpoints:
   - port: http-port
@@ -825,5 +826,5 @@ spec:
     - {{ .Values.namespace }}
   selector:
     matchLabels:
-      app: {{ .Values.name }}
+      app.kubernetes.io/name: {{ .Values.name }}
 {{- end }}

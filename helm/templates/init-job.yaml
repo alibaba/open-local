@@ -4,17 +4,15 @@ apiVersion: batch/v1
 metadata:
   name: {{ .Values.name }}-init-job
   namespace: {{ .Values.namespace }}
-  labels:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-init-job
+{{ include "local.labels" . | indent 2 }}
+    app.kubernetes.io/component: {{ .Values.name }}-init-job
 spec:
   completions: {{ or .Values.globalconfig.NumOfMasters 3 }}
   parallelism: {{ or .Values.globalconfig.NumOfMasters 3 }}
   template:
     metadata:
-      labels:
-        app: {{ .Values.name }}
-        component: {{ .Values.name }}-init-job
+{{ include "local.labels" . | indent 6 }}
+        app.kubernetes.io/component: {{ .Values.name }}-init-job
     spec:
       hostNetwork: true
       tolerations:

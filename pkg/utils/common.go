@@ -633,38 +633,6 @@ func GeneratePVPatch(oldPV, newPV *corev1.PersistentVolume) ([]byte, error) {
 	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.PersistentVolume{})
 }
 
-// IsFormatted checks whether the source device is formatted or not. It
-// returns true if the source device is already formatted.
-func IsFormatted(source string) (bool, error) {
-	if source == "" {
-		return false, errors.New("source is not specified")
-	}
-
-	fileCmd := "file"
-	_, err := exec.LookPath(fileCmd)
-	if err != nil {
-		if err == exec.ErrNotFound {
-			return false, fmt.Errorf("%q executable not found in $PATH", fileCmd)
-		}
-		return false, err
-	}
-
-	args := []string{"-sL", source}
-
-	out, err := exec.Command(fileCmd, args...).CombinedOutput()
-	if err != nil {
-		return false, fmt.Errorf("checking formatting failed: %v cmd: %q output: %q",
-			err, fileCmd, string(out))
-	}
-
-	output := strings.TrimPrefix(string(out), fmt.Sprintf("%s:", source))
-	if strings.TrimSpace(output) == "data" {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // Format formats the source with the given filesystem type
 func Format(source, fsType string) error {
 	mkfsCmd := fmt.Sprintf("mkfs.%s", fsType)

@@ -77,7 +77,6 @@ func (nodeInfo *NodeInfo) IsPVAllocated(pv *corev1.PersistentVolume) bool {
 type NodeCache struct {
 	rwLock sync.RWMutex
 	NodeInfo
-	PVCRecordsByExtend map[string]AllocatedUnit
 }
 
 type ResourceType string

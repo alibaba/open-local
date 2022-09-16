@@ -228,7 +228,7 @@ func (c *Controller) processNextWorkItem() bool {
 				return fmt.Errorf("error SyncNLSItem '%#v': %s, requeuing", item, err.Error())
 			}
 		case SyncPVByPodItem:
-			if err := c.addVGInfoToPVsForPod(item.podNameSpace, item.podName); err != nil {
+			if err := c.addVGInfoToPVsForPod(context.Background(), item.podNameSpace, item.podName); err != nil {
 				c.workqueue.AddAfter(item, time.Millisecond*500)
 				return fmt.Errorf("error SyncPVByPodItem '%#v': %s, requeuing", item, err.Error())
 			}

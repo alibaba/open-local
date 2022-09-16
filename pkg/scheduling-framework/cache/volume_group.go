@@ -16,11 +16,7 @@ limitations under the License.
 package cache
 
 import (
-	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"github.com/alibaba/open-local/pkg/utils"
-
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -86,131 +82,6 @@ func (s VGStates) GetVGStateList() []*VGStoragePool {
 		result = append(result, state)
 	}
 	return result
-}
-
-//InlineVolume allocated details
-type InlineVolumeAllocated struct {
-	VgName       string `json:"vgName,string"`
-	VolumeName   string `json:"volumeName,string"`
-	VolumeSize   int64  `json:"volumeSize,string"`
-	PodName      string `json:"podName,string"`
-	PodNamespace string `json:"podNamespace,string"`
-
-	Allocated int64 // actual allocated size for the pvc
-}
-
-func (allocated *InlineVolumeAllocated) DeepCopy() *InlineVolumeAllocated {
-	if allocated == nil {
-		return nil
-	}
-	return &InlineVolumeAllocated{
-		VgName:       allocated.VgName,
-		VolumeName:   allocated.VolumeName,
-		VolumeSize:   allocated.VolumeSize,
-		PodName:      allocated.PodName,
-		PodNamespace: allocated.PodNamespace,
-		Allocated:    allocated.Allocated,
-	}
-}
-
-type PodInlineVolumeAllocatedDetails []*InlineVolumeAllocated
-
-func (details *PodInlineVolumeAllocatedDetails) DeepCopy() *PodInlineVolumeAllocatedDetails {
-	if details == nil {
-		return nil
-	}
-	copy := make(PodInlineVolumeAllocatedDetails, 0, len(*details))
-	for _, detail := range *details {
-		copy = append(copy, detail.DeepCopy())
-	}
-	return &copy
-}
-
-type NodeInlineVolumeAllocatedDetails map[string] /*podUid*/ *PodInlineVolumeAllocatedDetails
-
-func (details NodeInlineVolumeAllocatedDetails) DeepCopy() NodeInlineVolumeAllocatedDetails {
-	if details == nil {
-		return nil
-	}
-	copy := map[string]*PodInlineVolumeAllocatedDetails{}
-	for podUid, podInlineVolumeAllocatedDetails := range details {
-		copy[podUid] = podInlineVolumeAllocatedDetails.DeepCopy()
-	}
-	return copy
-}
-
-func NewInlineVolumeAllocated(podName, podNameSpace, vgName, volumeName string, volumeSize int64) *InlineVolumeAllocated {
-	return &InlineVolumeAllocated{
-		PodName:      podName,
-		PodNamespace: podNameSpace,
-		VgName:       vgName,
-		VolumeName:   volumeName,
-		VolumeSize:   volumeSize,
-	}
-}
-
-type LVMPVAllocated struct {
-	BasePVAllocated
-	VGName string
-}
-
-func NewLVMAllocatedFromPVC(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) *LVMPVAllocated {
-	return &LVMPVAllocated{
-		BasePVAllocated: BasePVAllocated{
-			PVCNamespace: pvc.Namespace,
-			PVCName:      pvc.Name,
-			VolumeName:   volumeName,
-			NodeName:     nodeName,
-			Requested:    int64(utils.GetPVCRequested(pvc)),
-			Allocated:    int64(0),
-		},
-	}
-}
-
-// pv bounding status: have pvcName, other status may have no pvcName
-func NewLVMPVAllocatedFromPV(pv *corev1.PersistentVolume, vgName, nodeName string) *LVMPVAllocated {
-
-	allocated := &LVMPVAllocated{BasePVAllocated: BasePVAllocated{
-		VolumeName: pv.Name,
-		NodeName:   nodeName,
-	}, VGName: vgName}
-
-	request, ok := pv.Spec.Capacity[corev1.ResourceStorage]
-	if !ok {
-		klog.Errorf("get request from pv(%s) failed, skipped", pv.Name)
-		return allocated
-	}
-
-	allocated.Requested = request.Value()
-	allocated.Allocated = request.Value()
-
-	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
-	if pvcName != "" {
-		allocated.PVCName = pvcName
-		allocated.PVCNamespace = pvcNamespace
-	}
-	return allocated
-}
-
-func (lvm *LVMPVAllocated) GetBasePVAllocated() *BasePVAllocated {
-	if lvm == nil {
-		return nil
-	}
-	return &lvm.BasePVAllocated
-}
-
-func (lvm *LVMPVAllocated) GetVolumeType() localtype.VolumeType {
-	return localtype.VolumeTypeLVM
-}
-
-func (lvm *LVMPVAllocated) DeepCopy() PVAllocated {
-	if lvm == nil {
-		return nil
-	}
-	return &LVMPVAllocated{
-		BasePVAllocated: *lvm.BasePVAllocated.DeepCopy(),
-		VGName:          lvm.VGName,
-	}
 }
 
 type VGHandler struct {

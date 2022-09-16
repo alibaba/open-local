@@ -342,6 +342,10 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "nodelocalstorages") ||
 				action.Matches("list", "nodelocalstorageinitconfigs") ||
 				action.Matches("watch", "nodelocalstorageinitconfigs") ||
+				action.Matches("watch", "persistentvolumes") ||
+				action.Matches("list", "persistentvolumes") ||
+				action.Matches("watch", "persistentvolumeclaims") ||
+				action.Matches("list", "persistentvolumeclaims") ||
 				action.Matches("list", "nodes") ||
 				action.Matches("watch", "nodes")) {
 			continue

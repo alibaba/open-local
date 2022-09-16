@@ -40,6 +40,13 @@ func (n *NodeStorageState) DeepCopy() *NodeStorageState {
 	return copy
 }
 
+func (n *NodeStorageState) IsLocal() bool {
+	if n == nil {
+		return false
+	}
+	return len(n.DeviceStates) != 0 || len(n.VGStates) != 0
+}
+
 func NewNodeStorageState() *NodeStorageState {
 	return &NodeStorageState{VGStates: VGStates{}, DeviceStates: DeviceStates{}}
 }
@@ -95,6 +102,7 @@ type PVCInfo struct {
 	PVCName      string
 	VolumeName   string
 	NodeName     string
+	PVCStatus    corev1.PersistentVolumeClaimPhase
 	Requested    int64
 }
 
@@ -118,6 +126,7 @@ func NewPVCInfo(pvc *corev1.PersistentVolumeClaim, nodeName, volumeName string) 
 		VolumeName:   volumeName,
 		NodeName:     nodeName,
 		Requested:    int64(utils.GetPVCRequested(pvc)),
+		PVCStatus:    pvc.Status.Phase,
 	}
 }
 

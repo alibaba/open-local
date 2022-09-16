@@ -35,7 +35,7 @@ const (
 )
 
 type stateData struct {
-	podVolumeInfo       *PodLocalVolumeInfo
+	podVolumeInfo       *cache.PodLocalVolumeInfo
 	allocateStateByNode map[string] /*nodeName*/ *cache.NodeAllocateState
 	reservedState       *cache.NodeAllocateState
 	locker              sync.RWMutex
@@ -65,41 +65,9 @@ func (state *stateData) AddAllocateState(nodeName string, allocate *cache.NodeAl
 	state.allocateStateByNode[nodeName] = allocate
 }
 
-type LVMPVCInfo struct {
-	vgName  string
-	request int64
-	pvc     *corev1.PersistentVolumeClaim
-}
-
-type DevicePVCInfo struct {
-	mediaType localtype.MediaType
-	request   int64
-	pvc       *corev1.PersistentVolumeClaim
-}
-
-/*
-	calculate by preFilter to prevent double calculating in filter
-*/
-type PodLocalVolumeInfo struct {
-	lvmPVCsWithVgNameNotAllocated    []*LVMPVCInfo //local lvm PVC have vgName and  had not allocated before
-	lvmPVCsSnapshot                  []*LVMPVCInfo
-	lvmPVCsWithoutVgNameNotAllocated []*LVMPVCInfo    //local lvm PVC have no vgName and had not allocated before
-	hddDevicePVCsNotAllocated        []*DevicePVCInfo //hdd type pvc had not allocated before
-	ssdDevicePVCsNotAllocated        []*DevicePVCInfo //ssd type pvc had not allocated before
-	inlineVolumes                    []*cache.InlineVolumeAllocated
-}
-
-func (info *PodLocalVolumeInfo) HaveLocalVolumes() bool {
-	if info == nil {
-		return false
-	}
-	return len(info.lvmPVCsWithVgNameNotAllocated)+len(info.lvmPVCsWithoutVgNameNotAllocated)+
-		len(info.lvmPVCsSnapshot)+len(info.hddDevicePVCsNotAllocated)+len(info.ssdDevicePVCsNotAllocated)+len(info.inlineVolumes) > 0
-}
-
 type LocalPlugin struct {
 	handle                 framework.Handle
-	allocateStrategy       AllocateStrategy
+	scorer                 *ScoreCalculator
 	nodeAntiAffinityWeight *localtype.NodeAntiAffinityWeight
 
 	scLister           storagelisters.StorageClassLister
@@ -169,11 +137,12 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
 	snapshotInformerFactory := volumesnapshotinformersfactory.NewSharedInformerFactory(snapClient, 0)
 
-	nodeCache := cache.NewNodeStorageAllocatedCache(f.SharedInformerFactory().Core().V1())
+	strategyType := getStrategyType(args.SchedulerStrategy)
+	nodeCache := cache.NewNodeStorageAllocatedCache(strategyType)
 
 	localPlugin := &LocalPlugin{
 		handle:                 f,
-		allocateStrategy:       GetAllocateStrategy(&args),
+		scorer:                 NewScoreCalculator(strategyType, nodeAntiAffinityWeight),
 		nodeAntiAffinityWeight: nodeAntiAffinityWeight,
 
 		cache:              nodeCache,
@@ -256,7 +225,7 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 		return framework.NewStatus(framework.Success)
 	}
 
-	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.lvmPVCsSnapshot)
+	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.LVMPVCsSnapshot)
 	if err != nil {
 		klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.AsStatus(err)
@@ -266,7 +235,7 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
 	}
 
-	nodeAllocate, err := plugin.preAllocate(pod, podVolumeInfo, nil, nodeName)
+	nodeAllocate, err := plugin.cache.PreAllocate(pod, podVolumeInfo, nil, nodeName)
 	if err != nil {
 		klog.V(4).Infof("filter fail: preAllocate err for nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
@@ -297,12 +266,7 @@ func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleStat
 		return int64(utils.MinScore), framework.NewStatus(framework.Success)
 	}
 
-	scoreByCapacity := plugin.scoreByCapacity(allocateInfo)
-
-	scoreByCount := plugin.scoreByCount(allocateInfo)
-
-	scoreByAntiAffinity := plugin.scoreByNodeAntiAffinity(allocateInfo)
-	return scoreByCapacity + scoreByCount + scoreByAntiAffinity, framework.NewStatus(framework.Success)
+	return plugin.scorer.Score(allocateInfo), framework.NewStatus(framework.Success)
 }
 
 //PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
@@ -323,7 +287,7 @@ func (plugin *LocalPlugin) ReserveReservation(ctx context.Context, state *framew
 		return framework.NewStatus(framework.Success)
 	}
 
-	preAllocate, err := plugin.preAllocate(pod, podVolumeInfo, reservationPod, nodeName)
+	preAllocate, err := plugin.cache.PreAllocate(pod, podVolumeInfo, reservationPod, nodeName)
 	if err != nil {
 		klog.Errorf("reserve pod(%s) with node(%s) fail, preAllocate err: %s", pod.UID, nodeName, err.Error())
 		return framework.NewStatus(framework.Unschedulable, err.Error())
@@ -391,14 +355,14 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 
 	for _, pvc := range lvmPVCs {
 
-		plugin.patchPVOrAddPVCInfo(pvc, nodeName, pvcInfos)
+		plugin.patchPVOrAddPVCInfo(ctx, pvc, nodeName, pvcInfos)
 	}
 
 	for _, pvc := range devicePVCs {
-		plugin.patchPVOrAddPVCInfo(pvc, nodeName, pvcInfos)
+		plugin.patchPVOrAddPVCInfo(ctx, pvc, nodeName, pvcInfos)
 	}
 
-	err = plugin.patchAllocatedNeedMigrateToPod(p, pvcInfos)
+	err = plugin.patchAllocatedNeedMigrateToPod(ctx, p, pvcInfos)
 	if err != nil {
 		klog.Errorf("patch allocate info(%#v) to nls(%s) fail for pod(%s)", pvcInfos, nodeName, p.UID, err.Error())
 		return framework.AsStatus(err)
@@ -406,12 +370,8 @@ func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleSt
 	return framework.NewStatus(framework.Success)
 }
 
-func (plugin *LocalPlugin) patchPVOrAddPVCInfo(pvc *corev1.PersistentVolumeClaim, nodeName string, pvcInfos map[string]localtype.PVCAllocateInfo) {
-	detail := plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name)
-	if detail == nil {
-		detail = plugin.cache.GetPVAllocatedDetailCopy(pvc.Spec.VolumeName)
-	}
-	pvAllocateInfo := getPVAllocateInfo(detail)
+func (plugin *LocalPlugin) patchPVOrAddPVCInfo(ctx context.Context, pvc *corev1.PersistentVolumeClaim, nodeName string, pvcInfos map[string]localtype.PVCAllocateInfo) {
+	pvAllocateInfo := plugin.cache.MakeAllocateInfo(pvc)
 	if pvAllocateInfo == nil {
 		return
 	}
@@ -426,57 +386,16 @@ func (plugin *LocalPlugin) patchPVOrAddPVCInfo(pvc *corev1.PersistentVolumeClaim
 		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 		return
 	}
-	switch pvAllocateInfo.VolumeType {
-	case string(localtype.VolumeTypeLVM):
-		if utils.GetVGNameFromCsiPV(pv) != "" {
-			return
-		}
-	case string(localtype.VolumeTypeDevice):
-		if utils.GetDeviceNameFromCsiPV(pv) != "" {
-			return
-		}
+
+	if plugin.cache.IsPVHaveAllocateInfo(pv, localtype.VolumeType(pvAllocateInfo.VolumeType)) {
+		return
 	}
 
-	err := utils.PatchAllocateInfoToPV(plugin.kubeClientSet, pv, &pvAllocateInfo.PVAllocatedInfo)
+	err := utils.PatchAllocateInfoToPV(ctx, plugin.kubeClientSet, pv, &pvAllocateInfo.PVAllocatedInfo)
 	if err != nil {
 		klog.Errorf("PatchAllocateInfoToPV err and add info to pod: %s", err.Error())
 		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 	}
-}
-
-func getPVAllocateInfo(allocate cache.PVAllocated) *localtype.PVCAllocateInfo {
-	if allocate == nil {
-		return nil
-	}
-
-	switch allocateDetail := allocate.(type) {
-	case *cache.LVMPVAllocated:
-		if allocateDetail.VGName != "" && allocateDetail.Allocated > 0 {
-			return &localtype.PVCAllocateInfo{
-				PVCNameSpace: allocateDetail.PVCNamespace,
-				PVCName:      allocateDetail.PVCName,
-				PVAllocatedInfo: localtype.PVAllocatedInfo{
-					VGName:     allocateDetail.VGName,
-					VolumeType: string(localtype.VolumeTypeLVM),
-				},
-			}
-		}
-	case *cache.DeviceTypePVAllocated:
-		if allocateDetail.DeviceName != "" && allocateDetail.Allocated > 0 {
-			return &localtype.PVCAllocateInfo{
-				PVCNameSpace: allocateDetail.PVCNamespace,
-				PVCName:      allocateDetail.PVCName,
-				PVAllocatedInfo: localtype.PVAllocatedInfo{
-					DeviceName: allocateDetail.DeviceName,
-					VolumeType: string(localtype.VolumeTypeDevice),
-				},
-			}
-		}
-	default:
-		klog.Warningf("Unknown allocate Type : %#v", allocate)
-		return nil
-	}
-	return nil
 }
 
 // ScoreExtensions of the Score plugin.
@@ -512,7 +431,7 @@ func (plugin *LocalPlugin) NormalizeScore(ctx context.Context, state *framework.
 	return nil
 }
 
-func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (*PodLocalVolumeInfo, error) {
+func (plugin *LocalPlugin) getPodVolumeInfoFromState(cs *framework.CycleState) (*cache.PodLocalVolumeInfo, error) {
 	state, err := plugin.getState(cs)
 	if err != nil {
 		return nil, err
@@ -546,4 +465,15 @@ func (plugin *LocalPlugin) getState(cs *framework.CycleState) (*stateData, error
 		return nil, fmt.Errorf("unable to convert state into stateData")
 	}
 	return stateData, nil
+}
+
+func getStrategyType(strategy string) localtype.StrategyType {
+	switch localtype.StrategyType(strategy) {
+	case localtype.StrategyBinpack:
+		return localtype.StrategyBinpack
+	case localtype.StrategySpread:
+		return localtype.StrategySpread
+	default:
+		return localtype.StrategyBinpack
+	}
 }

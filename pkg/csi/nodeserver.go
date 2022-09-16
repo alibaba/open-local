@@ -261,7 +261,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	expectSize := req.CapacityRange.RequiredBytes
 	if !ns.spdkSupported {
 		if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
-			return nil, status.Errorf(codes.Internal, "NodePublishVolume: Resize local volume %s with error: %s", volumeID, err.Error())
+			return nil, status.Errorf(codes.Internal, "NodeExpandVolume: Resize local volume %s with error: %s", volumeID, err.Error())
 		}
 	} else {
 		//TODO: call kata-runtime to resize the volume
@@ -543,8 +543,6 @@ func (ns *nodeServer) publishSpdkVolume(ctx context.Context, req *csi.NodePublis
 }
 
 func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath string) error {
-	vgName := ""
-
 	// Get volumeType
 	volumeType := string(pkg.VolumeTypeLVM)
 	_, _, pv, err := getPvInfo(ns.options.kubeclient, volumeID)
@@ -562,9 +560,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 	switch volumeType {
 	case string(pkg.VolumeTypeLVM):
 		// Get lvm info
-		if value, ok := pv.Spec.CSI.VolumeAttributes["vgName"]; ok {
-			vgName = value
-		}
+		vgName := utils.GetVGNameFromCsiPV(pv)
 		if vgName == "" {
 			return status.Errorf(codes.Internal, "resizeVolume: Volume %s with vgname empty", pv.Name)
 		}

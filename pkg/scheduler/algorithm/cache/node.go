@@ -40,8 +40,8 @@ func NewNodeCache(nodeName string) *NodeCache {
 			AllocatedNum: 0,
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
 			LocalPVs:            make(map[string]corev1.PersistentVolume),
+			PVCRecordsByExtend:  make(map[string]AllocatedUnit),
 			PodInlineVolumeInfo: make(map[string][]InlineVolumeInfo)},
-		PVCRecordsByExtend: make(map[string]AllocatedUnit),
 	}
 }
 
@@ -338,14 +338,13 @@ func (nc *NodeCache) UpdateLVM(old, pv *corev1.PersistentVolume) error {
 				vg.Requested = oldRequest + newPVsize.Value() - oldPVsize.Value()
 			} else {
 				vg.Requested = oldRequest + newPVsize.Value()
+				nc.AllocatedNum += 1
 			}
 			nc.VGs[ResourceName(vgName)] = vg
 			log.V(6).Infof("[UpdateLVM]updated pv %s: VG info: old size => %d, new size => %d for vg %s ",
 				pv.Name, oldRequest, vg.Requested, vgName)
 		} else {
 			// ideally, this path should never be reached
-			// log.Errorf("[UpdateLVM]no vg %s found in node cache when updating pv %s", vgName, pv.Name)
-			nc.AllocatedNum += 1
 			log.V(6).Infof("[UpdateLVM]vg %s not found in NodeCache", vgName)
 		}
 		nc.LocalPVs[pv.Name] = *pv

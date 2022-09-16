@@ -221,12 +221,12 @@ func GetAllocatedInfoFromPVAnnotation(pv *corev1.PersistentVolume) (*PVAllocated
 		return nil, nil
 	}
 
-	infoJson, ok := pv.Annotations[AnnotationPVAllocatedInfoKey]
+	infoJSON, ok := pv.Annotations[AnnotationPVAllocatedInfoKey]
 	if !ok {
 		return nil, nil
 	}
 	info := PVAllocatedInfo{}
-	if err := json.Unmarshal([]byte(infoJson), &info); err != nil {
+	if err := json.Unmarshal([]byte(infoJSON), &info); err != nil {
 		return nil, err
 	}
 	return &info, nil

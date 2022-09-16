@@ -239,11 +239,13 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 }
 
 func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
-	sourceDevice := ""
 	targetPath := req.TargetPath
-	if value, ok := req.VolumeContext[string(pkg.VolumeTypeDevice)]; ok {
-		sourceDevice = value
+	pvName := req.VolumeContext[pkg.PVName]
+	pv, err := ns.options.kubeclient.CoreV1().PersistentVolumes().Get(context.Background(), pvName, metav1.GetOptions{})
+	if err != nil {
+		return err
 	}
+	sourceDevice := utils.GetDeviceNameFromCsiPV(pv)
 	if sourceDevice == "" {
 		return fmt.Errorf("mountDeviceVolumeFS: mount device %s with empty source path", req.VolumeId)
 	}
@@ -285,16 +287,17 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 
 func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	// Step 1: get targetPath and sourceDevice
-	targetPath := req.GetTargetPath()
-	sourceDevice, exists := req.VolumeContext[string(pkg.VolumeTypeDevice)]
-	if !exists {
-		return fmt.Errorf("mountDeviceVolumeBlock: Device path not provided, volume id is %s", req.VolumeId)
+	targetPath := req.TargetPath
+	pvName := req.VolumeContext[pkg.PVName]
+	pv, err := ns.options.kubeclient.CoreV1().PersistentVolumes().Get(context.Background(), pvName, metav1.GetOptions{})
+	if err != nil {
+		return err
 	}
+	sourceDevice := utils.GetDeviceNameFromCsiPV(pv)
 	log.Infof("mountDeviceVolumeBlock: targetPath %s, sourceDevice %s", targetPath, sourceDevice)
 
 	// Step 2: check if sourceDevice is block device
 	var isBlock bool
-	var err error
 	if isBlock, err = utils.IsBlockDevice(sourceDevice); err != nil {
 		if removeErr := os.Remove(targetPath); removeErr != nil {
 			return fmt.Errorf("mountDeviceVolumeBlock: fail to remove mount target %q: %v", targetPath, removeErr)

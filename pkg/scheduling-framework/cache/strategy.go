@@ -17,10 +17,12 @@ package cache
 
 import (
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	"k8s.io/klog/v2"
-	"sort"
 )
 
 type VGScheduleStrategy interface {
@@ -127,7 +129,15 @@ func allocatePVCWithoutVgName(nodeName string, vgStates *[]*VGStoragePool, pvcIn
 			VGName: vg.Name,
 		}, nil
 	}
-	return nil, fmt.Errorf("allocate for pvc(%s) fail, all vg(%+v) allocate fail on node(%s)", utils.PVCName(pvcInfo.PVC), vgStateList, nodeName)
+	return nil, fmt.Errorf("allocate for pvc(%s) fail, all vg allocate fail on node(%s): %s", utils.PVCName(pvcInfo.PVC), nodeName, vgStateListToString(vgStateList))
+}
+
+func vgStateListToString(vgStates []*VGStoragePool) string {
+	var info string
+	for _, vgState := range vgStates {
+		info = strings.Join([]string{info, fmt.Sprintf("%v", vgState)}, ",")
+	}
+	return info
 }
 
 func scoreByCapacity(nodeAllocate *NodeAllocateState, scoreWeightFunc vgScoreWeightFunc) (score int64) {

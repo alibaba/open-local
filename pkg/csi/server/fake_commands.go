@@ -31,7 +31,10 @@ type FakeCommands struct{}
 func (fake *FakeCommands) ListLV(listspec string) ([]*lib.LV, error) {
 	return []*lib.LV{
 		{
-			Name: "newLV",
+			Name: "test-pv",
+		},
+		{
+			Name: "test-content",
 		},
 	}, nil
 }

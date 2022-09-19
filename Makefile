@@ -25,6 +25,11 @@ all: test fmt vet build
 test:
 	$(GO_TEST) ./...
 
+.PHONY: coverage
+coverage:
+	$(GO_TEST) -coverprofile=covprofile ./... 
+	$(GO_CMD) tool cover -html=covprofile -o coverage.html
+
 .PHONY: build
 build:
 	CGO_ENABLED=0 $(GO_BUILD) $(LD_FLAGS) -v -o $(OUTPUT_DIR)/$(NAME) $(MAIN_FILE)

@@ -36,6 +36,8 @@ func (adapter *FakeAdapter) ScheduleVolume(volumeType, pvcName, pvcNamespace, vg
 	return &pkg.BindingInfo{
 		Node:                  nodeID,
 		VgName:                vgName,
+		Disk:                  "/mnt/data/data-0",
+		Device:                "/dev/sdd",
 		VolumeType:            volumeType,
 		PersistentVolumeClaim: fmt.Sprintf("%s/%s", pvcNamespace, pvcName),
 	}, nil

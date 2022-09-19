@@ -2,6 +2,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/alibaba/open-local)](https://goreportcard.com/report/github.com/alibaba/open-local)
 ![workflow build](https://github.com/alibaba/open-local/actions/workflows/build.yml/badge.svg)
+[![codecov](https://codecov.io/gh/alibaba/open-local/branch/main/graphs/badge.svg)](https://codecov.io/gh/alibaba/open-local)
 
 English | [简体中文](./README_zh_CN.md)
 

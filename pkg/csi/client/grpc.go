@@ -35,12 +35,12 @@ import (
 
 // Connection lvm connection interface
 type Connection interface {
-	GetLvm(ctx context.Context, volGroup string, volumeID string) (string, error)
-	CreateLvm(ctx context.Context, opt *LVMOptions) (string, error)
-	DeleteLvm(ctx context.Context, volGroup string, volumeID string) error
+	GetVolume(ctx context.Context, volGroup string, volumeID string) (string, error)
+	CreateVolume(ctx context.Context, opt *LVMOptions) (string, error)
+	DeleteVolume(ctx context.Context, volGroup string, volumeID string) error
 	CreateSnapshot(ctx context.Context, volGroup string, snapVolumeID string, volumeID string, size uint64) (string, error)
 	DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string) error
-	ExpandLvm(ctx context.Context, volGroup string, volumeID string, size uint64) error
+	ExpandVolume(ctx context.Context, volGroup string, volumeID string, size uint64) error
 	CleanPath(ctx context.Context, path string) error
 	CleanDevice(ctx context.Context, device string) error
 	Close() error
@@ -132,7 +132,7 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	}
 }
 
-func (c *workerConnection) CreateLvm(ctx context.Context, opt *LVMOptions) (string, error) {
+func (c *workerConnection) CreateVolume(ctx context.Context, opt *LVMOptions) (string, error) {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.CreateLVRequest{
 		VolumeGroup: opt.VolumeGroup,
@@ -169,7 +169,7 @@ func (c *workerConnection) CreateSnapshot(ctx context.Context, volGroup string, 
 	return rsp.GetCommandOutput(), nil
 }
 
-func (c *workerConnection) GetLvm(ctx context.Context, volGroup string, volumeID string) (string, error) {
+func (c *workerConnection) GetVolume(ctx context.Context, volGroup string, volumeID string) (string, error) {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.ListLVRequest{
 		VolumeGroup: fmt.Sprintf("%s/%s", volGroup, volumeID),
@@ -180,15 +180,19 @@ func (c *workerConnection) GetLvm(ctx context.Context, volGroup string, volumeID
 		log.Errorf("Get Lvm with error: %s", err.Error())
 		return "", err
 	}
-	if len(rsp.GetVolumes()) <= 0 {
-		log.Warningf("Volume %s/%s is not exist", volGroup, volumeID)
-		return "", nil
-	}
 	log.V(6).Infof("Get Lvm with result: %+v", rsp.Volumes)
-	return rsp.GetVolumes()[0].String(), nil
+
+	for _, volume := range rsp.GetVolumes() {
+		if volume.Name == volumeID {
+			return volumeID, nil
+		}
+	}
+
+	log.Warningf("Volume %s/%s is not exist", volGroup, volumeID)
+	return "", nil
 }
 
-func (c *workerConnection) DeleteLvm(ctx context.Context, volGroup, volumeID string) error {
+func (c *workerConnection) DeleteVolume(ctx context.Context, volGroup, volumeID string) error {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.RemoveLVRequest{
 		VolumeGroup: volGroup,
@@ -246,7 +250,7 @@ func (c *workerConnection) CleanDevice(ctx context.Context, device string) error
 	return err
 }
 
-func (c *workerConnection) ExpandLvm(ctx context.Context, volGroup string, volumeID string, size uint64) error {
+func (c *workerConnection) ExpandVolume(ctx context.Context, volGroup string, volumeID string, size uint64) error {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.ExpandLVRequest{
 		VolumeGroup: volGroup,

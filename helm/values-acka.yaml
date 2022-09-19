@@ -1,6 +1,7 @@
 name: yoda
 namespace: kube-system
 driver: yodaplugin.csi.alibabacloud.com
+customLabels: {}
 images:
   local:
     image: ecp_builder/open-local

@@ -14,19 +14,16 @@ kind: DaemonSet
 metadata:
   name: {{ .Values.name }}-agent
   namespace: {{ .Values.namespace }}
-  labels:
-    app: {{ .Values.name }}
-    component: {{ .Values.name }}-agent
+{{ include "local.labels" . | indent 2 }}
+    app.kubernetes.io/component: {{ .Values.name }}-agent
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.name }}
-      component: {{ .Values.name }}-agent
+      app.kubernetes.io/component: {{ .Values.name }}-agent
   template:
     metadata:
-      labels:
-        app: {{ .Values.name }}
-        component: {{ .Values.name }}-agent
+{{ include "local.labels" . | indent 6 }}
+        app.kubernetes.io/component: {{ .Values.name }}-agent
     spec:
       tolerations:
       - operator: Exists

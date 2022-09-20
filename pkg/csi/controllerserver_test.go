@@ -31,7 +31,7 @@ import (
 	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	fakesnapclientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"golang.org/x/net/context"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
@@ -96,7 +96,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 	pvcSnapshotForExtender.SetAnnotations(map[string]string{
 		pkg.AnnoSelectedNode: utils.NodeName4,
 	})
-	pvcs := []*v1.PersistentVolumeClaim{
+	pvcs := []*corev1.PersistentVolumeClaim{
 		pvcForFW,
 		pvcWithouNodeNameForFW,
 		pvcForExtender,
@@ -108,21 +108,21 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 	snapshotName := "test-snapshot"
 	snapshotContentName := "test-content"
 	snapshotClassName := "test-snapshotclass"
-	pv := &v1.PersistentVolume{
+	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvName,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      pvcForExtender.Name,
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:   "newVG",
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
@@ -160,7 +160,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 			VolumeSnapshotClassName: &snapshotClassName,
 			DeletionPolicy:          volumesnapshotv1.VolumeSnapshotContentDelete,
 			Driver:                  pkg.ProvisionerName,
-			VolumeSnapshotRef: v1.ObjectReference{
+			VolumeSnapshotRef: corev1.ObjectReference{
 				Namespace: "default",
 				Name:      snapshotName,
 			},
@@ -705,35 +705,35 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 	pvNameLVMForSnapshot := "test-pv-snapshot"
 	pvNameMountPoint := "test-pv-mp"
 	pvNameDevice := "test-pv-device"
-	pv := &v1.PersistentVolume{
+	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvNameLVM,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:   "newVG",
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -743,21 +743,21 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			},
 		},
 	}
-	pvSnapshot := &v1.PersistentVolume{
+	pvSnapshot := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvNameLVMForSnapshot,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:           "newVG",
 						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
@@ -766,14 +766,14 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -783,35 +783,35 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			},
 		},
 	}
-	pvMountPoint := &v1.PersistentVolume{
+	pvMountPoint := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvNameMountPoint,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						string(pkg.VolumeTypeMountPoint): "/mnt/data/data-0",
 						pkg.VolumeTypeKey:                string(pkg.VolumeTypeMountPoint),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -821,35 +821,35 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			},
 		},
 	}
-	pvDevice := &v1.PersistentVolume{
+	pvDevice := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvNameDevice,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						string(pkg.VolumeTypeDevice): "/dev/sdd",
 						pkg.VolumeTypeKey:            string(pkg.VolumeTypeDevice),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -859,7 +859,7 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			},
 		},
 	}
-	pvs := []*v1.PersistentVolume{
+	pvs := []*corev1.PersistentVolume{
 		pv,
 		pvSnapshot,
 		pvMountPoint,
@@ -1010,35 +1010,35 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 
 	pvName := "test-pv"
 	snapshotContentName := "test-content"
-	pv := &v1.PersistentVolume{
+	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvName,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:   "newVG",
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -1262,35 +1262,35 @@ func Test_controllerServer_DeleteSnapshot(t *testing.T) {
 	pvName := "test-pv"
 	snapshotContentName := "test-content"
 	snapshotClassName := "test-snapshotclass"
-	pv := &v1.PersistentVolume{
+	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvName,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:   "newVG",
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},
@@ -1316,7 +1316,7 @@ func Test_controllerServer_DeleteSnapshot(t *testing.T) {
 			VolumeSnapshotClassName: &snapshotClassName,
 			DeletionPolicy:          volumesnapshotv1.VolumeSnapshotContentDelete,
 			Driver:                  pkg.ProvisionerName,
-			VolumeSnapshotRef: v1.ObjectReference{
+			VolumeSnapshotRef: corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testsnap",
 			},
@@ -1424,35 +1424,35 @@ func Test_controllerServer_ControllerExpandVolume(t *testing.T) {
 	}
 
 	pvName := "test-pv"
-	pv := &v1.PersistentVolume{
+	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvName,
 		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("150Gi"),
+		Spec: corev1.PersistentVolumeSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("150Gi"),
 			},
-			ClaimRef: &v1.ObjectReference{
+			ClaimRef: &corev1.ObjectReference{
 				Namespace: "default",
 				Name:      "testpvc",
 			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
 						pkg.ParamVGName:   "newVG",
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
 					},
 				},
 			},
-			NodeAffinity: &v1.VolumeNodeAffinity{
-				Required: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
 						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
 								{
 									Key:      pkg.KubernetesNodeIdentityKey,
-									Operator: v1.NodeSelectorOpIn,
+									Operator: corev1.NodeSelectorOpIn,
 									Values:   []string{utils.NodeName4},
 								},
 							},

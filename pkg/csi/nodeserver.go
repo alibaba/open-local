@@ -19,7 +19,6 @@ package csi
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -47,11 +46,12 @@ import (
 )
 
 type nodeServer struct {
-	k8smounter           mountutils.SafeFormatAndMount
+	k8smounter           *mountutils.SafeFormatAndMount
 	ephemeralVolumeStore Store
 	inFlight             *InFlight
 	spdkSupported        bool
 	spdkclient           *spdk.SpdkClient
+	osTool               OSTool
 
 	options *driverOptions
 }
@@ -63,13 +63,14 @@ func newNodeServer(options *driverOptions) *nodeServer {
 	}
 
 	ns := &nodeServer{
-		k8smounter: mountutils.SafeFormatAndMount{
+		k8smounter: &mountutils.SafeFormatAndMount{
 			Interface: mountutils.New(""),
 			Exec:      utilexec.New(),
 		},
 		ephemeralVolumeStore: store,
 		inFlight:             NewInFlight(),
 		spdkSupported:        false,
+		osTool:               NewOSTool(),
 		options:              options,
 	}
 
@@ -99,7 +100,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if _, ok := req.VolumeContext[VolumeTypeTag]; ok {
 		volumeType = req.VolumeContext[VolumeTypeTag]
 	}
-	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+	ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 	if ephemeralVolume {
 		_, vgNameExist := req.VolumeContext[localtype.ParamVGName]
 		if !vgNameExist {
@@ -215,7 +216,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
-	if err := mountutils.CleanupMountPoint(targetPath, ns.k8smounter, true /*extensiveMountPointCheck*/); err != nil {
+	if err := ns.osTool.CleanupMountPoint(targetPath, ns.k8smounter, true /*extensiveMountPointCheck*/); err != nil {
 		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s", volumeID, targetPath, err.Error())
 	}
 
@@ -227,7 +228,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		if ns.spdkSupported {
 			err = ns.spdkclient.CleanBdev(ephemeralDevice)
 		} else {
-			err = removeLVMByDevicePath(ephemeralDevice)
+			err = ns.removeLVMByDevicePath(ephemeralDevice)
 		}
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to remove ephemeral volume: %s", err.Error())
@@ -253,11 +254,18 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
+// called with args {VolumeId:yoda-7825af6f-ea0a-4047-8704-7576dfe8d201 VolumePath:/var/lib/kubelet/pods/2ba91d3a-1b97-4d72-9dd9-be98aebbfe62/volumes/kubernetes.io~csi/yoda-7825af6f-ea0a-4047-8704-7576dfe8d201/mount CapacityRange:required_bytes:21474836480  StagingTargetPath:/var/lib/kubelet/plugins/kubernetes.io/csi/pv/yoda-7825af6f-ea0a-4047-8704-7576dfe8d201/globalmount VolumeCapability:mount:<fs_type:"ext4" > access_mode:<mode:SINGLE_NODE_WRITER >  XXX_NoUnkeyedLiteral:{} XXX_unrecognized:[] XXX_sizecache:0}
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (
 	*csi.NodeExpandVolumeResponse, error) {
 	log.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
 	volumeID := req.VolumeId
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeExpandVolume: Volume ID not provided")
+	}
 	targetPath := req.VolumePath
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeExpandVolume: Target path not provided")
+	}
 	expectSize := req.CapacityRange.RequiredBytes
 	if !ns.spdkSupported {
 		if err := ns.resizeVolume(ctx, volumeID, targetPath); err != nil {
@@ -343,8 +351,8 @@ func (ns *nodeServer) mountBlockDevice(device, targetPath string) error {
 	} else {
 		log.Infof("mounting %s at %s", device, targetPath)
 
-		if err := utils.MountBlock(device, targetPath, mountOptions...); err != nil {
-			if removeErr := os.Remove(targetPath); removeErr != nil {
+		if err := ns.osTool.MountBlock(device, targetPath, mountOptions...); err != nil {
+			if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 				log.Errorf("Remove mount target %s failed: %s", targetPath, removeErr.Error())
 				return status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, removeErr)
 			}
@@ -364,7 +372,7 @@ func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePubl
 
 			ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(req.VolumeId)
 			if exist && ephemeralDevice != "" {
-				if err := removeLVMByDevicePath(ephemeralDevice); err != nil {
+				if err := ns.removeLVMByDevicePath(ephemeralDevice); err != nil {
 					log.Errorf("fail to remove lvm device (%s): %s", ephemeralDevice, err.Error())
 				}
 			}
@@ -391,7 +399,7 @@ func (ns *nodeServer) publishDirectVolume(ctx context.Context, req *csi.NodePubl
 			return status.Errorf(codes.Internal, "publishDirectVolume - create logical volume failed: %s", err.Error())
 		}
 
-		ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+		ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 		if ephemeralVolume {
 			if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, device); err != nil {
 				log.Errorf("fail to add volume: %s", err.Error())
@@ -478,7 +486,7 @@ func (ns *nodeServer) publishSpdkVolume(ctx context.Context, req *csi.NodePublis
 				}
 			}
 
-			ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+			ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 			if ephemeralVolume {
 				if err := ns.ephemeralVolumeStore.AddVolume(volumeID, bdevName); err != nil {
 					if err := ns.spdkclient.CleanBdev(bdevName); err != nil {
@@ -569,9 +577,7 @@ func (ns *nodeServer) resizeVolume(ctx context.Context, volumeID, targetPath str
 
 		log.Infof("NodeExpandVolume:: volumeId: %s, devicePath: %s", volumeID, devicePath)
 
-		// use resizer to expand volume filesystem
-		resizer := mountutils.NewResizeFs(utilexec.New())
-		ok, err := resizer.Resize(devicePath, targetPath)
+		ok, err := ns.osTool.ResizeFS(devicePath, targetPath)
 		if err != nil {
 			return fmt.Errorf("NodeExpandVolume: Lvm Resize Error, volumeId: %s, devicePath: %s, volumePath: %s, err: %s", volumeID, devicePath, targetPath, err.Error())
 		}

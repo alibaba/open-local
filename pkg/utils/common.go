@@ -181,7 +181,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
+	if v, ok := csi.VolumeAttributes[string(localtype.DeviceName)]; ok {
 		return v
 	}
 	log.V(6).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")

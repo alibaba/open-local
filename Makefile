@@ -23,10 +23,6 @@ all: test fmt vet build
 
 .PHONY: test
 test:
-	$(GO_TEST) ./...
-
-.PHONY: coverage
-coverage:
 	$(GO_TEST) -coverprofile=covprofile ./... 
 	$(GO_CMD) tool cover -html=covprofile -o coverage.html
 

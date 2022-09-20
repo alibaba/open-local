@@ -1,7 +1,6 @@
 package csi
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,8 +24,7 @@ import (
 
 func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRequest) (string, string, error) {
 	vgName := ""
-	ephemeralVolume := req.VolumeContext["csi.storage.k8s.io/ephemeral"] == "true" ||
-		req.VolumeContext["csi.storage.k8s.io/ephemeral"] == ""
+	ephemeralVolume := req.VolumeContext[pkg.Ephemeral] == "true"
 	if ephemeralVolume {
 		vgName = req.VolumeContext[pkg.VGName]
 	} else {
@@ -61,7 +59,7 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 		}
 	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
-	if _, err := os.Stat(devicePath); os.IsNotExist(err) {
+	if _, err := ns.osTool.Stat(devicePath); os.IsNotExist(err) {
 		newDev, bdevName, err := ns.createVolume(req.VolumeContext, volumeID, vgName, lvmType)
 		if err != nil {
 			log.Errorf("createLV: create volume %s with error: %s", volumeID, err.Error())
@@ -78,6 +76,18 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 	return devicePath, "", nil
 }
 
+func collectMountOptions(fsType string, mntFlags []string) []string {
+	var options []string
+	options = append(options, mntFlags...)
+
+	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.
+	// Force ignore this uuid to be able to mount volume + its clone / restored snapshot on the same node.
+	if fsType == "xfs" {
+		options = append(options, "nouuid")
+	}
+	return options
+}
+
 // include normal lvm & aep lvm type
 func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	// Step 1:
@@ -87,11 +97,6 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	devicePath, _, err := ns.createLV(ctx, req)
 	if err != nil {
 		return err
-	}
-	// fs type
-	fsType := req.GetVolumeCapability().GetMount().FsType
-	if len(fsType) == 0 {
-		fsType = DefaultFs
 	}
 
 	// Step 2: check
@@ -106,8 +111,8 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		}
 	}
 	// check targetPath
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(targetPath, 0750); err != nil {
+	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
+		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
 			return fmt.Errorf("mountLvmFS: fail to mkdir target path %s: %s", targetPath, err.Error())
 		}
 	}
@@ -118,6 +123,11 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	}
 	// Step 3: mount if not mounted
 	if notMounted {
+		// fs type
+		fsType := req.GetVolumeCapability().GetMount().FsType
+		if len(fsType) == 0 {
+			fsType = DefaultFs
+		}
 		var options []string
 		if req.GetReadonly() || isSnapshotReadOnly {
 			options = append(options, "ro")
@@ -126,6 +136,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		}
 		mountFlags := req.GetVolumeCapability().GetMount().GetMountFlags()
 		options = append(options, mountFlags...)
+		options = append(options, collectMountOptions(fsType, options)...)
 
 		if err := ns.k8smounter.FormatAndMount(devicePath, targetPath, fsType, options); err != nil {
 			return fmt.Errorf("mountLvmFS: fail to format and mount volume(volume id:%s, device path: %s): %s", req.VolumeId, devicePath, err.Error())
@@ -134,7 +145,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	}
 
 	// Step 4: record
-	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+	ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 	if ephemeralVolume {
 		if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, devicePath); err != nil {
 			log.Errorf("mountLvmFS: fail to add volume: %s", err.Error())
@@ -156,8 +167,8 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 	// Step 2: check
 	// check if devicePath is block device
 	var isBlock bool
-	if isBlock, err = utils.IsBlockDevice(devicePath); err != nil {
-		if removeErr := os.Remove(targetPath); removeErr != nil {
+	if isBlock, err = ns.osTool.IsBlockDevice(devicePath); err != nil {
+		if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 			return fmt.Errorf("mountLvmBlock: fail to remove mount target %q: %v", targetPath, removeErr)
 		}
 		return fmt.Errorf("mountLvmBlock: check block device %s failed: %s", devicePath, err)
@@ -177,14 +188,14 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 	}
 	if notMounted {
 		log.Infof("mountLvmBlock: mounting %s at %s", devicePath, targetPath)
-		if err := utils.EnsureBlock(targetPath); err != nil {
-			if removeErr := os.Remove(targetPath); removeErr != nil {
+		if err := ns.osTool.EnsureBlock(targetPath); err != nil {
+			if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 				return status.Errorf(codes.Internal, "mountLvmBlock: fail to remove mount target %q: %v", targetPath, removeErr)
 			}
 			return status.Errorf(codes.Internal, "mountLvmBlock: ensure block %s failed: %s", targetPath, err.Error())
 		}
-		if err := utils.MountBlock(devicePath, targetPath, mountOptions...); err != nil {
-			if removeErr := os.Remove(targetPath); removeErr != nil {
+		if err := ns.osTool.MountBlock(devicePath, targetPath, mountOptions...); err != nil {
+			if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 				return status.Errorf(codes.Internal, "mountLvmBlock: fail to remove mount target %q: %v", targetPath, removeErr)
 			}
 			return status.Errorf(codes.Internal, "mountLvmBlock: fail to mount block %s at %s: %s", devicePath, targetPath, err)
@@ -199,7 +210,7 @@ func (ns *nodeServer) mountLvmBlock(ctx context.Context, req *csi.NodePublishVol
 func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
 	sourcePath := ""
 	targetPath := req.TargetPath
-	if value, ok := req.VolumeContext[string(pkg.VolumeTypeMountPoint)]; ok {
+	if value, ok := req.VolumeContext[string(pkg.MPName)]; ok {
 		sourcePath = value
 	}
 	if sourcePath == "" {
@@ -209,7 +220,7 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 	notmounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(targetPath, 0750); err != nil {
+			if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
 				return fmt.Errorf("mountMountPointVolume: fail to mkdir %s: %s", targetPath, err.Error())
 			}
 		} else {
@@ -250,15 +261,9 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 		return fmt.Errorf("mountDeviceVolumeFS: mount device %s with empty source path", req.VolumeId)
 	}
 
-	// Step Start to format
-	// fs type
-	fsType := req.GetVolumeCapability().GetMount().FsType
-	if len(fsType) == 0 {
-		fsType = DefaultFs
-	}
 	// Check targetPath
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(targetPath, 0750); err != nil {
+	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
+		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
 			return fmt.Errorf("mountDeviceVolumeFS: fail to mkdir %s : %s", targetPath, err.Error())
 		}
 	}
@@ -268,6 +273,11 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 		return fmt.Errorf("mountDeviceVolumeFS: fail to check if %s is mounted: %s", targetPath, err.Error())
 	}
 	if notMounted {
+		// fs type
+		fsType := req.GetVolumeCapability().GetMount().FsType
+		if len(fsType) == 0 {
+			fsType = DefaultFs
+		}
 		var options []string
 		if req.GetReadonly() {
 			options = append(options, "ro")
@@ -276,6 +286,8 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 		}
 		mountFlags := req.GetVolumeCapability().GetMount().GetMountFlags()
 		options = append(options, mountFlags...)
+		options = append(options, collectMountOptions(fsType, options)...)
+
 		if err := ns.k8smounter.FormatAndMount(sourceDevice, targetPath, fsType, options); err != nil {
 			return fmt.Errorf("mountDeviceVolumeFS: fail to format and mount volume(volume id:%s, device path: %s): %s", req.VolumeId, sourceDevice, err.Error())
 		}
@@ -298,8 +310,8 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 
 	// Step 2: check if sourceDevice is block device
 	var isBlock bool
-	if isBlock, err = utils.IsBlockDevice(sourceDevice); err != nil {
-		if removeErr := os.Remove(targetPath); removeErr != nil {
+	if isBlock, err = ns.osTool.IsBlockDevice(sourceDevice); err != nil {
+		if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 			return fmt.Errorf("mountDeviceVolumeBlock: fail to remove mount target %q: %v", targetPath, removeErr)
 		}
 		return fmt.Errorf("mountDeviceVolumeBlock: fail to check block device %s: %s", sourceDevice, err)
@@ -321,14 +333,14 @@ func (ns *nodeServer) mountDeviceVolumeBlock(ctx context.Context, req *csi.NodeP
 	}
 	if notMounted {
 		log.Infof("mountDeviceVolumeBlock: mounting %s at %s", sourceDevice, targetPath)
-		if err := utils.EnsureBlock(targetPath); err != nil {
-			if removeErr := os.Remove(targetPath); removeErr != nil {
+		if err := ns.osTool.EnsureBlock(targetPath); err != nil {
+			if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 				return fmt.Errorf("mountDeviceVolumeBlock: fail to remove mount target %q: %s", targetPath, removeErr.Error())
 			}
 			return fmt.Errorf("mountDeviceVolumeBlock: fail to ensure block %s: %s", targetPath, err.Error())
 		}
-		if err := utils.MountBlock(sourceDevice, targetPath, mountOptions...); err != nil {
-			if removeErr := os.Remove(targetPath); removeErr != nil {
+		if err := ns.osTool.MountBlock(sourceDevice, targetPath, mountOptions...); err != nil {
+			if removeErr := ns.osTool.Remove(targetPath); removeErr != nil {
 				return fmt.Errorf("mountDeviceVolumeBlock: fail to remove mount target %q: %v", targetPath, removeErr)
 			}
 			return fmt.Errorf("mountDeviceVolumeBlock: fail to mount block %s at %s: %s", sourceDevice, targetPath, err)
@@ -345,8 +357,7 @@ func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vg
 	var err error
 	var pvSize int64
 	var unit string
-	ephemeralVolume := volumeContext["csi.storage.k8s.io/ephemeral"] == "true" ||
-		volumeContext["csi.storage.k8s.io/ephemeral"] == ""
+	ephemeralVolume := volumeContext[pkg.Ephemeral] == "true"
 	if ephemeralVolume {
 		sizeStr, exist := volumeContext[localtype.ParamLVSize]
 		if !exist {
@@ -368,7 +379,7 @@ func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vg
 	// check vg exist
 	if !ns.spdkSupported {
 		ckCmd := fmt.Sprintf("%s vgck %s", localtype.NsenterCmd, vgName)
-		_, err = utils.Run(ckCmd)
+		_, err = ns.osTool.RunCommand(ckCmd)
 		if err != nil {
 			log.Errorf("createVolume:: VG is not exist: %s", vgName)
 			return "", "", err
@@ -392,7 +403,7 @@ func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vg
 			}
 		}
 
-		ephemeralVolume := volumeContext["csi.storage.k8s.io/ephemeral"] == "true"
+		ephemeralVolume := volumeContext[pkg.Ephemeral] == "true"
 		if ephemeralVolume {
 			if err := ns.ephemeralVolumeStore.AddVolume(volumeID, bdevName); err != nil {
 				log.Error("fail to add volume: ", err.Error())
@@ -406,23 +417,22 @@ func (ns *nodeServer) createVolume(volumeContext map[string]string, volumeID, vg
 		log.Infof("createVolume: Volume: %s, VG: %s, Size: %d, lvName: %s, dev: %s", volumeID, vgName, pvSize, lvName, newDev)
 		return newDev, bdevName, nil
 	} else {
-		if err := createLvm(vgName, volumeID, lvmType, unit, pvSize); err != nil {
+		if err := ns.createLvm(vgName, volumeID, lvmType, unit, pvSize); err != nil {
 			return "", "", err
 		}
 	}
 	return "", "", nil
 }
 
-func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
+func (ns *nodeServer) createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 	// Create lvm volume
 	if lvmType == StripingType {
 		pvNumber := getPVNumber(vgName)
 		if pvNumber == 0 {
-			log.Errorf("createVolume:: VG is exist: %s, bug get pv number as 0", vgName)
-			return errors.New("")
+			return fmt.Errorf("createVolume:: VG is exist: %s, bug get pv number as 0", vgName)
 		}
 		cmd := fmt.Sprintf("%s lvcreate -i %d -n %s -L %d%s %s", localtype.NsenterCmd, pvNumber, volumeID, pvSize, unit, vgName)
-		_, err := utils.Run(cmd)
+		_, err := ns.osTool.RunCommand(cmd)
 		if err != nil {
 			log.Errorf("createVolume:: lvcreate command %s error: %v", cmd, err)
 			return err
@@ -430,7 +440,7 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 		log.Infof("Successful Create Striping LVM volume: %s, with command: %s", volumeID, cmd)
 	} else if lvmType == LinearType {
 		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s -Wy -y %s", localtype.NsenterCmd, volumeID, pvSize, unit, vgName)
-		_, err := utils.Run(cmd)
+		_, err := ns.osTool.RunCommand(cmd)
 		if err != nil {
 			log.Errorf("createVolume:: lvcreate linear command %s error: %v", cmd, err)
 			return err
@@ -440,9 +450,9 @@ func createLvm(vgName, volumeID, lvmType, unit string, pvSize int64) error {
 	return nil
 }
 
-func removeLVMByDevicePath(devicePath string) error {
+func (ns *nodeServer) removeLVMByDevicePath(devicePath string) error {
 	cmd := fmt.Sprintf("%s lvremove -v -f %s", localtype.NsenterCmd, devicePath)
-	_, err := utils.Run(cmd)
+	_, err := ns.osTool.RunCommand(cmd)
 	if err != nil {
 		log.Errorf("removeLVMByDevicePath:: lvremove command %s error: %v", cmd, err)
 		return err
@@ -475,11 +485,7 @@ func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1
 	}
 	pvQuantity := pv.Spec.Capacity["storage"]
 	pvSize := pvQuantity.Value()
-	//pvSizeGB := pvSize / (1024 * 1024 * 1024)
 
-	//if pvSizeGB == 0 {
 	pvSizeMB := pvSize / (1024 * 1024)
 	return pvSizeMB, "m", pv, nil
-	//}
-	//return pvSizeGB, "g", pv
 }

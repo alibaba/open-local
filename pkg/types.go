@@ -70,6 +70,7 @@ const (
 	PVName       = "csi.storage.k8s.io/pv/name"
 	PVCName      = "csi.storage.k8s.io/pvc/name"
 	PVCNameSpace = "csi.storage.k8s.io/pvc/namespace"
+	Ephemeral    = "csi.storage.k8s.io/ephemeral"
 	VGName       = "vgName"
 	MPName       = "MountPoint"
 	DeviceName   = "Device"

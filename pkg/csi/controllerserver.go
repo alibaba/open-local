@@ -153,11 +153,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pvc: %s", err.Error())
 	}
-	nodeSelected, exist := pvc.Annotations[pkg.AnnoSelectedNode]
+	nodeName, exist := pvc.Annotations[pkg.AnnoSelectedNode]
 	if !exist {
 		return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no annotation %s found in pvc %s/%s. Check if volumeBindingMode of storageclass is WaitForFirstConsumer, cause we only support WaitForFirstConsumer mode", pkg.AnnoSelectedNode, pvcNameSpace, pvcName)
 	}
-	log.Infof("CreateVolume: starting to Create %s volume %s with: PVC(%s/%s), nodeSelected(%s)", volumeType, volumeID, pvcNameSpace, pvcName, nodeSelected)
+	log.Infof("CreateVolume: starting to Create %s volume %s with: PVC(%s/%s), nodeSelected(%s)", volumeType, volumeID, pvcNameSpace, pvcName, nodeName)
 
 	// Step 3: Storage schedule
 	if ok := cs.inFlight.Insert(volumeID); !ok {
@@ -204,16 +204,16 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
 			}
-			_, selectedVG, err := getInfoFromPV(pv)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv spec: %s", err.Error())
+			vgName := utils.GetVGNameFromCsiPV(pv)
+			if vgName == "" {
+				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get vgName from pv %s", pv.Name)
 			}
 			// set paraList for NodeStageVolume and NodePublishVolume
 			isSnapshot = true
-			paramMap[VgNameTag] = selectedVG
+			paramMap[VgNameTag] = vgName
 			paramMap[localtype.ParamSnapshotName] = snapshotID
 			paramMap[localtype.ParamSnapshotReadonly] = "true"
-			log.Infof("CreateVolume: get snapshot volume %s info: node(%s) storageSelected(%s)", volumeID, nodeSelected, selectedVG)
+			log.Infof("CreateVolume: get snapshot volume %s info: node(%s) storageSelected(%s)", volumeID, nodeName, vgName)
 		} else {
 			return nil, status.Errorf(codes.Unimplemented, "unsupported snapshot %s", volumeType)
 		}
@@ -224,7 +224,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			switch volumeType {
 			case string(pkg.VolumeTypeLVM):
 				// extender scheduling
-				paramMap, err = cs.scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleLVMVolume(nodeName, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
@@ -232,65 +232,65 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 					}
 					return nil, status.Errorf(code, "CreateVolume: fail to schedule LVM %s: %s", volumeID, err.Error())
 				}
-				selectedVG := paramMap[VgNameTag]
-				log.Infof("CreateVolume: schedule LVM %s with %s, %s", volumeID, nodeSelected, selectedVG)
+				vgName := paramMap[VgNameTag]
+				log.Infof("CreateVolume: schedule LVM %s with %s, %s", volumeID, nodeName, vgName)
 
-				if selectedVG == "" {
+				if vgName == "" {
 					return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: empty vgName in %s", volumeID)
 				}
 
 				// Volume Options
 				options := &client.LVMOptions{}
 				options.Name = req.Name
-				options.VolumeGroup = selectedVG
+				options.VolumeGroup = vgName
 				if value, ok := parameters[LvmTypeTag]; ok && value == StripingType {
 					options.Striping = true
 				}
 				options.Size = uint64(req.GetCapacityRange().GetRequiredBytes())
 
 				// create lv
-				conn, err := cs.getNodeConn(nodeSelected)
+				conn, err := cs.getNodeConn(nodeName)
 				if err != nil {
-					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to connect to node %s: %s", nodeSelected, err.Error())
+					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to connect to node %s: %s", nodeName, err.Error())
 				}
 				defer conn.Close()
 
-				if lvmName, err := conn.GetLvm(ctx, selectedVG, volumeID); err != nil {
-					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get lv %s from node %s: %s", req.Name, nodeSelected, err.Error())
+				if lvName, err := conn.GetVolume(ctx, vgName, volumeID); err != nil {
+					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get lv %s from node %s: %s", req.Name, nodeName, err.Error())
 				} else {
-					if lvmName != "" {
-						outstr, err := conn.CreateLvm(ctx, options)
+					if lvName == "" {
+						outstr, err := conn.CreateVolume(ctx, options)
 						if err != nil {
-							return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s/%s(options: %v): %s", selectedVG, volumeID, options, err.Error())
+							return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s/%s(options: %v): %s", vgName, volumeID, options, err.Error())
 						}
-						log.Infof("CreateLvm: create lvm %s/%s in node %s with response %s successfully", selectedVG, volumeID, nodeSelected, outstr)
+						log.Infof("CreateLvm: create lvm %s/%s in node %s with response %s successfully", vgName, volumeID, nodeName, outstr)
 					} else {
-						log.Infof("CreateVolume: lv %s already created at node %s", req.Name, nodeSelected)
+						log.Infof("CreateVolume: lv %s already created at node %s", req.Name, nodeName)
 					}
 				}
 			case string(pkg.VolumeTypeMountPoint):
 				var err error
-				paramMap, err = cs.scheduleMountpointVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleMountpointVolume(nodeName, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
 						code = codes.ResourceExhausted
 					}
-					return nil, status.Errorf(code, "CreateVolume: fail to schedule mountpoint %s at node %s: %s", req.Name, nodeSelected, err.Error())
+					return nil, status.Errorf(code, "CreateVolume: fail to schedule mountpoint %s at node %s: %s", req.Name, nodeName, err.Error())
 				}
-				log.Infof("CreateVolume: create mountpoint %s at node %s successfully", req.Name, nodeSelected)
+				log.Infof("CreateVolume: create mountpoint %s at node %s successfully", req.Name, nodeName)
 			case string(pkg.VolumeTypeDevice):
 				var err error
 				// Node and Storage have been scheduled
-				paramMap, err = cs.scheduleDeviceVolume(nodeSelected, pvcName, pvcNameSpace, parameters)
+				paramMap, err = cs.scheduleDeviceVolume(nodeName, pvcName, pvcNameSpace, parameters)
 				if err != nil {
 					code := codes.Internal
 					if strings.Contains(err.Error(), "Insufficient") {
 						code = codes.ResourceExhausted
 					}
-					return nil, status.Errorf(code, "CreateVolume: fail to schedule device volume %s at node %s: %s", req.Name, nodeSelected, err.Error())
+					return nil, status.Errorf(code, "CreateVolume: fail to schedule device volume %s at node %s: %s", req.Name, nodeName, err.Error())
 				}
-				log.Infof("CreateVolume: create device %s at node %s successfully", req.Name, nodeSelected)
+				log.Infof("CreateVolume: create device %s at node %s successfully", req.Name, nodeName)
 			default:
 				return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no support volume type %s", volumeType)
 			}
@@ -305,7 +305,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	for key, value := range paramMap {
 		parameters[key] = value
 	}
-	parameters[pkg.AnnoSelectedNode] = nodeSelected
+	parameters[pkg.AnnoSelectedNode] = nodeName
 
 	response := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -315,7 +315,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			AccessibleTopology: []*csi.Topology{
 				{
 					Segments: map[string]string{
-						pkg.KubernetesNodeIdentityKey: nodeSelected,
+						pkg.KubernetesNodeIdentityKey: nodeName,
 					},
 				},
 			},
@@ -338,13 +338,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	log.V(4).Infof("DeleteVolume: called with args %+v", *req)
-	volumeID := req.GetVolumeId()
 	// Step 1: check request
 	if err := validateDeleteVolumeRequest(req); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "DeleteVolume: fail to validate DeleteVolumeRequest: %s", err.Error())
 	}
 
 	// Step 2: delete volume
+	volumeID := req.GetVolumeId()
 	if ok := cs.inFlight.Insert(volumeID); !ok {
 		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, volumeID)
 	}
@@ -378,29 +378,28 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		}
 	}
 
-	// Step 4: switch
+	// Step 4: get nodeName
+	nodeName := utils.GetNodeNameFromCsiPV(pv)
+	if nodeName == "" {
+		return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get node name of pv %s", pv.Name)
+	}
+	conn, err := cs.getNodeConn(nodeName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
+	}
+	defer conn.Close()
+
+	// Step 5: switch
 	volumeType := pv.Spec.CSI.VolumeAttributes[pkg.VolumeTypeKey]
 	switch volumeType {
 	case string(pkg.VolumeTypeLVM):
-		nodeName, vgName, err := getInfoFromPV(pv)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to  get pv spec %s: %s", volumeID, err.Error())
-		}
-		if nodeName == "" {
-			log.Warningf("DeleteVolume: delete local volume %s with empty node", volumeID)
-			return &csi.DeleteVolumeResponse{}, nil
-		}
+		vgName := utils.GetVGNameFromCsiPV(pv)
 		if vgName == "" {
 			log.Warningf("DeleteVolume: delete local volume %s with empty vgName", volumeID)
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		conn, err := cs.getNodeConn(nodeName)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
-		}
-		defer conn.Close()
 
-		if lvName, err := conn.GetLvm(ctx, vgName, volumeID); err != nil {
+		if lvName, err := conn.GetVolume(ctx, vgName, volumeID); err != nil {
 			if strings.Contains(err.Error(), "Failed to find logical volume") {
 				log.Warningf("DeleteVolume: lvm volume not found, skip deleting %s", volumeID)
 				return &csi.DeleteVolumeResponse{}, nil
@@ -412,7 +411,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			}
 		} else {
 			if lvName != "" {
-				if err := conn.DeleteLvm(ctx, vgName, volumeID); err != nil {
+				if err := conn.DeleteVolume(ctx, vgName, volumeID); err != nil {
 					return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete lv %s: %s", volumeID, err.Error())
 				}
 				log.Infof("DeleteVolume: delete lv %s/%s at node %s successfully", vgName, volumeID, nodeName)
@@ -422,29 +421,19 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			}
 		}
 	case string(pkg.VolumeTypeMountPoint):
-		nodeName, path, err := getNodeNameAndStorageNameFromPV(pv, string(pkg.VolumeTypeMountPoint))
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get node name and storage name: %s", err.Error())
+		path := utils.GetMountPointFromCsiPV(pv)
+		if path == "" {
+			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get mountpath of pv %s", pv.Name)
 		}
-		conn, err := cs.getNodeConn(nodeName)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
-		}
-		defer conn.Close()
 		if err := conn.CleanPath(ctx, path); err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete mountpoint: %s", err.Error())
+			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete mountpoint %s: %s", path, err.Error())
 		}
 		log.Infof("DeleteVolume: delete MountPoint volume(%s) successfully", volumeID)
 	case string(pkg.VolumeTypeDevice):
-		nodeName, device, err := getNodeNameAndStorageNameFromPV(pv, string(pkg.VolumeTypeDevice))
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get node name and storage name: %s", err.Error())
+		device := utils.GetDeviceNameFromCsiPV(pv)
+		if device == "" {
+			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to get device of pv %s", pv.Name)
 		}
-		conn, err := cs.getNodeConn(nodeName)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to connect to node %s: %s", nodeName, err.Error())
-		}
-		defer conn.Close()
 		if err := conn.CleanDevice(ctx, device); err != nil {
 			return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete device: %s", err.Error())
 		}
@@ -462,33 +451,29 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	// Step 1: check request
 	snapshotName := req.GetName()
 	if len(snapshotName) == 0 {
-		log.Error("CreateSnapshot: snapshot name not provided")
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot: snapshot name not provided")
 	}
 	srcVolumeID := req.GetSourceVolumeId()
 	if len(srcVolumeID) == 0 {
-		log.Error("CreateSnapshot: snapshot volume source ID not provided")
-		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot: snapshot volume source ID not provided")
+		return nil, status.Errorf(codes.InvalidArgument, "CreateSnapshot: snapshot %s volume source ID not provided", snapshotName)
 	}
 
 	// Step 2: get snapshot initial size from parameter
 	initialSize, _, _, err := getSnapshotInitialInfo(req.Parameters)
 	if err != nil {
-		log.Errorf("CreateSnapshot: get snapshot %s initial info error: %s", req.Name, err.Error())
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get snapshot %s initial info error: %s", req.Name, err.Error())
 	}
 
-	// Step 3: get nodeName and vgName
+	// Step 3: get vgName
 	srcPV, err := cs.pvLister.Get(srcVolumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get pv: %s", err.Error())
 	}
-	nodeName, vgName, err := getInfoFromPV(srcPV)
-	if err != nil {
-		log.Errorf("CreateSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
+	vgName := utils.GetVGNameFromCsiPV(srcPV)
+	if vgName == "" {
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get vgName of pv %s", srcPV.Name)
 	}
-	log.Infof("CreateSnapshot: snapshot %s is in %s, whose vg is %s", snapshotName, nodeName, vgName)
+	log.Infof("CreateSnapshot: vg of snapshot %s is %s", snapshotName, vgName)
 
 	// Step 4: update initialSize if initialSize is bigger than pv request size
 	srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
@@ -504,23 +489,24 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}()
 
 	// Step 5: get grpc client
+	nodeName := utils.GetNodeNameFromCsiPV(srcPV)
+	if nodeName == "" {
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get node name of pv %s", srcPV.Name)
+	}
 	conn, err := cs.getNodeConn(nodeName)
 	if err != nil {
-		log.Errorf("CreateSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
 	}
 	defer conn.Close()
 
 	// Step 6: create lvm snapshot
 	var lvmName string
-	if lvmName, err = conn.GetLvm(ctx, vgName, snapshotName); err != nil {
-		log.Errorf("CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
+	if lvmName, err = conn.GetVolume(ctx, vgName, snapshotName); err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
 	}
 	if lvmName == "" {
 		_, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, initialSize)
 		if err != nil {
-			log.Errorf("CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
 		}
 		log.Infof("CreateSnapshot: create snapshot %s successfully", snapshotName)
@@ -537,29 +523,26 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	// snapshotName is name of snapshot lv
 	snapshotName := req.GetSnapshotId()
 	if len(snapshotName) == 0 {
-		log.Error("DeleteSnapshot: Snapshot ID not provided")
 		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot: Snapshot ID not provided")
 	}
 
 	// Step 2: get volumeID from snapshot
 	snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotName)
 	if err != nil {
-		log.Errorf("DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
 	}
 	srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 
-	// Step 3: get nodeName and vgName
+	// Step 3: get vgName
 	pv, err := cs.pvLister.Get(srcVolumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get pv: %s", err.Error())
 	}
-	nodeName, vgName, err := getInfoFromPV(pv)
-	if err != nil {
-		log.Errorf("DeleteSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get pv %s error: %s", srcVolumeID, err.Error())
+	vgName := utils.GetVGNameFromCsiPV(pv)
+	if vgName == "" {
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get vgName of pv %s", pv.Name)
 	}
-	log.Infof("DeleteSnapshot: snapshot %s is in %s, whose vg is %s", snapshotName, nodeName, vgName)
+	log.Infof("DeleteSnapshot: vg of snapshot %s is %s", snapshotName, vgName)
 
 	if ok := cs.inFlight.Insert(snapshotName); !ok {
 		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, snapshotName)
@@ -569,23 +552,24 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	}()
 
 	// Step 4: get grpc client
+	nodeName := utils.GetNodeNameFromCsiPV(pv)
+	if nodeName == "" {
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get node name of pv %s", pv.Name)
+	}
 	conn, err := cs.getNodeConn(nodeName)
 	if err != nil {
-		log.Errorf("DeleteSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
 	}
 	defer conn.Close()
 
 	// Step 5: delete lvm snapshot
 	var lvmName string
-	if lvmName, err = conn.GetLvm(ctx, vgName, snapshotName); err != nil {
-		log.Errorf("DeleteSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
+	if lvmName, err = conn.GetVolume(ctx, vgName, snapshotName); err != nil {
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
 	}
 	if lvmName != "" {
 		err := conn.DeleteSnapshot(ctx, vgName, snapshotName)
 		if err != nil {
-			log.Errorf("DeleteSnapshot: delete lvm snapshot %s failed: %s", snapshotName, err.Error())
 			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: delete lvm snapshot %s failed: %s", snapshotName, err.Error())
 		}
 	} else {
@@ -602,28 +586,28 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	log.V(4).Infof("ControllerExpandVolume: called with args %+v", *req)
 
-	// Step 1: get nodeName and vgName
+	// Step 1: get vgName
 	volumeID := req.GetVolumeId()
 	pv, err := cs.pvLister.Get(volumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to get pv: %s", err.Error())
 	}
-	nodeName, vgName, err := getInfoFromPV(pv)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to get pv %s info: %s", volumeID, err.Error())
+		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to get node name of pv %s: %s", pv.Name, err.Error())
+	}
+	vgName := utils.GetVGNameFromCsiPV(pv)
+	if vgName == "" {
+		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to get vgName of pv %s", pv.Name)
 	}
 
 	// Step 2: check whether the volume can be expanded
 	volSizeBytes := int64(req.GetCapacityRange().GetRequiredBytes())
-	// pvc info
-	attributes := pv.Spec.CSI.VolumeAttributes
-	pvcName := attributes[pkg.PVCName]
-	pvcNameSpace := attributes[pkg.PVCNameSpace]
-	if pvcName == "" || pvcNameSpace == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "ControllerExpandVolume: pvcName(%s) or pvcNamespace(%s) can not be empty", pvcNameSpace, pvcName)
-	}
 
 	// Step 3: get grpc client
+	nodeName := utils.GetNodeNameFromCsiPV(pv)
+	if nodeName == "" {
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get node name of pv %s", pv.Name)
+	}
 	conn, err := cs.getNodeConn(nodeName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to get grpc client at node %s: %s", nodeName, err.Error())
@@ -631,7 +615,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	defer conn.Close()
 
 	// Step 4: expand volume
-	if err := conn.ExpandLvm(ctx, vgName, volumeID, uint64(volSizeBytes)); err != nil {
+	if err := conn.ExpandVolume(ctx, vgName, volumeID, uint64(volSizeBytes)); err != nil {
 		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to expand lv %s/%s: %s", vgName, volumeID, err.Error())
 	}
 
@@ -679,6 +663,8 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	var confirmed *csi.ValidateVolumeCapabilitiesResponse_Confirmed
 	if isValidVolumeCapabilities(volCaps) {
 		confirmed = &csi.ValidateVolumeCapabilitiesResponse_Confirmed{VolumeCapabilities: volCaps}
+	} else {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported volume capabilities not %v", volCaps)
 	}
 	return &csi.ValidateVolumeCapabilitiesResponse{
 		Confirmed: confirmed,
@@ -815,36 +801,6 @@ type PVAllocatedInfo struct {
 	VolumeType string `json:"volumeType"`
 }
 
-func getInfoFromPV(pv *v1.PersistentVolume) (string, string, error) {
-	volumeID := pv.Name
-	if pv.Spec.NodeAffinity == nil {
-		log.Errorf("Get Lvm Spec for volume %s, with nil nodeAffinity", volumeID)
-		return "", "", fmt.Errorf("Get Lvm Spec for volume " + volumeID + ", with nil nodeAffinity")
-	}
-	if pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
-		log.Errorf("Get Lvm Spec for volume %s, with nil Required", volumeID)
-		return "", "", fmt.Errorf("Get Lvm Spec for volume " + volumeID + ", with nil Required")
-	}
-	if len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions) == 0 {
-		log.Errorf("Get Lvm Spec for volume %s, with nil MatchExpressions", volumeID)
-		return "", "", fmt.Errorf("Get Lvm Spec for volume " + volumeID + ", with nil MatchExpressions")
-	}
-	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-	if key != pkg.KubernetesNodeIdentityKey {
-		log.Errorf("Get Lvm Spec for volume %s, with key %s", volumeID, key)
-		return "", "", fmt.Errorf("Get Lvm Spec for volume " + volumeID + ", with key" + key)
-	}
-	nodes := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values
-	if len(nodes) == 0 {
-		log.Errorf("Get Lvm Spec for volume %s, with empty nodes", volumeID)
-		return "", "", fmt.Errorf("Get Lvm Spec for volume " + volumeID + ", with empty nodes")
-	}
-	vgName := utils.GetVGNameFromCsiPV(pv)
-
-	log.Infof("Get Lvm Spec for volume %s, with VgName %s, Node %s", volumeID, vgName, nodes[0])
-	return nodes[0], vgName, nil
-}
-
 func (cs *controllerServer) scheduleLVMVolume(nodeSelected, pvcName, pvcNameSpace string, parameters map[string]string) (map[string]string, error) {
 	vgName := ""
 	paraList := map[string]string{}
@@ -885,11 +841,11 @@ func (cs *controllerServer) scheduleDeviceVolume(nodeSelected, pvcName, pvcNameS
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "device schedule with error "+err.Error())
 	}
-	if volumeInfo.Disk == "" {
+	if volumeInfo.Device == "" {
 		log.Errorf("Device Schedule finished, but get empty Disk: %v", volumeInfo)
 		return nil, status.Error(codes.InvalidArgument, "Device schedule finish but Disk empty")
 	}
-	paraList[string(pkg.VolumeTypeDevice)] = volumeInfo.Disk
+	paraList[string(pkg.VolumeTypeDevice)] = volumeInfo.Device
 	return paraList, nil
 }
 
@@ -937,33 +893,4 @@ func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 		}
 	}
 	return foundAll
-}
-
-func getNodeNameAndStorageNameFromPV(pv *v1.PersistentVolume, volumeType string) (nodeName string, storageName string, err error) {
-	if pv.Spec.NodeAffinity == nil {
-		return "", "", fmt.Errorf("pv %s with nil nodeAffinity", pv.Name)
-	}
-	if pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
-		return "", "", fmt.Errorf("pv %s with nil Required or nil required.nodeSelectorTerms", pv.Name)
-	}
-	if len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions) == 0 {
-		return "", "", fmt.Errorf("pv %s with nil MatchExpressions", pv.Name)
-	}
-	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-	if key != pkg.KubernetesNodeIdentityKey {
-		return "", "", fmt.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, pkg.KubernetesNodeIdentityKey)
-	}
-
-	nodes := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values
-	if len(nodes) == 0 {
-		return "", "", fmt.Errorf("pv %s with empty nodes", pv.Name)
-	}
-	nodeName = nodes[0]
-
-	storageName = pv.Spec.CSI.VolumeAttributes[volumeType]
-	if storageName == "" {
-		return "", "", fmt.Errorf("storageName of pv %s is empty", pv.Name)
-	}
-
-	return nodeName, storageName, nil
 }

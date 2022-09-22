@@ -346,6 +346,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("list", "persistentvolumes") ||
 				action.Matches("watch", "persistentvolumeclaims") ||
 				action.Matches("list", "persistentvolumeclaims") ||
+				action.Matches("watch", "pods") ||
+				action.Matches("list", "pods") ||
 				action.Matches("list", "nodes") ||
 				action.Matches("watch", "nodes")) {
 			continue

@@ -2,9 +2,10 @@ package cache
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
-	"sync"
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -84,12 +85,12 @@ case1：正常调度流程-动态绑定
 	1. Create PVC 延迟binding（调度器watch到PVC创建，未bind node不处理）
 	2. Create Pod，调度器开始调度Pod
 	3. reserve阶段：调度PVC，更新cache，
-	4. 开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到NLS ##注意，这里不清楚哪个prebind先执行
+	4. 开启volume_binding prebind 阶段，更新PVC（node-seleted）；开始openlocal prebind，更新PVC调度信息到PV或者Pod ##注意，这里不清楚哪个prebind先执行，如果社区plugin先于openlocal plugin，会直接patch到PV
 	5. external_provisional create Volume and PV(pending状态)
 	6. 调度器Watch PV创建（pending状态），不处理
 	7. pv_controller：bind PVC/PV
 	8. 调度器watch到PV update：PV bound状态 此时PVC已经调度过，故向cache写入Volume信息，并删除pvc的调度信息，防止重复扣减
-	9. nls-controller: 1)watch pv update: 获取NLS信息，得到VG信息，并更新PV的VG信息 2)watch到NLS update,如果PV中无VG信息，且bound状态，更新VG信息到PV中
+	9. open-local-controller: watch pod 事件，发现pod上有需要迁移的PVC调度allocate信息，则patch到对应PV
 	10. prebind结束，bind node
 
 
@@ -241,7 +242,7 @@ func (c *NodeStorageAllocatedCache) IsLocalNode(nodeName string) bool {
 }
 
 /*
-	assume by cache, should record unit.allocated , allocated size will use by plugin Unreserve to revert cache
+assume by cache, should record unit.allocated , allocated size will use by plugin Unreserve to revert cache
 */
 func (c *NodeStorageAllocatedCache) Reserve(preAllocateState *NodeAllocateState, reservationPodUid string) error {
 	if preAllocateState == nil || preAllocateState.Units == nil {

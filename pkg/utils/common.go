@@ -31,6 +31,7 @@ import (
 	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 
+	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
@@ -180,7 +181,7 @@ func GetDeviceNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes[string(localtype.VolumeTypeDevice)]; ok {
+	if v, ok := csi.VolumeAttributes[string(localtype.DeviceName)]; ok {
 		return v
 	}
 	log.V(6).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "device")
@@ -201,6 +202,34 @@ func GetMountPointFromCsiPV(pv *corev1.PersistentVolume) string {
 	log.V(6).Infof("PV %s has no csi volumeAttributes %q", pv.Name, "mountpoint")
 
 	return ""
+}
+
+func GetNodeNameFromCsiPV(pv *corev1.PersistentVolume) string {
+	if pv.Spec.NodeAffinity == nil {
+		log.Errorf("pv %s with nil nodeAffinity", pv.Name)
+		return ""
+	}
+	if pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
+		log.Errorf("pv %s with nil Required or nil required.nodeSelectorTerms", pv.Name)
+		return ""
+	}
+	if len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions) == 0 {
+		log.Errorf("pv %s with nil MatchExpressions", pv.Name)
+		return ""
+	}
+	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
+	if key != pkg.KubernetesNodeIdentityKey {
+		log.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, pkg.KubernetesNodeIdentityKey)
+		return ""
+	}
+
+	nodes := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values
+	if len(nodes) == 0 {
+		log.Errorf("pv %s with empty nodes", pv.Name)
+		return ""
+	}
+	nodeName := nodes[0]
+	return nodeName
 }
 
 func GetVGRequested(localPVs map[string]corev1.PersistentVolume, vgName string) (requested int64) {

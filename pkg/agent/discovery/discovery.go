@@ -188,6 +188,7 @@ func (d *Discoverer) createSpdkBdevs(devices *[]string) {
 
 // InitResource will create relevant resource
 func (d *Discoverer) InitResource() {
+	log.Info("start to init resource")
 	nls, err := d.getNodeLocalStorage()
 	if err != nil {
 		log.Error("InitResource - getNodeLocalStorage:", err.Error())

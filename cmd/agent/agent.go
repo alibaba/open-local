@@ -18,11 +18,11 @@ package agent
 
 import (
 	"fmt"
-
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/controller"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
+	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/signals"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/spf13/cobra"
@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	log "k8s.io/klog/v2"
+	"time"
 )
 
 var (
@@ -89,10 +90,11 @@ func Start(opt *agentOption) error {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "open-local-agent"})
-
-	agent := controller.NewAgent(config, kubeClient, localClient, snapClient, eventRecorder)
+	localInformerFactory := localinformers.NewSharedInformerFactory(localClient, time.Second*30)
+	agent := controller.NewAgent(config, kubeClient, localClient, snapClient, localInformerFactory, eventRecorder)
 
 	log.Info("starting open-local agent")
+	localInformerFactory.Start(stopCh)
 	if err = agent.Run(stopCh); err != nil {
 		return fmt.Errorf("Error running agent: %s", err.Error())
 	}

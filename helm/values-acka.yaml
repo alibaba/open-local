@@ -42,8 +42,6 @@ storageclass:
     name: yoda-lvm-default
   lvm_xfs:
     name: yoda-lvm-xfs
-  lvm_io:
-    name: yoda-lvm-io-throttling
   device_ssd:
     name: yoda-device-ssd
   device_hdd:
@@ -53,7 +51,7 @@ monitor:
   enabled: false
   # grafana namespace
   namespace: monitoring
-globalconfig:
+global:
   YodaSchedulerSvcIP: 10.96.0.4
   RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
   NumOfMasters: 3

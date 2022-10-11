@@ -123,7 +123,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ .Values.name }}
-  # replace with the same namespace name with plugin
   namespace: {{ .Values.namespace }}
 {{ include "local.labels" . | indent 2 }}
 ---

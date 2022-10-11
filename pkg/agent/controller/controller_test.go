@@ -17,31 +17,34 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
-	"testing"
-
 	"github.com/alibaba/open-local/pkg/agent/common"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
+	localinformerfactory "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
+	"reflect"
+	"testing"
+	"time"
 )
 
 func TestNewAgent(t *testing.T) {
 	type args struct {
-		config         *common.Configuration
-		kubeclientset  kubernetes.Interface
-		localclientset clientset.Interface
-		snapclientset  volumesnapshot.Interface
-		recorder       record.EventRecorder
+		config               *common.Configuration
+		kubeclientset        kubernetes.Interface
+		localclientset       clientset.Interface
+		snapclientset        volumesnapshot.Interface
+		localInformerFactory localinformerfactory.SharedInformerFactory
+		recorder             record.EventRecorder
 	}
 
 	localclient := localfake.NewSimpleClientset()
 	kubeclient := k8sfake.NewSimpleClientset()
 	snapclient := volumesnapshotfake.NewSimpleClientset()
+	localInformerFactory := localinformerfactory.NewSharedInformerFactory(localclient, time.Second*30)
 	recorder := record.FakeRecorder{}
 	tmpargs := args{
 		config: &common.Configuration{
@@ -50,10 +53,11 @@ func TestNewAgent(t *testing.T) {
 			MountPath:        "",
 			DiscoverInterval: common.DefaultInterval,
 		},
-		kubeclientset:  kubeclient,
-		localclientset: localclient,
-		snapclientset:  snapclient,
-		recorder:       &recorder,
+		kubeclientset:        kubeclient,
+		localclientset:       localclient,
+		snapclientset:        snapclient,
+		localInformerFactory: localInformerFactory,
+		recorder:             &recorder,
 	}
 
 	tests := []struct {
@@ -75,7 +79,10 @@ func TestNewAgent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.localclientset, tt.args.snapclientset, tt.args.recorder); !reflect.DeepEqual(got, tt.want) {
+			got := NewAgent(tt.args.config, tt.args.kubeclientset, tt.args.localclientset, tt.args.snapclientset, tt.args.localInformerFactory, tt.args.recorder)
+			got.workqueue = nil
+			got.nlsSynced = nil
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewAgent() = %v, want %v", got, tt.want)
 			}
 		})

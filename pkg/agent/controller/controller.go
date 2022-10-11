@@ -17,7 +17,11 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"os"
 	"strconv"
 	"time"
@@ -26,6 +30,7 @@ import (
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/discovery"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
+	localinformerfactory "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -34,21 +39,33 @@ import (
 	log "k8s.io/klog/v2"
 )
 
+const initResourceKey = "initResource"
+
 // NewAgent returns a new open-local agent
 func NewAgent(
 	config *common.Configuration,
 	kubeclientset kubernetes.Interface,
 	localclientset clientset.Interface,
 	snapclientset snapshot.Interface,
+	localInformerFactory localinformerfactory.SharedInformerFactory,
 	eventRecorder record.EventRecorder) *Agent {
 
+	nlsInformer := localInformerFactory.Csi().V1alpha1().NodeLocalStorages()
 	controller := &Agent{
 		Configuration:  config,
 		kubeclientset:  kubeclientset,
 		localclientset: localclientset,
 		snapclientset:  snapclientset,
+		nlsSynced:      nlsInformer.Informer().HasSynced,
+		workqueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "InitResource"),
 		eventRecorder:  eventRecorder,
 	}
+	nlsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			controller.handleNLS(nil, obj)
+		},
+		UpdateFunc: controller.handleNLS,
+	})
 
 	return controller
 }
@@ -60,16 +77,24 @@ func NewAgent(
 func (c *Agent) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 
+	if ok := cache.WaitForCacheSync(stopCh, c.nlsSynced); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
 	// Start the informer factories to begin populating the informer caches
 	discoverer := discovery.NewDiscoverer(c.Configuration, c.kubeclientset, c.localclientset, c.snapclientset, c.eventRecorder)
 	go wait.Until(discoverer.Discover, time.Duration(discoverer.DiscoverInterval)*time.Second, stopCh)
-	go wait.BackoffUntil(discoverer.InitResource,
+	go wait.BackoffUntil(func() {
+		c.workqueue.Add(initResourceKey)
+	},
 		wait.NewExponentialBackoffManager(time.Duration(discoverer.DiscoverInterval)*time.Second,
 			30*time.Duration(discoverer.DiscoverInterval)*time.Second,
 			90*time.Duration(discoverer.DiscoverInterval)*time.Second,
 			2.0, 1.0, &clock.RealClock{}),
 		true, stopCh)
 
+	go wait.Until(func() {
+		c.runWorker(discoverer)
+	}, time.Second, stopCh)
 	// get auto expand snapshot interval
 	var err error
 	expandSnapInterval := discoverer.DiscoverInterval
@@ -87,4 +112,60 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	log.Info("Shutting down agent")
 
 	return nil
+}
+
+func (c *Agent) handleNLS(old, new interface{}) {
+	var nlsName string
+	var err error
+	if nlsName, err = cache.MetaNamespaceKeyFunc(new); err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	if nlsName == c.Nodename {
+		if old == nil {
+			c.workqueue.Add(initResourceKey)
+			return
+		}
+		oldNLS, ok := old.(*localv1alpha1.NodeLocalStorage)
+		if !ok {
+			return
+		}
+		newNLS, ok := new.(*localv1alpha1.NodeLocalStorage)
+		if !ok {
+			return
+		}
+		if oldNLS.Generation != newNLS.Generation {
+			c.workqueue.Add(initResourceKey)
+			log.Info("nls spec changed, trigger init resource")
+		}
+	}
+}
+
+func (c *Agent) runWorker(discovery *discovery.Discoverer) {
+	for c.processNextWorkItem(discovery) {
+	}
+}
+
+func (c *Agent) processNextWorkItem(discovery *discovery.Discoverer) bool {
+	obj, shutdown := c.workqueue.Get()
+
+	if shutdown {
+		return false
+	}
+
+	func(obj interface{}) {
+		defer c.workqueue.Done(obj)
+
+		switch item := obj.(type) {
+		case string:
+			if item == initResourceKey {
+				discovery.InitResource()
+			}
+		default:
+			c.workqueue.Forget(obj)
+			return
+		}
+	}(obj)
+
+	return true
 }

@@ -18,7 +18,9 @@ package controller
 
 import (
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/alibaba/open-local/pkg/agent/common"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -33,7 +35,11 @@ type Agent struct {
 	// localclientset is a clientset for our own API group
 	localclientset clientset.Interface
 	snapclientset  snapshot.Interface
+	nlsSynced      cache.InformerSynced
+
 	// eventRecorder is an event eventRecorder for recording Event resources to the
 	// Kubernetes API.
 	eventRecorder record.EventRecorder
+
+	workqueue workqueue.RateLimitingInterface
 }

@@ -146,10 +146,20 @@ func (lvm *LvmCommads) RemoveLV(ctx context.Context, vg string, name string) (st
 		}
 	}
 
-	args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+	// check if lv has snapshot
+	args := []string{localtype.NsenterCmd, "lvs", "-o", "lv_name,vg_name,origin", "-S", fmt.Sprintf("origin=%s,vg_name=%s", name, vg), "--noheadings", "--nosuffix"}
 	cmd := strings.Join(args, " ")
-	out, err := utils.Run(cmd)
+	if out, err := utils.Run(cmd); err != nil {
+		return "", err
+	} else {
+		if strings.Contains(out, name) {
+			return "", fmt.Errorf("logical volume %s/%s has snapshot, please remove snapshot first", vg, name)
+		}
+	}
 
+	args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+	cmd = strings.Join(args, " ")
+	out, err := utils.Run(cmd)
 	return string(out), err
 }
 

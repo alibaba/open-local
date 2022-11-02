@@ -4,7 +4,7 @@ WORKDIR /go/src/github.com/alibaba/open-local
 COPY . .
 RUN make build && chmod +x bin/open-local
 
-FROM alpine:3.6@sha256:25e814211fdda16b4e27e1483a5dfa17d7e958b8c539ee1ee942962c5d33d6de
+FROM alpine:3.9@sha256:f920ccc826134587fffcf1ddc6b2a554947e0f1a5ae5264bbf3435da5b2e8e61
 LABEL maintainers="Alibaba Cloud Authors"
 LABEL description="open-local is a local disk management system"
 RUN apk update && apk upgrade && apk add util-linux coreutils e2fsprogs e2fsprogs-extra xfsprogs xfsprogs-extra blkid file open-iscsi

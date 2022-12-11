@@ -58,7 +58,7 @@ func Start(opt *csiOption) error {
 	// GRPC server to provide volume manage
 	go lvmserver.Start(opt.LVMDPort)
 
-	cfg, err := clientcmd.BuildConfigFromFlags("", "")
+	cfg, err := clientcmd.BuildConfigFromFlags(opt.Master, opt.Kubeconfig)
 	if err != nil {
 		log.Fatalf("Error building kubeconfig: %s", err.Error())
 	}

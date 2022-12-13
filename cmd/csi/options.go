@@ -22,6 +22,8 @@ import (
 )
 
 type csiOption struct {
+	Master                  string
+	Kubeconfig              string
 	Endpoint                string
 	NodeID                  string
 	Driver                  string
@@ -35,6 +37,8 @@ type csiOption struct {
 }
 
 func (option *csiOption) addFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&option.Kubeconfig, "kubeconfig", option.Kubeconfig, "Path to the kubeconfig file to use.")
+	fs.StringVar(&option.Master, "master", option.Master, "URL/IP for master.")
 	fs.StringVar(&option.Endpoint, "endpoint", csi.DefaultEndpoint, "the endpointof CSI")
 	fs.StringVar(&option.NodeID, "nodeID", "", "the id of node")
 	fs.StringVar(&option.Driver, "driver", csi.DefaultDriverName, "the name of CSI driver")

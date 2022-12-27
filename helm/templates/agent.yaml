@@ -119,7 +119,14 @@ spec:
         - "--endpoint=$(CSI_ENDPOINT)"
         - "--nodeID=$(KUBE_NODE_NAME)"
         - "--driver={{ .Values.driver }}"
+{{- if eq .Values.agent.driverMode "node" }}
         - "--driver-mode=node"
+{{- else }}
+        - "--driver-mode=all"
+{{- if .Values.controller.framework_scheduler_names }}
+        - --framework-scheduler-names={{ .Values.controller.framework_scheduler_names }}
+{{- end }}
+{{- end }}
         env:
         - name: KUBE_NODE_NAME
           valueFrom:

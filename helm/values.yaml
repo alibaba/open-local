@@ -29,6 +29,10 @@ agent:
   kubelet_dir: /var/lib/kubelet
   volume_name_prefix: local
   spdk: false
+  # driver mode can be 'all' or 'node'
+  # all: agent will start as csi controller and csi node
+  # node: agent will start as csi node
+  driverMode: node
 extender:
   name: open-local-scheduler-extender
   # scheduling strategy: binpack/spread

@@ -82,6 +82,7 @@ spec:
         volumeMounts:
         - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
           name: socket-dir
+{{- if eq .Values.agent.driverMode "node" }}
       - name: csi-plugin
         args:
         - csi
@@ -124,6 +125,7 @@ spec:
         volumeMounts:
         - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
           name: socket-dir
+{{- end }}
       - name: controller
         args:
         - controller
@@ -163,5 +165,12 @@ spec:
         key: node-role.kubernetes.io/master
         operator: Exists
       volumes:
+{{- if eq .Values.agent.driverMode "node" }}
       - emptyDir: {}
         name: socket-dir
+{{- else }}
+      - name: socket-dir
+        hostPath:
+          path: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
+          type: DirectoryOrCreate
+{{- end }}

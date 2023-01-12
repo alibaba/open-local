@@ -75,6 +75,7 @@ func NewDriver(driverName, nodeID, endpoint string, opts ...Option) *CSIPlugin {
 		options: driverOptions,
 	}
 
+	log.Infof("driver mode: %s", driverOptions.mode)
 	switch driverOptions.mode {
 	case "all":
 		plugin.controllerServer = newControllerServer(driverOptions)

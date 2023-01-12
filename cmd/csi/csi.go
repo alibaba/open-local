@@ -87,6 +87,7 @@ func Start(opt *csiOption) error {
 		csi.WithKubeClient(kubeClient),
 		csi.WithSnapshotClient(snapClient),
 		csi.WithLocalClient(localclient),
+		csi.WithDriverMode(opt.DriverMode),
 	)
 	if err := driver.Run(); err != nil {
 		return err

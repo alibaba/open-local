@@ -169,6 +169,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	isSnapshot := false
 	paramMap := map[string]string{}
 	// handle snapshot first
+	// 判断是否是 restic snapshot
+	// 若是则走正常创建 volume 的流程
+	// param中添加一种类型：restic 快照
+	// secret中添加 s3 信息，这个通过在param中创建，自然会有
 	if volumeSource := req.GetVolumeContentSource(); volumeSource != nil {
 		if volumeType == string(pkg.VolumeTypeLVM) {
 			// validate
@@ -459,10 +463,13 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Step 2: get snapshot initial size from parameter
+	// 必须与原 ro snapshot 兼容
 	initialSize, _, _, err := getSnapshotInitialInfo(req.Parameters)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get snapshot %s initial info error: %s", req.Name, err.Error())
 	}
+
+	// 获取一下 s3 信息，从 class param 中获取
 
 	// Step 3: get vgName
 	srcPV, err := cs.pvLister.Get(srcVolumeID)
@@ -505,6 +512,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
 	}
 	if lvmName == "" {
+		// 这里 CreateSnapshot 需要更改内容
+		// 这里需要生成 snapshot id，并传递给 response
+		// 函数中添加 s3 信息
 		_, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, initialSize)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
@@ -513,6 +523,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	} else {
 		log.Infof("CreateSnapshot: lvm snapshot %s in node %s already exists", snapshotName, nodeName)
 	}
+	// 更改 snapshot id
 	return cs.newCreateSnapshotResponse(req, int64(initialSize))
 }
 

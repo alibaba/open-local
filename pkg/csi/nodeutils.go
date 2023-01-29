@@ -101,6 +101,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 
 	// Step 2: check
 	// check snapshot
+	// 兼容 ro 快照，并扩展 restic 快照
 	var isSnapshotReadOnly bool = false
 	if _, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
 		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
@@ -141,6 +142,11 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		if err := ns.k8smounter.FormatAndMount(devicePath, targetPath, fsType, options); err != nil {
 			return fmt.Errorf("mountLvmFS: fail to format and mount volume(volume id:%s, device path: %s): %s", req.VolumeId, devicePath, err.Error())
 		}
+
+		// 判断是否为 restic 快照
+		// 将 s3 数据拷贝到 targetPath 中，完毕。
+		// 这里注意 param 的传递
+
 		log.Infof("mountLvmFS: mount devicePath %s to targetPath %s successfully, options: %v", devicePath, targetPath, options)
 	}
 

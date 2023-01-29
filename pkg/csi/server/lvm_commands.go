@@ -243,6 +243,19 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vg string, snapshotNa
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
+	// 创建完毕后，mount到一个临时路径。这里临时路径可自动生成及删除
+	// 可以通过 vg/originLVName 判断原pv 的fstype
+	// 将里面的文件通过restic上传至s3
+	// s3的信息传过来，密码从secret中获取
+	// s3:http://192.168.73.47:9000/open-local/[pv名称] --verbose backup [临时路径]
+	// 生成一个 snapshot id，返回
+
+	// 判断是否为 restic 快照，若是则需要删除快照lv
+
+	// 不能是交互的，需要加一个 --password-file
+
+	// 这里参考下 velero 的 func ensureRepo(repo *velerov1api.ResticRepository, repoManager restic.RepositoryManager) error
+
 	return string(out), err
 }
 

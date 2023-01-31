@@ -26,10 +26,8 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/utils"
 
-	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
 )
@@ -516,42 +514,6 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 
 	klog.V(6).Infof("node %s is capable of mount point %d pvcs", node.Name, len(pvcs))
 	return true, units, nil
-}
-
-// If there is no snapshot pvc, just return true
-func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, coreV1Informers corev1informers.Interface, snapshotInformers volumesnapshotinformers.Interface) (fits bool, err error) {
-	for _, pvc := range pvcs {
-		// step 0: check if is snapshot pvc
-		if !utils.IsSnapshotPVC(pvc) {
-			continue
-		}
-		klog.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is snapshot", pvc.Namespace, pvc.Name)
-		// step 1: get snapshot api
-		snapName := pvc.Spec.DataSource.Name
-		snapNamespace := pvc.Namespace
-		snapshot, err := snapshotInformers.VolumeSnapshots().Lister().VolumeSnapshots(snapNamespace).Get(snapName)
-		if err != nil {
-			return false, fmt.Errorf("[ProcessSnapshotPVC]get snapshot %s/%s failed: %s", snapNamespace, snapName, err.Error())
-		}
-		klog.Infof("[ProcessSnapshotPVC]snapshot is %s", snapshot.Name)
-		// step 2: get src pvc
-		srcPVCName := *snapshot.Spec.Source.PersistentVolumeClaimName
-		srcPVCNamespace := snapNamespace
-		srcPVC, err := coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(srcPVCNamespace).Get(srcPVCName)
-		if err != nil {
-			return false, fmt.Errorf("[ProcessSnapshotPVC]get src pvc %s/%s failed: %s", snapNamespace, snapName, err.Error())
-		}
-		klog.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
-		// step 3: get src node name
-		srcNodeName := srcPVC.Annotations[localtype.AnnoSelectedNode]
-		klog.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
-		// step 4: check
-		if srcNodeName != nodeName {
-			return false, nil
-		}
-	}
-
-	return true, nil
 }
 
 func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {

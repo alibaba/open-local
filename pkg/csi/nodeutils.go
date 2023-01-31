@@ -2,12 +2,14 @@ package csi
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/server"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/utils"
 	spdk "github.com/alibaba/open-local/pkg/utils/spdk"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -48,16 +50,6 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 	log.Infof("createLV: vg %s, volume %s, LVM Type %s", vgName, req.GetVolumeId(), lvmType)
 
 	volumeID := req.GetVolumeId()
-	var isSnapshot bool
-	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
-		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
-			// if volume is ro snapshot, then mount snapshot lv
-			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
-			volumeID = req.VolumeContext[localtype.ParamSnapshotName]
-		} else {
-			return "", "", status.Errorf(codes.Unimplemented, "createLV: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
-		}
-	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
 	if _, err := ns.osTool.Stat(devicePath); os.IsNotExist(err) {
 		newDev, bdevName, err := ns.createVolume(req.VolumeContext, volumeID, vgName, lvmType)
@@ -90,7 +82,6 @@ func collectMountOptions(fsType string, mntFlags []string) []string {
 
 // include normal lvm & aep lvm type
 func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
-	// Step 1:
 	// target path
 	targetPath := req.TargetPath
 	// device path
@@ -99,18 +90,6 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		return err
 	}
 
-	// Step 2: check
-	// check snapshot
-	// 兼容 ro 快照，并扩展 restic 快照
-	var isSnapshotReadOnly bool = false
-	if _, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
-		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
-			// if volume is ro snapshot, then mount snapshot lv
-			isSnapshotReadOnly = true
-		} else {
-			return fmt.Errorf("mountLvmFS: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
-		}
-	}
 	// check targetPath
 	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
 		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
@@ -122,7 +101,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	if err != nil {
 		return fmt.Errorf("mountLvmFS: fail to check if %s is mounted: %s", targetPath, err.Error())
 	}
-	// Step 3: mount if not mounted
+	// mount if not mounted
 	if notMounted {
 		// fs type
 		fsType := req.GetVolumeCapability().GetMount().FsType
@@ -130,7 +109,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 			fsType = DefaultFs
 		}
 		var options []string
-		if req.GetReadonly() || isSnapshotReadOnly {
+		if req.GetReadonly() {
 			options = append(options, "ro")
 		} else {
 			options = append(options, "rw")
@@ -146,6 +125,26 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		// 判断是否为 restic 快照
 		// 将 s3 数据拷贝到 targetPath 中，完毕。
 		// 这里注意 param 的传递
+		snapshotName, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]
+		if isSnapshot {
+			if !checkIfRestored(targetPath) {
+				if err := labelRestored(targetPath); err != nil {
+					return err
+				}
+				// 写一个隐藏文件，标识是否已经restore过
+				srcVolomeID := req.VolumeContext[localtype.ParamSourceVolumeID]
+				s3URL := req.Secrets[S3_URL]
+				s3AK := req.Secrets[S3_AK]
+				s3SK := req.Secrets[S3_SK]
+				// restic
+				_, err := restic.RestoreData(s3URL, s3AK, s3SK, srcVolomeID, restic.GeneratePassword(), targetPath, snapshotName)
+				if err != nil {
+					return fmt.Errorf("fail to restore volume %s path %s: %s", srcVolomeID, targetPath, err.Error())
+				}
+			} else {
+				log.Info("target path %s has been restored", targetPath)
+			}
+		}
 
 		log.Infof("mountLvmFS: mount devicePath %s to targetPath %s successfully, options: %v", devicePath, targetPath, options)
 	}
@@ -494,4 +493,28 @@ func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1
 
 	pvSizeMB := pvSize / (1024 * 1024)
 	return pvSizeMB, "m", pv, nil
+}
+
+const RestoreFileName = ".local.restored"
+
+func checkIfRestored(path string) bool {
+	restoredFile := filepath.Join(path, RestoreFileName)
+
+	if _, err := os.Stat(restoredFile); os.IsNotExist(err) {
+		log.Infof("not found: %s\n", restoredFile)
+		return false
+	} else if err != nil {
+		log.Errorf("error looking for %s: %s\n", restoredFile, err)
+		return false
+	}
+
+	return true
+}
+
+func labelRestored(path string) error {
+	if err := ioutil.WriteFile(filepath.Join(path, RestoreFileName), nil, 0644); err != nil {
+		return fmt.Errorf("error writing restored file")
+	}
+
+	return nil
 }

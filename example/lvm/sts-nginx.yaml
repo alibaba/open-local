@@ -29,7 +29,7 @@ spec:
     spec:
       accessModes:
         - ReadWriteOnce
-      storageClassName: open-local-lvm
+      # storageClassName: open-local-lvm
       resources:
         requests:
           storage: 5Gi

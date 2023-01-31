@@ -3,10 +3,11 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	"k8s.io/klog/v2"
 	"math"
 	"sync"
+
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"k8s.io/klog/v2"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -15,9 +16,6 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
 
-	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	volumesnapshotinformersfactory "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
-	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	corev1informers "k8s.io/client-go/informers/core/v1"
@@ -45,7 +43,7 @@ func (state *stateData) Clone() framework.StateData {
 	return state
 }
 
-//by score
+// by score
 func (state *stateData) GetAllocateState(nodeName string) *cache.NodeAllocateState {
 	state.locker.RLock()
 	defer state.locker.RUnlock()
@@ -55,7 +53,7 @@ func (state *stateData) GetAllocateState(nodeName string) *cache.NodeAllocateSta
 	return state.allocateStateByNode[nodeName]
 }
 
-//add by filter
+// add by filter
 func (state *stateData) AddAllocateState(nodeName string, allocate *cache.NodeAllocateState) {
 	state.locker.Lock()
 	defer state.locker.Unlock()
@@ -74,11 +72,9 @@ type LocalPlugin struct {
 	coreV1Informers    corev1informers.Interface
 	storageV1Informers storagev1informers.Interface
 	localInformers     nodelocalstorageinformer.Interface
-	snapshotInformers  volumesnapshotinformers.Interface
 
 	kubeClientSet  kubernetes.Interface
 	localClientSet localclientset.Interface
-	snapClientSet  volumesnapshot.Interface
 
 	cache *cache.NodeStorageAllocatedCache
 }
@@ -127,15 +123,10 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 	if err != nil {
 		return nil, fmt.Errorf("error building yoda clientset: %s", err.Error())
 	}
-	snapClient, err := volumesnapshot.NewForConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("error building snapshot clientset: %s", err.Error())
-	}
 
 	// cache
 	cxt := context.Background()
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
-	snapshotInformerFactory := volumesnapshotinformersfactory.NewSharedInformerFactory(snapClient, 0)
 
 	strategyType := getStrategyType(args.SchedulerStrategy)
 	nodeCache := cache.NewNodeStorageAllocatedCache(strategyType)
@@ -150,14 +141,10 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		scLister:           f.SharedInformerFactory().Storage().V1().StorageClasses().Lister(),
 		storageV1Informers: f.SharedInformerFactory().Storage().V1(),
 		localInformers:     localStorageInformerFactory.Csi().V1alpha1(),
-		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
 
 		kubeClientSet:  f.ClientSet(),
 		localClientSet: localClient,
-		snapClientSet:  snapClient,
 	}
-
-	snapshotInformerFactory.Snapshot().V1().VolumeSnapshots().Informer()
 
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
@@ -186,8 +173,6 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 
 	localStorageInformerFactory.Start(cxt.Done())
 	localStorageInformerFactory.WaitForCacheSync(cxt.Done())
-	snapshotInformerFactory.Start(cxt.Done())
-	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
 	return localPlugin, nil
 }
@@ -211,7 +196,7 @@ func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {
 	return nil
 }
 
-//TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
+// TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
 func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	nodeName := nodeInfo.Node().Name
 
@@ -223,16 +208,6 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 	//not use local pv, return success
 	if !podVolumeInfo.HaveLocalVolumes() {
 		return framework.NewStatus(framework.Success)
-	}
-
-	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.LVMPVCsSnapshot)
-	if err != nil {
-		klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
-		return framework.AsStatus(err)
-	}
-	if !fits {
-		klog.V(6).Infof("pod have snapshot pvc, node %s not fit pod", nodeName)
-		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
 	}
 
 	nodeAllocate, err := plugin.cache.PreAllocate(pod, podVolumeInfo, nil, nodeName)
@@ -269,7 +244,7 @@ func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleStat
 	return plugin.scorer.Score(allocateInfo), framework.NewStatus(framework.Success)
 }
 
-//PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
+// PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
 func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
 
 	return plugin.ReserveReservation(ctx, state, pod, nil, nodeName)
@@ -336,12 +311,12 @@ func (plugin *LocalPlugin) UnreserveReservation(ctx context.Context, state *fram
 	plugin.cache.Unreserve(reservedAllocate, reservationPodUid, reservationInlineVolumes)
 }
 
-//TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to pod.
-//TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
-//TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
+// TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to pod.
+// TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
+// TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
 func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
 
-	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false, false)
+	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false)
 	if err != nil {
 		klog.Errorf("PreBind fail,GetPodPvcsByLister for pod(%s) error: %s", p.UID, err.Error())
 		return framework.AsStatus(err)

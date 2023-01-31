@@ -29,18 +29,16 @@ type PVCInfos interface {
 	calculate at step preFilter to avoid duplicate calculating after
 */
 type PodLocalVolumeInfo struct {
-	LVMPVCsNotSnapshot *LVMCommonPVCInfos
-	LVMPVCsSnapshot    LVMSnapshotPVCInfos
-	DevicePVCs         *DevicePVCInfos
-	InlineVolumes      InlineVolumes
+	LVMPVCs       *LVMCommonPVCInfos
+	DevicePVCs    *DevicePVCInfos
+	InlineVolumes InlineVolumes
 }
 
 func NewPodLocalVolumeInfo() *PodLocalVolumeInfo {
 	return &PodLocalVolumeInfo{
-		DevicePVCs:         NewDevicePVCInfos(),
-		LVMPVCsNotSnapshot: NewLVMCommonPVCInfos(),
-		LVMPVCsSnapshot:    LVMSnapshotPVCInfos{},
-		InlineVolumes:      InlineVolumes{},
+		DevicePVCs:    NewDevicePVCInfos(),
+		LVMPVCs:       NewLVMCommonPVCInfos(),
+		InlineVolumes: InlineVolumes{},
 	}
 }
 
@@ -48,7 +46,7 @@ func (info *PodLocalVolumeInfo) HaveLocalVolumes() bool {
 	if info == nil {
 		return false
 	}
-	return info.LVMPVCsNotSnapshot.HaveLocalVolumes() || info.LVMPVCsSnapshot.HaveLocalVolumes() ||
+	return info.LVMPVCs.HaveLocalVolumes() ||
 		info.DevicePVCs.HaveLocalVolumes() || info.InlineVolumes.HaveLocalVolumes()
 }
 

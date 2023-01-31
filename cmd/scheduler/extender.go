@@ -23,8 +23,6 @@ import (
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/scheduler/server"
-	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	"github.com/spf13/cobra"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -78,21 +76,15 @@ func Run(opt *extenderOption) error {
 	if err != nil {
 		return fmt.Errorf("error building open-local clientset: %s", err.Error())
 	}
-	snapClient, err := volumesnapshot.NewForConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("error building snapshot clientset: %s", err.Error())
-	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, 0)
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
-	snapshotInformerFactory := volumesnapshotinformers.NewSharedInformerFactory(snapClient, 0)
 
-	extenderServer := server.NewExtenderServer(kubeClient, localClient, snapClient, kubeInformerFactory, localStorageInformerFactory, snapshotInformerFactory, opt.Port, weights)
+	extenderServer := server.NewExtenderServer(kubeClient, localClient, kubeInformerFactory, localStorageInformerFactory, opt.Port, weights)
 
 	log.Info("starting open-local scheduler extender")
 	kubeInformerFactory.Start(cxt.Done())
 	localStorageInformerFactory.Start(cxt.Done())
-	snapshotInformerFactory.Start(cxt.Done())
 	extenderServer.Start(cxt.Done())
 	log.Info("quitting now")
 	return nil

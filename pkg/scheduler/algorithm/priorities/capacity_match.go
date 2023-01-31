@@ -32,8 +32,8 @@ import (
 func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (int, error) {
 	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityMatch] %s/%s", pod.Namespace, pod.Name))
 	defer trace.LogIfLong(50 * time.Millisecond)
-	containReadonlySnapshot := true
-	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
+
+	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true)
 	if err != nil {
 		return utils.MinScore, err
 	}
@@ -46,11 +46,6 @@ func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *core
 			return utils.MinScore, nil
 		}
 		log.Infof("node %s is not open-local node, so pod %s gets max score %d", node.Name, pod.Name, utils.MaxScore)
-		return utils.MaxScore, nil
-	}
-
-	// if pod has snapshot pv, return MaxScore
-	if utils.ContainsSnapshotPVC(lvmPVCs) {
 		return utils.MaxScore, nil
 	}
 

@@ -25,7 +25,6 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
 
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -116,13 +115,7 @@ func Test_PreFilter(t *testing.T) {
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsSnapshot: cache.LVMSnapshotPVCInfos{
-							{
-								Request: getSize(utils.GetTestPVCPVSnapshot().PVCPending.Size),
-								PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCSnapshot)],
-							},
-						},
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCs: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
@@ -174,9 +167,8 @@ func Test_PreFilter(t *testing.T) {
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    cache.LVMSnapshotPVCInfos{},
-						DevicePVCs:         cache.NewDevicePVCInfos(),
+						LVMPVCs:    cache.NewLVMCommonPVCInfos(),
+						DevicePVCs: cache.NewDevicePVCInfos(),
 						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
@@ -339,7 +331,7 @@ func Test_Filter_PodHaveNoLocalPVC(t *testing.T) {
 	}
 }
 
-func Test_Filter_LVMPVC_NotSnapshot(t *testing.T) {
+func Test_Filter_LVMPVC(t *testing.T) {
 	podWithVG := utils.CreatePod(&utils.TestPodInfo{
 		PodName:      "podWithVG",
 		PodNameSpace: utils.LocalNameSpace,
@@ -677,178 +669,6 @@ func Test_Filter_LVMPVC_NotSnapshot(t *testing.T) {
 			for _, pvc := range tt.fields.pvcs {
 				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
-			}
-
-			cycleState := framework.NewCycleState()
-			plugin.PreFilter(context.Background(), cycleState, tt.args.pod)
-
-			for _, node := range nodeInfos {
-				gotStatus := plugin.Filter(context.Background(), cycleState, tt.args.pod, node)
-				assert.Equal(t, tt.expectFilter.nodeStatuses[node.Node().Name].Code(), gotStatus.Code())
-			}
-
-			gotDataState, err := plugin.getState(cycleState)
-			if tt.expectFilter.stateData != nil {
-				assert.Equal(t, tt.expectFilter.stateData.allocateStateByNode, gotDataState.allocateStateByNode)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
-func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
-	podWithSnapshot := utils.CreatePod(&utils.TestPodInfo{
-		PodName:      "podWithVG",
-		PodNameSpace: utils.LocalNameSpace,
-		PodStatus:    corev1.PodPending,
-		PVCInfos: []*utils.TestPVCInfo{
-			utils.GetTestPVCPVSnapshot().PVCPending,
-		},
-	})
-
-	snapshot := &volumesnapshotv1.VolumeSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      utils.GetTestPVCPVSnapshot().PVCPending.SnapName,
-			Namespace: utils.GetTestPVCPVSnapshot().PVCPending.PVCNameSpace,
-		},
-		Spec: volumesnapshotv1.VolumeSnapshotSpec{
-			Source: volumesnapshotv1.VolumeSnapshotSource{
-				PersistentVolumeClaimName: &utils.GetTestPVCPVSnapshot().PVCPending.SourcePVCName,
-			},
-		},
-	}
-
-	snapshotPVC := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVSnapshot().PVCPending})[0]
-	sourcePVC := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCBounding})[0]
-
-	type args struct {
-		pod *corev1.Pod
-	}
-	type fields struct {
-		snapshot    *volumesnapshotv1.VolumeSnapshot
-		snapshotPVC *corev1.PersistentVolumeClaim
-		sourcePVC   *corev1.PersistentVolumeClaim
-	}
-
-	tests := []struct {
-		name         string
-		args         args
-		fields       fields
-		expectFilter *filterResult
-	}{
-		{
-			name: "test pod with snapshot pvc but snapshot not found",
-			args: args{
-				pod: podWithSnapshot,
-			},
-			fields: fields{
-				snapshotPVC: snapshotPVC,
-				sourcePVC:   sourcePVC,
-			},
-			expectFilter: &filterResult{
-				nodeStatuses: map[string]*framework.Status{
-					utils.NodeName1: framework.NewStatus(framework.Error),
-					utils.NodeName2: framework.NewStatus(framework.Error),
-					utils.NodeName3: framework.NewStatus(framework.Error),
-					utils.NodeName4: framework.NewStatus(framework.Error),
-				},
-				stateData: &stateData{
-					allocateStateByNode: map[string]*cache.NodeAllocateState{},
-				},
-			},
-		},
-		{
-			name: "test pod with snapshot pvc but source pvc not found",
-			args: args{
-				pod: podWithSnapshot,
-			},
-			fields: fields{
-				snapshot:    snapshot,
-				snapshotPVC: snapshotPVC,
-			},
-			expectFilter: &filterResult{
-				nodeStatuses: map[string]*framework.Status{
-					utils.NodeName1: framework.NewStatus(framework.Error),
-					utils.NodeName2: framework.NewStatus(framework.Error),
-					utils.NodeName3: framework.NewStatus(framework.Error),
-					utils.NodeName4: framework.NewStatus(framework.Error),
-				},
-				stateData: &stateData{
-					allocateStateByNode: map[string]*cache.NodeAllocateState{},
-				},
-			},
-		},
-		{
-			name: "test pod with snapshot pvc valid",
-			args: args{
-				pod: podWithSnapshot,
-			},
-			fields: fields{
-				snapshot:    snapshot,
-				snapshotPVC: snapshotPVC,
-				sourcePVC:   sourcePVC,
-			},
-			expectFilter: &filterResult{
-				nodeStatuses: map[string]*framework.Status{
-					utils.NodeName1: framework.NewStatus(framework.Unschedulable),
-					utils.NodeName2: framework.NewStatus(framework.Unschedulable),
-					utils.NodeName3: framework.NewStatus(framework.Success),
-					utils.NodeName4: framework.NewStatus(framework.Unschedulable),
-				},
-				stateData: &stateData{
-					allocateStateByNode: map[string]*cache.NodeAllocateState{
-						utils.NodeName3: {
-							NodeName: utils.NodeName3,
-							PodUid:   string(podWithSnapshot.UID),
-							Units: &cache.NodeAllocateUnits{
-								LVMPVCAllocateUnits:       []*cache.LVMPVAllocated{},
-								DevicePVCAllocateUnits:    []*cache.DeviceTypePVAllocated{},
-								InlineVolumeAllocateUnits: []*cache.InlineVolumeAllocated{},
-							},
-							NodeStorageAllocatedByUnits: &cache.NodeStorageState{
-								VGStates: map[string]*cache.VGStoragePool{
-									utils.VGSSD: {
-										Name:        utils.VGSSD,
-										Total:       int64(300 * utils.LocalGi),
-										Allocatable: int64(300 * utils.LocalGi),
-										Requested:   0,
-									},
-								},
-								DeviceStates: map[string]*cache.DeviceResourcePool{
-									"/dev/sdc": {
-										Name:        "/dev/sdc",
-										Total:       int64(150 * utils.LocalGi),
-										Allocatable: int64(150 * utils.LocalGi),
-										Requested:   0,
-										MediaType:   localtype.MediaTypeHDD,
-										IsAllocated: false,
-									},
-								},
-								InitedByNLS: true,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			plugin := CreateTestPlugin()
-			nodeInfos := prepare(plugin)
-
-			if tt.fields.sourcePVC != nil {
-				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.sourcePVC.Namespace).Create(context.Background(), tt.fields.sourcePVC, metav1.CreateOptions{})
-				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.fields.sourcePVC)
-			}
-			if tt.fields.snapshotPVC != nil {
-				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumeClaims(tt.fields.snapshotPVC.Namespace).Create(context.Background(), tt.fields.snapshotPVC, metav1.CreateOptions{})
-				_ = plugin.coreV1Informers.PersistentVolumeClaims().Informer().GetIndexer().Add(tt.fields.snapshotPVC)
-			}
-			if tt.fields.snapshot != nil {
-				_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshots(tt.fields.snapshot.Namespace).Create(context.Background(), tt.fields.snapshot, metav1.CreateOptions{})
-				_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(tt.fields.snapshot)
 			}
 
 			cycleState := framework.NewCycleState()

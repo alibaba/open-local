@@ -33,15 +33,15 @@ import (
 )
 
 //GetPodPvcs returns the pending pvcs which are needed for scheduling
-func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool, containReadonlySnapshot bool) (
+func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool) (
 	err error,
 	lvmPVCs []*corev1.PersistentVolumeClaim,
 	mpPVCs []*corev1.PersistentVolumeClaim,
 	devicePVCs []*corev1.PersistentVolumeClaim) {
-	return GetPodPvcsByLister(pod, ctx.CoreV1Informers.PersistentVolumeClaims().Lister(), ctx.StorageV1Informers.StorageClasses().Lister(), skipBound, containReadonlySnapshot)
+	return GetPodPvcsByLister(pod, ctx.CoreV1Informers.PersistentVolumeClaims().Lister(), ctx.StorageV1Informers.StorageClasses().Lister(), skipBound)
 }
 
-func GetPodUnboundPvcs(pvc *corev1.PersistentVolumeClaim, ctx *SchedulingContext, containReadonlySnapshot bool) (
+func GetPodUnboundPvcs(pvc *corev1.PersistentVolumeClaim, ctx *SchedulingContext) (
 	err error,
 	lvmPVCs []*corev1.PersistentVolumeClaim,
 	mpPVCs []*corev1.PersistentVolumeClaim,
@@ -57,11 +57,11 @@ func GetPodUnboundPvcs(pvc *corev1.PersistentVolumeClaim, ctx *SchedulingContext
 		log.Errorf("failed to get pod by name %s: %s", podName, err.Error())
 		return
 	}
-	return GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
+	return GetPodPvcs(pod, ctx, true)
 }
 
-func GetAllPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, containReadonlySnapshot bool) ([]*corev1.PersistentVolumeClaim, error) {
-	err, pvc1, pvc2, pvc3 := GetPodPvcs(pod, ctx, false, containReadonlySnapshot)
+func GetAllPodPvcs(pod *corev1.Pod, ctx *SchedulingContext) ([]*corev1.PersistentVolumeClaim, error) {
+	err, pvc1, pvc2, pvc3 := GetPodPvcs(pod, ctx, false)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return nil, err
@@ -73,7 +73,7 @@ func GetAllPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, containReadonlySnaps
 	return pvcs, err
 }
 
-func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeClaimLister, scLister storagelisters.StorageClassLister, skipBound bool, containReadonlySnapshot bool) (
+func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeClaimLister, scLister storagelisters.StorageClassLister, skipBound bool) (
 	err error,
 	lvmPVCs []*corev1.PersistentVolumeClaim,
 	mpPVCs []*corev1.PersistentVolumeClaim,
@@ -103,7 +103,7 @@ func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeC
 			}
 			var isLocalPV bool
 			var pvType pkg.VolumeType
-			if isLocalPV, pvType = utils.IsLocalPVC(pvc, scLister, containReadonlySnapshot); isLocalPV {
+			if isLocalPV, pvType = utils.IsLocalPVC(pvc, scLister); isLocalPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
 					log.V(4).Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
@@ -150,8 +150,7 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 */
 func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface, coreInformer corev1informers.Interface) (*cache.AllocatedUnit, error) {
 	_, nodeName := utils.IsLocalPV(pv)
-	containReadonlySnapshot := false
-	_, volumeType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
+	_, volumeType := utils.IsOpenLocalPV(pv)
 	requested := utils.GetPVSize(pv)
 	allocated := requested
 	vgName := utils.GetVGNameFromCsiPV(pv)

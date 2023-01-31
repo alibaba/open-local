@@ -17,7 +17,7 @@ package plugin
 
 import (
 	"fmt"
-	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
+
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
 
@@ -88,26 +88,4 @@ func (plugin *LocalPlugin) getInlineVolumeAllocates(pod *corev1.Pod) ([]*cache.I
 		}
 	}
 	return inlineVolumeAllocates, nil
-}
-
-func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot cache.LVMSnapshotPVCInfos) (bool, error) {
-	// if pod has snapshot pvc
-	// select all snapshot pvcs, and check if nodes of them are the same
-	var fits = true
-	if len(lvmPVCsSnapshot) >= 0 {
-
-		var pvcs []*corev1.PersistentVolumeClaim
-		for _, pvcInfo := range lvmPVCsSnapshot {
-			pvcs = append(pvcs, pvcInfo.PVC)
-		}
-
-		var err error
-		if fits, err = algo.ProcessSnapshotPVC(pvcs, nodeName, plugin.coreV1Informers, plugin.snapshotInformers); err != nil {
-			return fits, err
-		}
-		if !fits {
-			return fits, nil
-		}
-	}
-	return fits, nil
 }

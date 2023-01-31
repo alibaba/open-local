@@ -23,7 +23,7 @@
 ### 更新lvm.proto文件
 
 ```bash
-go get google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+go get google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 export PATH="$PATH:$(go env GOPATH)/bin"
 cd pkg/csi/lib
 protoc --go_out=. --go_opt=paths=source_relative \

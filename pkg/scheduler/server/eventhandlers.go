@@ -104,8 +104,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 
 	// check if PV is a Local PV
 	// if it is, check what type it is
-	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
 		return
 	}
@@ -190,8 +189,7 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 	}
 	log.Infof("[onPVDelete]pv %s is handling", pv.Name)
 
-	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
 		return
 	}
@@ -269,8 +267,7 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 		log.Warningf("no node cache %s found", node)
 		return
 	}
-	containReadonlySnapshot := false
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, containReadonlySnapshot)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
 		return
 	}
@@ -309,8 +306,7 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 		return
 	}
 
-	containReadonlySnapshot := true
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
@@ -358,8 +354,7 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 	}
 	podName := utils.PodName(pod)
 
-	containReadonlySnapshot := true
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
@@ -401,8 +396,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 	// 	return
 	// }
 
-	containReadonlySnapshot := true
-	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx, containReadonlySnapshot)
+	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx)
 	if err != nil {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return

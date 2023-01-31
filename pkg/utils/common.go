@@ -28,14 +28,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
-	"k8s.io/klog/v2"
-
-	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/spf13/pflag"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -218,8 +215,8 @@ func GetNodeNameFromCsiPV(pv *corev1.PersistentVolume) string {
 		return ""
 	}
 	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-	if key != pkg.KubernetesNodeIdentityKey {
-		log.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, pkg.KubernetesNodeIdentityKey)
+	if key != localtype.KubernetesNodeIdentityKey {
+		log.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, localtype.KubernetesNodeIdentityKey)
 		return ""
 	}
 
@@ -384,7 +381,7 @@ func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagel
 	var scName string
 	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
 		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: scName is nil", scName, pvc.Namespace, pvc.Name)
-		klog.Errorf(err.Error())
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	scName = *pvc.Spec.StorageClassName
@@ -392,7 +389,7 @@ func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagel
 
 	if err != nil {
 		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
-		klog.Errorf(err.Error())
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	return sc, nil
@@ -445,7 +442,7 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelist
 	return localtype.MediaType(mediaType), nil
 }
 
-func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (bool, localtype.VolumeType) {
 	sc, err := GetStorageClassFromPVC(claim, scLister)
 	if err != nil {
 		return false, ""
@@ -457,31 +454,12 @@ func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.Sto
 	if !ContainsProvisioner(sc.Provisioner) {
 		return false, ""
 	}
-	if IsLocalSnapshotPVC(claim) && !containReadonlySnapshot {
-		return false, ""
-	}
 	return true, LocalPVType(sc)
 }
 
-func IsOpenLocalPV(pv *corev1.PersistentVolume, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
-	var isSnapshot, isSnapshotReadOnly bool = false, false
-
+func IsOpenLocalPV(pv *corev1.PersistentVolume) (bool, localtype.VolumeType) {
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
 		attributes := pv.Spec.CSI.VolumeAttributes
-		// check if is snapshot pv according to pvc
-		if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
-			isSnapshot = true
-		}
-		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
-			isSnapshotReadOnly = true
-		}
-		if isSnapshot && !isSnapshotReadOnly {
-			log.Errorf("[IsOpenLocalPV]only support ro snapshot pv!")
-			return false, ""
-		}
-		if isSnapshot && !containReadonlySnapshot {
-			return false, ""
-		}
 		// check open-local type
 		if value, exist := attributes[localtype.VolumeTypeKey]; exist {
 			if localtype, err := localtype.VolumeTypeFromString(value); err == nil {
@@ -490,29 +468,6 @@ func IsOpenLocalPV(pv *corev1.PersistentVolume, containReadonlySnapshot bool) (b
 		}
 	}
 	return false, localtype.VolumeTypeUnknown
-}
-
-func IsLocalSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	return IsSnapshotPVC(claim)
-}
-
-func IsSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	// check if kind of datasource is "VolumeSnapshot"
-	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
-		return true
-	}
-	return false
-}
-
-func ContainsSnapshotPVC(claims []*corev1.PersistentVolumeClaim) (contain bool) {
-	contain = false
-	for _, claim := range claims {
-		if IsSnapshotPVC(claim) {
-			contain = true
-			break
-		}
-	}
-	return
 }
 
 func LocalPVType(sc *storagev1.StorageClass) localtype.VolumeType {

@@ -37,8 +37,7 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityPredicate] %s/%s", pod.Namespace, pod.Name))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
-	containReadonlySnapshot := false
-	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
+	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true)
 	if err != nil {
 		return false, err
 	}
@@ -91,22 +90,9 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		}
 	}
 
-	containReadonlySnapshot = true
-	err, lvmPVCs, _, _ = algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
+	err, lvmPVCs, _, _ = algorithm.GetPodPvcs(pod, ctx, true)
 	if err != nil {
 		return false, err
-	}
-	// if pod has snapshot pvc
-	// select all snapshot pvcs, and check if nodes of them are the same
-	if utils.ContainsSnapshotPVC(lvmPVCs) {
-		var fits bool
-		var err error
-		if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node.Name, ctx.CoreV1Informers, ctx.SnapshotInformers); err != nil {
-			return false, err
-		}
-		if !fits {
-			return false, nil
-		}
 	}
 
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {

@@ -23,7 +23,6 @@ import (
 
 	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
-	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
@@ -50,7 +49,6 @@ type SchedulingContext struct {
 	ClusterNodeCache       *cache.ClusterNodeCache
 	CoreV1Informers        corev1informers.Interface
 	StorageV1Informers     storagev1informers.Interface
-	SnapshotInformers      volumesnapshotinformers.Interface
 	LocalStorageInformer   nodelocalstorageinformer.Interface
 	NodeAntiAffinityWeight *pkg.NodeAntiAffinityWeight
 }
@@ -58,7 +56,6 @@ type SchedulingContext struct {
 func NewSchedulingContext(coreV1Informers corev1informers.Interface,
 	storageV1informers storagev1informers.Interface,
 	localStorageInformer nodelocalstorageinformer.Interface,
-	snapshotInformer volumesnapshotinformers.Interface,
 	weights *pkg.NodeAntiAffinityWeight) *SchedulingContext {
 
 	return &SchedulingContext{
@@ -67,7 +64,6 @@ func NewSchedulingContext(coreV1Informers corev1informers.Interface,
 		CoreV1Informers:        coreV1Informers,
 		StorageV1Informers:     storageV1informers,
 		LocalStorageInformer:   localStorageInformer,
-		SnapshotInformers:      snapshotInformer,
 		NodeAntiAffinityWeight: weights,
 	}
 

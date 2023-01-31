@@ -163,11 +163,10 @@ eventHandlers完整流程（PVC/PV）
 */
 
 type NodeStorageAllocatedCache struct {
-	strategyType           pkg.StrategyType
-	lvmPVAllocator         PVPVCAllocator
-	lvmSnapshotPVAllocator PVPVCAllocator
-	inlineVolumeAllocator  InlineVolumeAllocator
-	deviceAllocator        PVPVCAllocator
+	strategyType          pkg.StrategyType
+	lvmPVAllocator        PVPVCAllocator
+	inlineVolumeAllocator InlineVolumeAllocator
+	deviceAllocator       PVPVCAllocator
 
 	states                       map[string] /*nodeName*/ *NodeStorageState
 	inlineVolumeAllocatedDetails map[string] /*nodeName*/ NodeInlineVolumeAllocatedDetails
@@ -188,7 +187,6 @@ func NewNodeStorageAllocatedCache(strategyType pkg.StrategyType) *NodeStorageAll
 	cache.lvmPVAllocator = NewLVMCommonPVAllocator(cache)
 	cache.inlineVolumeAllocator = NewInlineVolumeAllocator(cache)
 	cache.deviceAllocator = NewDevicePVAllocator(cache)
-	cache.lvmSnapshotPVAllocator = NewLVMSnapshotPVAllocator(cache)
 	return cache
 }
 
@@ -402,7 +400,7 @@ func (c *NodeStorageAllocatedCache) DeletePVC(pvc *corev1.PersistentVolumeClaim)
 
 func (c *NodeStorageAllocatedCache) AddOrUpdatePV(pv *corev1.PersistentVolume, nodeName string) {
 
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
 		return
 	}
@@ -419,7 +417,7 @@ func (c *NodeStorageAllocatedCache) AddOrUpdatePV(pv *corev1.PersistentVolume, n
 }
 
 func (c *NodeStorageAllocatedCache) DeletePV(pv *corev1.PersistentVolume, nodeName string) {
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
 		return
 	}
@@ -595,14 +593,11 @@ func (c *NodeStorageAllocatedCache) getAllocatorByVolumeType(volumeType pkg.Volu
 }
 
 func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.StorageClassLister, pvc *corev1.PersistentVolumeClaim) PVPVCAllocator {
-	if isLocalPV, pvType := utils.IsLocalPVC(pvc, scLister, true); isLocalPV {
+	if isLocalPV, pvType := utils.IsLocalPVC(pvc, scLister); isLocalPV {
 		switch pvType {
 		case pkg.VolumeTypeLVM:
-			if utils.IsSnapshotPVC(pvc) {
-				return c.lvmSnapshotPVAllocator
-			} else {
-				return c.lvmPVAllocator
-			}
+
+			return c.lvmPVAllocator
 		case pkg.VolumeTypeDevice:
 			return c.deviceAllocator
 		default:

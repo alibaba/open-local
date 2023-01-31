@@ -1,9 +1,8 @@
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
-  name: new-snapshot-test
+  name: volumesnapshot-A
 spec:
-  volumeSnapshotClassName: open-local-lvm
+  volumeSnapshotClassName: example
   source:
-    # 需执行快照的源PVC名称
-    persistentVolumeClaimName: html-nginx-lvm-0
+    persistentVolumeClaimName: pvc-A

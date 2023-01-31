@@ -17,6 +17,7 @@ package cache
 
 import (
 	"fmt"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
@@ -273,9 +274,6 @@ func (allocator *lvmCommonPVAllocator) pvDelete(nodeName string, pv *corev1.Pers
 }
 
 func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.StorageClassLister, lvmPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
-	if utils.IsSnapshotPVC(lvmPVC) {
-		return nil
-	}
 	if allocator.cache.GetPVCAllocatedDetailCopy(lvmPVC.Namespace, lvmPVC.Name) != nil {
 		return nil
 	}
@@ -292,10 +290,10 @@ func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.Storage
 		VGName:  vgName,
 	}
 
-	if podVolumeInfos.LVMPVCsNotSnapshot == nil {
-		podVolumeInfos.LVMPVCsNotSnapshot = NewLVMCommonPVCInfos()
+	if podVolumeInfos.LVMPVCs == nil {
+		podVolumeInfos.LVMPVCs = NewLVMCommonPVCInfos()
 	}
-	infos := podVolumeInfos.LVMPVCsNotSnapshot
+	infos := podVolumeInfos.LVMPVCs
 
 	if lvmPVCInfo.VGName == "" {
 		// 里面没有 vg 信息
@@ -308,7 +306,7 @@ func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.Storage
 
 func (allocator *lvmCommonPVAllocator) preAllocate(nodeName string, podVolumeInfos *PodLocalVolumeInfo, nodeStateClone *NodeStorageState) ([]PVAllocated, error) {
 	var allocateUnits []PVAllocated
-	if !podVolumeInfos.LVMPVCsNotSnapshot.HaveLocalVolumes() {
+	if !podVolumeInfos.LVMPVCs.HaveLocalVolumes() {
 		return allocateUnits, nil
 	}
 
@@ -318,7 +316,7 @@ func (allocator *lvmCommonPVAllocator) preAllocate(nodeName string, podVolumeInf
 		return allocateUnits, err
 	}
 
-	infos := podVolumeInfos.LVMPVCsNotSnapshot
+	infos := podVolumeInfos.LVMPVCs
 
 	for _, pvcInfo := range infos.LVMPVCsWithVgNameNotAllocated {
 

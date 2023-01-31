@@ -165,19 +165,20 @@ message ExpandLVReply {
 }
 
 message CreateSnapshotRequest {
-  string volume_group = 1;
-  string snap_name = 2;
-  string lv_name = 3;
-  uint64 size = 4;
+  string vg_name = 1;
+  string snapshot_name = 2;
+  string src_volume_name = 3;
+  map<string,string> secrets = 4;
 }
 
 message CreateSnapshotReply {
-  string command_output = 1;
+  int64 size_bytes = 1;
 }
 
 message RemoveSnapshotRequest {
-  string volume_group = 1;
-  string snap_name = 2;
+  string vg_name = 1;
+  string snapshot_name = 2;
+  map<string,string> secrets = 3;
 }
 
 message RemoveSnapshotReply {

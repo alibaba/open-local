@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,10 +28,10 @@ import (
 	"github.com/alibaba/open-local/pkg/csi/adapter"
 	"github.com/alibaba/open-local/pkg/csi/client"
 	"github.com/alibaba/open-local/pkg/csi/server"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	units "github.com/docker/go-units"
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
@@ -133,12 +132,12 @@ func newControllerServer(options *driverOptions) *controllerServer {
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	log.V(4).Infof("CreateVolume: called with args %+v", *req)
 	volumeID := req.GetName()
-	// Step 1: check request
+	// check request
 	if err := validateCreateVolumeRequest(req); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: fail to validate CreateVolumeRequest: %s", err.Error())
 	}
 
-	// Step 2: get necessary info
+	// get necessary info
 	parameters := req.GetParameters()
 	// volumeType
 	volumeType := parameters[pkg.VolumeTypeKey]
@@ -159,20 +158,98 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	log.Infof("CreateVolume: starting to Create %s volume %s with: PVC(%s/%s), nodeSelected(%s)", volumeType, volumeID, pvcNameSpace, pvcName, nodeName)
 
-	// Step 3: Storage schedule
+	// storage schedule
 	if ok := cs.inFlight.Insert(volumeID); !ok {
 		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, volumeID)
 	}
 	defer func() {
 		cs.inFlight.Delete(volumeID)
 	}()
+
 	isSnapshot := false
 	paramMap := map[string]string{}
-	// handle snapshot first
-	// 判断是否是 restic snapshot
-	// 若是则走正常创建 volume 的流程
-	// param中添加一种类型：restic 快照
-	// secret中添加 s3 信息，这个通过在param中创建，自然会有
+	conn, err := cs.getNodeConn(nodeName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to connect to node %s: %s", nodeName, err.Error())
+	}
+	defer conn.Close()
+
+	schedulerName := cs.pvcPodSchedulerMap.Get(pvcNameSpace, pvcName)
+	if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchExtender {
+		log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchExtender)
+		switch volumeType {
+		case string(pkg.VolumeTypeLVM):
+			// extender scheduling
+			paramMap, err = cs.scheduleLVMVolume(nodeName, pvcName, pvcNameSpace, parameters)
+			if err != nil {
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "CreateVolume: fail to schedule LVM %s: %s", volumeID, err.Error())
+			}
+			vgName := paramMap[VgNameTag]
+			log.Infof("CreateVolume: schedule LVM %s with %s, %s", volumeID, nodeName, vgName)
+
+			if vgName == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: empty vgName in %s", volumeID)
+			}
+
+			// Volume Options
+			options := &client.LVMOptions{}
+			options.Name = req.Name
+			options.VolumeGroup = vgName
+			if value, ok := parameters[LvmTypeTag]; ok && value == StripingType {
+				options.Striping = true
+			}
+			options.Size = uint64(req.GetCapacityRange().GetRequiredBytes())
+
+			// create lv
+			if lvName, err := conn.GetVolume(ctx, vgName, volumeID); err != nil {
+				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get lv %s from node %s: %s", req.Name, nodeName, err.Error())
+			} else {
+				if lvName == "" {
+					outstr, err := conn.CreateVolume(ctx, options)
+					if err != nil {
+						return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s/%s(options: %v): %s", vgName, volumeID, options, err.Error())
+					}
+					log.Infof("CreateLvm: create lvm %s/%s in node %s with response %s successfully", vgName, volumeID, nodeName, outstr)
+				} else {
+					log.Infof("CreateVolume: lv %s already created at node %s", req.Name, nodeName)
+				}
+			}
+		case string(pkg.VolumeTypeMountPoint):
+			var err error
+			paramMap, err = cs.scheduleMountpointVolume(nodeName, pvcName, pvcNameSpace, parameters)
+			if err != nil {
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "CreateVolume: fail to schedule mountpoint %s at node %s: %s", req.Name, nodeName, err.Error())
+			}
+			log.Infof("CreateVolume: create mountpoint %s at node %s successfully", req.Name, nodeName)
+		case string(pkg.VolumeTypeDevice):
+			var err error
+			// Node and Storage have been scheduled
+			paramMap, err = cs.scheduleDeviceVolume(nodeName, pvcName, pvcNameSpace, parameters)
+			if err != nil {
+				code := codes.Internal
+				if strings.Contains(err.Error(), "Insufficient") {
+					code = codes.ResourceExhausted
+				}
+				return nil, status.Errorf(code, "CreateVolume: fail to schedule device volume %s at node %s: %s", req.Name, nodeName, err.Error())
+			}
+			log.Infof("CreateVolume: create device %s at node %s successfully", req.Name, nodeName)
+		default:
+			return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no support volume type %s", volumeType)
+		}
+	} else if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchFramework {
+		log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchFramework)
+	} else {
+		return nil, status.Errorf(codes.Unknown, "CreateVolume: scheduler arch of pvc(%s/%s) is %s, plz check again", pvcNameSpace, pvcName, SchedulerArchUnknown)
+	}
+
 	if volumeSource := req.GetVolumeContentSource(); volumeSource != nil {
 		if volumeType == string(pkg.VolumeTypeLVM) {
 			// validate
@@ -180,6 +257,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				return nil, status.Error(codes.InvalidArgument, "CreateVolume: unsupported volumeContentSource type")
 			}
 			log.Infof("CreateVolume: kind of volume %s is snapshot", volumeID)
+			isSnapshot = true
+
 			// get snapshot name
 			sourceSnapshot := volumeSource.GetSnapshot()
 			if sourceSnapshot == nil {
@@ -194,114 +273,24 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			}
 			srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 			log.Infof("CreateVolume: srcVolumeID of snapshot %s(volumeID %s) is %s", volumeID, snapshotID, srcVolumeID)
-			// check if is readonly snapshot
-			class, err := getVolumeSnapshotClass(cs.options.snapclient, *snapContent.Spec.VolumeSnapshotClassName)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get snapshot class: %s", err.Error())
-			}
-			ro, exist := class.Parameters[localtype.ParamSnapshotReadonly]
-			if !exist || ro != "true" {
-				return nil, status.Errorf(codes.Unimplemented, "CreateVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
-			}
-			// get node name and vg name from src volume
-			pv, err := cs.pvLister.Get(srcVolumeID)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
-			}
-			vgName := utils.GetVGNameFromCsiPV(pv)
-			if vgName == "" {
-				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get vgName from pv %s", pv.Name)
-			}
-			// set paraList for NodeStageVolume and NodePublishVolume
-			isSnapshot = true
-			paramMap[VgNameTag] = vgName
+			paramMap[localtype.ParamSourceVolumeID] = srcVolumeID
 			paramMap[localtype.ParamSnapshotName] = snapshotID
-			paramMap[localtype.ParamSnapshotReadonly] = "true"
-			log.Infof("CreateVolume: get snapshot volume %s info: node(%s) storageSelected(%s)", volumeID, nodeName, vgName)
+
+			// todo: 不需要原 PV 的 vgName
+			// get node name and vg name from src volume
+			// pv, err := cs.pvLister.Get(srcVolumeID)
+			// if err != nil {
+			// 	return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get src pv: %s", err.Error())
+			// }
+			// todo
+			// vgName := utils.GetVGNameFromCsiPV(pv)
+			// if vgName == "" {
+			// 	return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get vgName from pv %s", pv.Name)
+			// }
+			// paramMap[VgNameTag] = vgName
+			log.Infof("CreateVolume: get restic snapshot snapshot volume %s info", volumeID)
 		} else {
 			return nil, status.Errorf(codes.Unimplemented, "unsupported snapshot %s", volumeType)
-		}
-	} else {
-		schedulerName := cs.pvcPodSchedulerMap.Get(pvcNameSpace, pvcName)
-		if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchExtender {
-			log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchExtender)
-			switch volumeType {
-			case string(pkg.VolumeTypeLVM):
-				// extender scheduling
-				paramMap, err = cs.scheduleLVMVolume(nodeName, pvcName, pvcNameSpace, parameters)
-				if err != nil {
-					code := codes.Internal
-					if strings.Contains(err.Error(), "Insufficient") {
-						code = codes.ResourceExhausted
-					}
-					return nil, status.Errorf(code, "CreateVolume: fail to schedule LVM %s: %s", volumeID, err.Error())
-				}
-				vgName := paramMap[VgNameTag]
-				log.Infof("CreateVolume: schedule LVM %s with %s, %s", volumeID, nodeName, vgName)
-
-				if vgName == "" {
-					return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: empty vgName in %s", volumeID)
-				}
-
-				// Volume Options
-				options := &client.LVMOptions{}
-				options.Name = req.Name
-				options.VolumeGroup = vgName
-				if value, ok := parameters[LvmTypeTag]; ok && value == StripingType {
-					options.Striping = true
-				}
-				options.Size = uint64(req.GetCapacityRange().GetRequiredBytes())
-
-				// create lv
-				conn, err := cs.getNodeConn(nodeName)
-				if err != nil {
-					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to connect to node %s: %s", nodeName, err.Error())
-				}
-				defer conn.Close()
-
-				if lvName, err := conn.GetVolume(ctx, vgName, volumeID); err != nil {
-					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get lv %s from node %s: %s", req.Name, nodeName, err.Error())
-				} else {
-					if lvName == "" {
-						outstr, err := conn.CreateVolume(ctx, options)
-						if err != nil {
-							return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s/%s(options: %v): %s", vgName, volumeID, options, err.Error())
-						}
-						log.Infof("CreateLvm: create lvm %s/%s in node %s with response %s successfully", vgName, volumeID, nodeName, outstr)
-					} else {
-						log.Infof("CreateVolume: lv %s already created at node %s", req.Name, nodeName)
-					}
-				}
-			case string(pkg.VolumeTypeMountPoint):
-				var err error
-				paramMap, err = cs.scheduleMountpointVolume(nodeName, pvcName, pvcNameSpace, parameters)
-				if err != nil {
-					code := codes.Internal
-					if strings.Contains(err.Error(), "Insufficient") {
-						code = codes.ResourceExhausted
-					}
-					return nil, status.Errorf(code, "CreateVolume: fail to schedule mountpoint %s at node %s: %s", req.Name, nodeName, err.Error())
-				}
-				log.Infof("CreateVolume: create mountpoint %s at node %s successfully", req.Name, nodeName)
-			case string(pkg.VolumeTypeDevice):
-				var err error
-				// Node and Storage have been scheduled
-				paramMap, err = cs.scheduleDeviceVolume(nodeName, pvcName, pvcNameSpace, parameters)
-				if err != nil {
-					code := codes.Internal
-					if strings.Contains(err.Error(), "Insufficient") {
-						code = codes.ResourceExhausted
-					}
-					return nil, status.Errorf(code, "CreateVolume: fail to schedule device volume %s at node %s: %s", req.Name, nodeName, err.Error())
-				}
-				log.Infof("CreateVolume: create device %s at node %s successfully", req.Name, nodeName)
-			default:
-				return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no support volume type %s", volumeType)
-			}
-		} else if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchFramework {
-			log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchFramework)
-		} else {
-			return nil, status.Errorf(codes.Unknown, "CreateVolume: scheduler arch of pvc(%s/%s) is %s, plz check again", pvcNameSpace, pvcName, SchedulerArchUnknown)
 		}
 	}
 
@@ -377,8 +366,6 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			log.Infof("DeleteVolume: volume %s is ro snapshot volume, skip delete lv", volumeID)
 			// break switch
 			return &csi.DeleteVolumeResponse{}, nil
-		} else {
-			return nil, status.Errorf(codes.Unimplemented, "DeleteVolume: only support readonly snapshot now, you must set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
 		}
 	}
 
@@ -452,7 +439,8 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 // CreateSnapshot create lvm snapshot
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	log.V(4).Infof("CreateSnapshot: called with args %+v", *req)
-	// Step 1: check request
+
+	// check request
 	snapshotName := req.GetName()
 	if len(snapshotName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot: snapshot name not provided")
@@ -462,16 +450,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.InvalidArgument, "CreateSnapshot: snapshot %s volume source ID not provided", snapshotName)
 	}
 
-	// Step 2: get snapshot initial size from parameter
-	// 必须与原 ro snapshot 兼容
-	initialSize, _, _, err := getSnapshotInitialInfo(req.Parameters)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get snapshot %s initial info error: %s", req.Name, err.Error())
-	}
-
-	// 获取一下 s3 信息，从 class param 中获取
-
-	// Step 3: get vgName
+	// get vgName
 	srcPV, err := cs.pvLister.Get(srcVolumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get pv: %s", err.Error())
@@ -482,10 +461,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 	log.Infof("CreateSnapshot: vg of snapshot %s is %s", snapshotName, vgName)
 
-	// Step 4: update initialSize if initialSize is bigger than pv request size
-	srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
-	if srcPVSize < int64(initialSize) {
-		initialSize = uint64(srcPVSize)
+	// get nodeName
+	nodeName := utils.GetNodeNameFromCsiPV(srcPV)
+	if nodeName == "" {
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get node name of pv %s", srcPV.Name)
 	}
 
 	if ok := cs.inFlight.Insert(snapshotName); !ok {
@@ -495,101 +474,103 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		cs.inFlight.Delete(snapshotName)
 	}()
 
-	// Step 5: get grpc client
-	nodeName := utils.GetNodeNameFromCsiPV(srcPV)
-	if nodeName == "" {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get node name of pv %s", srcPV.Name)
-	}
+	// get grpc client
 	conn, err := cs.getNodeConn(nodeName)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to get grpc client at node %s: %s", nodeName, err.Error())
 	}
 	defer conn.Close()
 
-	// Step 6: create lvm snapshot
-	var lvmName string
-	if lvmName, err = conn.GetVolume(ctx, vgName, snapshotName); err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
+	// create restic snapshot
+	sizeBytes, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, req.Secrets)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to create snapshot %s: %s", snapshotName, err.Error())
 	}
-	if lvmName == "" {
-		// 这里 CreateSnapshot 需要更改内容
-		// 这里需要生成 snapshot id，并传递给 response
-		// 函数中添加 s3 信息
-		_, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, initialSize)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
-		}
-		log.Infof("CreateSnapshot: create snapshot %s successfully", snapshotName)
-	} else {
-		log.Infof("CreateSnapshot: lvm snapshot %s in node %s already exists", snapshotName, nodeName)
+
+	if sizeBytes == 0 {
+		srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
+		sizeBytes = srcPVSize
 	}
-	// 更改 snapshot id
-	return cs.newCreateSnapshotResponse(req, int64(initialSize))
+
+	log.Infof("CreateSnapshot: create snapshot %s successfully", snapshotName)
+	return cs.newCreateSnapshotResponse(snapshotName, req.SourceVolumeId, sizeBytes)
 }
 
 // DeleteSnapshot delete lvm snapshot
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	log.Infof("DeleteSnapshot: called with args %+v", *req)
 	// Step 1: check req
-	// snapshotName is name of snapshot lv
-	snapshotName := req.GetSnapshotId()
-	if len(snapshotName) == 0 {
+	snapshotID := req.GetSnapshotId()
+	if len(snapshotID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot: Snapshot ID not provided")
 	}
 
-	// Step 2: get volumeID from snapshot
-	snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotName)
+	// get volumeID from snapshotcontent
+	snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotName, err.Error())
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotID, err.Error())
 	}
 	srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 
-	// Step 3: get vgName
-	pv, err := cs.pvLister.Get(srcVolumeID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get pv: %s", err.Error())
-	}
-	vgName := utils.GetVGNameFromCsiPV(pv)
-	if vgName == "" {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get vgName of pv %s", pv.Name)
-	}
-	log.Infof("DeleteSnapshot: vg of snapshot %s is %s", snapshotName, vgName)
-
-	if ok := cs.inFlight.Insert(snapshotName); !ok {
-		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, snapshotName)
+	if ok := cs.inFlight.Insert(snapshotID); !ok {
+		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, snapshotID)
 	}
 	defer func() {
-		cs.inFlight.Delete(snapshotName)
+		cs.inFlight.Delete(snapshotID)
 	}()
 
-	// Step 4: get grpc client
-	nodeName := utils.GetNodeNameFromCsiPV(pv)
-	if nodeName == "" {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get node name of pv %s", pv.Name)
-	}
-	conn, err := cs.getNodeConn(nodeName)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
-	}
-	defer conn.Close()
-
-	// Step 5: delete lvm snapshot
-	var lvmName string
-	if lvmName, err = conn.GetVolume(ctx, vgName, snapshotName); err != nil {
-		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
-	}
-	if lvmName != "" {
-		err := conn.DeleteSnapshot(ctx, vgName, snapshotName)
+	s3URL := req.Secrets[S3_URL]
+	s3AK := req.Secrets[S3_AK]
+	s3SK := req.Secrets[S3_SK]
+	if s3URL != "" {
+		// restic 快照逻辑
+		// 此处 snapshot id 即为 tag
+		out, err := restic.DeleteDataByID(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: delete lvm snapshot %s failed: %s", snapshotName, err.Error())
+			return nil, err
 		}
+		log.Infof("delete restic data by ID %s successfully: %#v", snapshotID, out)
 	} else {
-		log.Infof("DeleteSnapshot: lvm snapshot %s in node %s not found, skip...", snapshotName, nodeName)
-		// return immediately
-		return &csi.DeleteSnapshotResponse{}, nil
+		// 普通快照的逻辑
+		pv, err := cs.pvLister.Get(srcVolumeID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get pv: %s", err.Error())
+		}
+		vgName := utils.GetVGNameFromCsiPV(pv)
+		if vgName == "" {
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get vgName of pv %s", pv.Name)
+		}
+		log.Infof("DeleteSnapshot: vg of snapshot %s is %s", snapshotID, vgName)
+
+		// Step 4: get grpc client
+		nodeName := utils.GetNodeNameFromCsiPV(pv)
+		if nodeName == "" {
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get node name of pv %s", pv.Name)
+		}
+		conn, err := cs.getNodeConn(nodeName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get grpc client at node %s error: %s", nodeName, err.Error())
+		}
+		defer conn.Close()
+
+		// Step 5: delete lvm snapshot
+		var lvmName string
+		if lvmName, err = conn.GetVolume(ctx, vgName, snapshotID); err != nil {
+			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get lvm snapshot %s failed: %s", snapshotID, err.Error())
+		}
+		if lvmName != "" {
+			err := conn.DeleteSnapshot(ctx, vgName, snapshotID, nil)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "DeleteSnapshot: delete lvm snapshot %s failed: %s", snapshotID, err.Error())
+			}
+		} else {
+			log.Infof("DeleteSnapshot: lvm snapshot %s in node %s not found, skip...", snapshotID, nodeName)
+			// return immediately
+			return &csi.DeleteSnapshotResponse{}, nil
+		}
 	}
 
-	log.Infof("DeleteSnapshot: delete snapshot %s successfully", snapshotName)
+	log.Infof("DeleteSnapshot: delete snapshot %s successfully", snapshotID)
 	return &csi.DeleteSnapshotResponse{}, nil
 }
 
@@ -698,7 +679,7 @@ func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *
 	return &csi.ControllerGetCapabilitiesResponse{Capabilities: caps}, nil
 }
 
-func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotRequest, snapshotSize int64) (*csi.CreateSnapshotResponse, error) {
+func (cs *controllerServer) newCreateSnapshotResponse(snapshotId, sourceVolumeId string, snapshotSize int64) (*csi.CreateSnapshotResponse, error) {
 	ts := &timestamppb.Timestamp{
 		Seconds: time.Now().Unix(),
 		Nanos:   int32(time.Now().Nanosecond()),
@@ -706,8 +687,8 @@ func (cs *controllerServer) newCreateSnapshotResponse(req *csi.CreateSnapshotReq
 
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
-			SnapshotId:     req.Name,
-			SourceVolumeId: req.SourceVolumeId,
+			SnapshotId:     snapshotId,
+			SourceVolumeId: sourceVolumeId,
 			SizeBytes:      snapshotSize,
 			ReadyToUse:     true,
 			CreationTime:   ts,
@@ -729,10 +710,6 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	return conn, err
 }
 
-func getVolumeSnapshotClass(snapclient snapshot.Interface, className string) (*snapshotapi.VolumeSnapshotClass, error) {
-	return snapclient.SnapshotV1().VolumeSnapshotClasses().Get(context.Background(), className, metav1.GetOptions{})
-}
-
 func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName string) (*snapshotapi.VolumeSnapshotContent, error) {
 	// Step 1: get yoda snapshot prefix
 	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
@@ -741,41 +718,6 @@ func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentName
 	}
 	// Step 2: get snapshot content api
 	return snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentName, prefix, "snapcontent", 1), metav1.GetOptions{})
-}
-
-func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64, err error) {
-	initialSize = localtype.DefaultSnapshotInitialSize
-	threshold = localtype.DefaultSnapshotThreshold
-	increaseSize = localtype.DefaultSnapshotExpansionSize
-	err = nil
-
-	// Step 1: get snapshot initial size
-	if str, exist := param[localtype.ParamSnapshotInitialSize]; exist {
-		size, err := units.RAMInBytes(str)
-		if err != nil {
-			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get initialSize from snapshot annotation failed: %s", err.Error())
-		}
-		initialSize = uint64(size)
-	}
-	// Step 2: get snapshot expand threshold
-	if str, exist := param[localtype.ParamSnapshotThreshold]; exist {
-		str = strings.ReplaceAll(str, "%", "")
-		thr, err := strconv.ParseFloat(str, 64)
-		if err != nil {
-			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: parse float failed: %s", err.Error())
-		}
-		threshold = thr / 100
-	}
-	// Step 3: get snapshot increase size
-	if str, exist := param[localtype.ParamSnapshotExpansionSize]; exist {
-		size, err := units.RAMInBytes(str)
-		if err != nil {
-			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get increase size from snapshot annotation failed: %s", err.Error())
-		}
-		increaseSize = uint64(size)
-	}
-	log.Infof("getSnapshotInitialInfo: initialSize(%d), threshold(%f), increaseSize(%d)", initialSize, threshold, increaseSize)
-	return
 }
 
 func getNodeAddr(node *v1.Node, nodeID string) (string, error) {

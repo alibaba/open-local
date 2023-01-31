@@ -89,23 +89,17 @@ const (
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnoSelectedNode                     = "volume.kubernetes.io/selected-node"
 	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
-	EnvExpandSnapInterval                = "Expand_Snapshot_Interval"
 	EnvForceCreateVG                     = "Force_Create_VG"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
 
-	ParamSnapshotName            = "yoda.io/snapshot-name"
-	ParamSnapshotReadonly        = "csi.aliyun.com/readonly"
-	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
-	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
-	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
-	ParamVGName                  = "vgName"
-	ParamLVSize                  = "size"
-	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix        = "snap"
-	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
-	DefaultSnapshotThreshold     = 0.5
-	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+	ParamSnapshotName     = "yoda.io/snapshot-name"
+	ParamSnapshotReadonly = "csi.aliyun.com/readonly"
+	ParamSourceVolumeID   = "csi.aliyun.com/source-volume-id"
+	ParamVGName           = "vgName"
+	ParamLVSize           = "size"
+	EnvSnapshotPrefix     = "SNAPSHOT_PREFIX"
+	DefaultSnapshotPrefix = "snap"
 
 	Separator = "<:SEP:>"
 

@@ -1,5 +1,6 @@
 /*
 Copyright © 2021 Alibaba Group Holding Ltd.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,7 +50,6 @@ import (
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	k8svol "k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/volume/util/fs"
 )
 
 // WordSepNormalizeFunc changes all flags that contain "_" separators
@@ -713,7 +713,7 @@ func GetMetrics(path string) (*csilib.NodeGetVolumeStatsResponse, error) {
 	if path == "" {
 		return nil, fmt.Errorf("getMetrics No path given")
 	}
-	available, capacity, usage, inodes, inodesFree, inodesUsed, err := fs.FsInfo(path)
+	available, capacity, usage, inodes, inodesFree, inodesUsed, err := FsInfo(path)
 	if err != nil {
 		return nil, err
 	}
@@ -861,4 +861,29 @@ func IsBlockDevice(fullPath string) (bool, error) {
 	}
 
 	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
+}
+
+// FsInfo linux returns (available bytes, byte capacity, byte usage, total inodes, inodes free, inode usage, error)
+// for the filesystem that path resides upon.
+func FsInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
+	statfs := &unix.Statfs_t{}
+	err := unix.Statfs(path, statfs)
+	if err != nil {
+		return 0, 0, 0, 0, 0, 0, err
+	}
+
+	// Available is blocks available * fragment size
+	available := int64(statfs.Bavail) * int64(statfs.Bsize)
+
+	// Capacity is total block count * fragment size
+	capacity := int64(statfs.Blocks) * int64(statfs.Bsize)
+
+	// Usage is block being used * fragment size (aka block size).
+	usage := (int64(statfs.Blocks) - int64(statfs.Bfree)) * int64(statfs.Bsize)
+
+	inodes := int64(statfs.Files)
+	inodesFree := int64(statfs.Ffree)
+	inodesUsed := inodes - inodesFree
+
+	return available, capacity, usage, inodes, inodesFree, inodesUsed, nil
 }

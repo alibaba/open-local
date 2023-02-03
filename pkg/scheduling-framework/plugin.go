@@ -3,8 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	"k8s.io/klog/v2"
 	"math"
 	"sync"
 
@@ -12,6 +10,7 @@ import (
 	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
 
@@ -24,8 +23,10 @@ import (
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/kubernetes"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	restclient "k8s.io/client-go/rest"
 	clientgocache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
@@ -45,7 +46,7 @@ func (state *stateData) Clone() framework.StateData {
 	return state
 }
 
-//by score
+// by score
 func (state *stateData) GetAllocateState(nodeName string) *cache.NodeAllocateState {
 	state.locker.RLock()
 	defer state.locker.RUnlock()
@@ -55,7 +56,7 @@ func (state *stateData) GetAllocateState(nodeName string) *cache.NodeAllocateSta
 	return state.allocateStateByNode[nodeName]
 }
 
-//add by filter
+// add by filter
 func (state *stateData) AddAllocateState(nodeName string, allocate *cache.NodeAllocateState) {
 	state.locker.Lock()
 	defer state.locker.Unlock()
@@ -99,6 +100,29 @@ var _ = framework.PreBindPlugin(&LocalPlugin{})
 
 // NewLocalPlugin
 func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+	args := OpenLocalArg{}
+
+	if configuration != nil {
+		unknownObj, ok := configuration.(*runtime.Unknown)
+		if !ok {
+			return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", configuration)
+		}
+
+		if err := frameworkruntime.DecodeInto(unknownObj, &args); err != nil {
+			return nil, err
+		}
+	}
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", args.KubeConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("error building kubeconfig: %s", err.Error())
+	}
+
+	return NewLocalPluginWithKubeconfig(configuration, f, cfg)
+}
+
+// NewLocalPluginWithKubeconfig
+func NewLocalPluginWithKubeconfig(configuration runtime.Object, f framework.Handle, cfg *restclient.Config) (framework.Plugin, error) {
 
 	args := OpenLocalArg{}
 
@@ -118,10 +142,6 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		return nil, err
 	}
 
-	cfg, err := clientcmd.BuildConfigFromFlags("", args.KubeConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("error building kubeconfig: %s", err.Error())
-	}
 	// client
 	localClient, err := localclientset.NewForConfig(cfg)
 	if err != nil {
@@ -211,7 +231,7 @@ func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {
 	return nil
 }
 
-//TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
+// TODO This plugin can't get staticBindings pvc bound by volume_binding plugin here, so node storage that have no space but exist matchingVolume may also fail
 func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	nodeName := nodeInfo.Node().Name
 
@@ -269,7 +289,7 @@ func (plugin *LocalPlugin) Score(ctx context.Context, state *framework.CycleStat
 	return plugin.scorer.Score(allocateInfo), framework.NewStatus(framework.Success)
 }
 
-//PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
+// PVC which will be bound as a staticBindings at step volume_binding.PreBind, finally allocate by pv and no need revert by pvc
 func (plugin *LocalPlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
 
 	return plugin.ReserveReservation(ctx, state, pod, nil, nodeName)
@@ -336,9 +356,9 @@ func (plugin *LocalPlugin) UnreserveReservation(ctx context.Context, state *fram
 	plugin.cache.Unreserve(reservedAllocate, reservationPodUid, reservationInlineVolumes)
 }
 
-//TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to pod.
-//TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
-//TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
+// TODO 1) staticBindings PVC which bound by volume_binding plugin may patch a wrong VG or Device to pod.
+// TODO 1) such as pvc allocated with VG1 OR Device1 by scheduler, but bound by volume_binding with  pv of VG2 OR Device2
+// TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
 func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
 
 	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false, false)

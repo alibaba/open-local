@@ -171,7 +171,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 			Name: snapshotClassName,
 		},
 		Parameters: map[string]string{
-			pkg.ParamSnapshotReadonly: "true",
+			pkg.ParamReadonly: "true",
 		},
 		DeletionPolicy: volumesnapshotv1.VolumeSnapshotContentDelete,
 		Driver:         pkg.ProvisionerName,
@@ -639,14 +639,14 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					CapacityBytes: int64(150 * 1024 * 1024 * 1024),
 					VolumeId:      pvNameForSnapshot,
 					VolumeContext: map[string]string{
-						pkg.PVName:                pvNameForSnapshot,
-						pkg.PVCNameSpace:          pvcSnapshotForExtender.Namespace,
-						pkg.PVCName:               pvcSnapshotForExtender.Name,
-						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
-						pkg.AnnoSelectedNode:      utils.NodeName4,
-						pkg.VGName:                "newVG",
-						pkg.ParamSnapshotReadonly: "true",
-						pkg.ParamSnapshotName:     snapshotContentName,
+						pkg.PVName:            pvNameForSnapshot,
+						pkg.PVCNameSpace:      pvcSnapshotForExtender.Namespace,
+						pkg.PVCName:           pvcSnapshotForExtender.Name,
+						pkg.VolumeTypeKey:     string(pkg.VolumeTypeLVM),
+						pkg.AnnoSelectedNode:  utils.NodeName4,
+						pkg.VGName:            "newVG",
+						pkg.ParamReadonly:     "true",
+						pkg.ParamSnapshotName: snapshotContentName,
 					},
 					AccessibleTopology: []*csi.Topology{
 						{
@@ -756,10 +756,10 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
-						pkg.ParamVGName:           "newVG",
-						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
-						pkg.ParamSnapshotName:     "snapshotName",
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamVGName:       "newVG",
+						pkg.VolumeTypeKey:     string(pkg.VolumeTypeLVM),
+						pkg.ParamSnapshotName: "snapshotName",
+						pkg.ParamReadonly:     "true",
 					},
 				},
 			},
@@ -1127,7 +1127,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamReadonly: "true",
 					},
 				},
 			},
@@ -1143,7 +1143,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamReadonly: "true",
 					},
 				},
 			},
@@ -1159,7 +1159,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamReadonly: "true",
 					},
 				},
 			},
@@ -1175,7 +1175,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamReadonly: "true",
 					},
 				},
 			},
@@ -1198,7 +1198,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamReadonly: "true",
 					},
 				},
 			},

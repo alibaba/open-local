@@ -53,10 +53,10 @@ func (fake *FakeCommands) CloneLV(ctx context.Context, src, dest string) (string
 func (fake *FakeCommands) ExpandLV(ctx context.Context, vgName string, volumeId string, expectSize uint64) (string, error) {
 	return "ExpandLV", nil
 }
-func (fake *FakeCommands) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, secrets map[string]string) (int64, error) {
+func (fake *FakeCommands) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error) {
 	return 0, nil
 }
-func (fake *FakeCommands) RemoveSnapshot(ctx context.Context, vg string, name string) (string, error) {
+func (fake *FakeCommands) RemoveSnapshot(ctx context.Context, vg string, name string, readonly bool) (string, error) {
 	return "RemoveSnapshot", nil
 }
 

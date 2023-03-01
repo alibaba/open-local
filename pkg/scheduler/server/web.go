@@ -32,6 +32,8 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
 	"github.com/julienschmidt/httprouter"
+	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,16 +45,28 @@ import (
 	log "k8s.io/klog/v2"
 )
 
-func NewExtenderServer(kubeClient kubernetes.Interface,
+func NewExtenderServer(
+	kubeClient kubernetes.Interface,
 	localclient clientset.Interface,
+	snapClient volumesnapshot.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	localStorageInformerFactory informers.SharedInformerFactory,
-	port int32, weights *pkg.NodeAntiAffinityWeight) *ExtenderServer {
+	volumesnapshotInformerFactory volumesnapshotinformers.SharedInformerFactory,
+	port int32,
+	weights *pkg.NodeAntiAffinityWeight,
+) *ExtenderServer {
 	corev1Informers := kubeInformerFactory.Core().V1()
 	storagev1Informers := kubeInformerFactory.Storage().V1()
 	localStorageInformers := localStorageInformerFactory.Csi().V1alpha1()
+	snapshotInformers := volumesnapshotInformerFactory.Snapshot().V1()
 
-	Ctx := algorithm.NewSchedulingContext(corev1Informers, storagev1Informers, localStorageInformers, weights)
+	Ctx := algorithm.NewSchedulingContext(
+		corev1Informers,
+		storagev1Informers,
+		localStorageInformers,
+		snapshotInformers,
+		weights,
+	)
 
 	informersSyncd := make([]clientgocache.InformerSynced, 0)
 
@@ -86,9 +100,19 @@ func NewExtenderServer(kubeClient kubernetes.Interface,
 	informersSyncd = append(informersSyncd, localInformer.HasSynced)
 	log.V(6).Infof("started NodeLocalStorage informer...")
 
+	snapInformer := snapshotInformers.VolumeSnapshots().Informer()
+	informersSyncd = append(informersSyncd, snapInformer.HasSynced)
+
+	snapContentInformer := snapshotInformers.VolumeSnapshotContents().Informer()
+	informersSyncd = append(informersSyncd, snapContentInformer.HasSynced)
+
+	snapStorageClassInformer := snapshotInformers.VolumeSnapshotClasses().Informer()
+	informersSyncd = append(informersSyncd, snapStorageClassInformer.HasSynced)
+
 	e := &ExtenderServer{
 		kubeClient:         kubeClient,
 		localStorageClient: localclient,
+		snapClient:         snapClient,
 		port:               port,
 		Ctx:                Ctx,
 		informersSynced:    informersSyncd,
@@ -122,6 +146,7 @@ type ExtenderServer struct {
 	Ctx                    *algorithm.SchedulingContext
 	kubeClient             kubernetes.Interface
 	localStorageClient     clientset.Interface
+	snapClient             volumesnapshot.Interface
 	port                   int32
 	informersSynced        []clientgocache.InformerSynced
 	currentWorkingRoutines int32

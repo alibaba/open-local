@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,8 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	"github.com/spf13/pflag"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
@@ -42,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/klog/v2"
 	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
@@ -155,10 +159,10 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes["vgName"]; ok {
+	if v, ok := csi.VolumeAttributes[localtype.VGName]; ok {
 		return v
 	}
-	log.V(6).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
+	log.V(6).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, localtype.VGName)
 
 	return ""
 }
@@ -816,4 +820,70 @@ func IsBlockDevice(fullPath string) (bool, error) {
 	}
 
 	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
+}
+
+func IsReadOnlyPV(pv *corev1.PersistentVolume) bool {
+	if pv.Spec.CSI != nil {
+		attributes := pv.Spec.CSI.VolumeAttributes
+		if value, exist := attributes[localtype.ParamReadonly]; exist && value == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+func IsReadOnlySnapshotPVC(claim *corev1.PersistentVolumeClaim, snapInformer volumesnapshotinformers.Interface) bool {
+	// 数据源为快照
+	// 快照类表示为只读快照
+	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
+		snasphotName := claim.Spec.DataSource.Name
+		snasphotNamespace := claim.Namespace
+		snapshot, err := snapInformer.VolumeSnapshots().Lister().VolumeSnapshots(snasphotNamespace).Get(snasphotName)
+		if err != nil {
+			klog.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			return false
+		}
+		return IsSnapshotClassReadOnly(*snapshot.Spec.VolumeSnapshotClassName, snapInformer)
+	}
+	return false
+}
+
+func IsReadOnlySnapshotPVC2(claim *corev1.PersistentVolumeClaim, snapClient snapshot.Interface) bool {
+	// 数据源为快照
+	// 快照类表示为只读快照
+	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
+		snasphotName := claim.Spec.DataSource.Name
+		snasphotNamespace := claim.Namespace
+		snapshot, err := snapClient.SnapshotV1().VolumeSnapshots(snasphotNamespace).Get(context.TODO(), snasphotName, metav1.GetOptions{})
+		if err != nil {
+			klog.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			return false
+		}
+		return IsSnapshotClassReadOnly2(*snapshot.Spec.VolumeSnapshotClassName, snapClient)
+	}
+	return false
+}
+
+func IsSnapshotClassReadOnly(className string, snapInformer volumesnapshotinformers.Interface) bool {
+	snapshotClass, err := snapInformer.VolumeSnapshotClasses().Lister().Get(className)
+	if err != nil {
+		klog.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		return false
+	}
+	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		return true
+	}
+	return false
+}
+
+func IsSnapshotClassReadOnly2(className string, snapClient snapshot.Interface) bool {
+	snapshotClass, err := snapClient.SnapshotV1().VolumeSnapshotClasses().Get(context.TODO(), className, metav1.GetOptions{})
+	if err != nil {
+		klog.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		return false
+	}
+	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		return true
+	}
+	return false
 }

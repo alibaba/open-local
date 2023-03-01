@@ -274,11 +274,11 @@ func Test_nodeServer_NodePublishVolume(t *testing.T) {
 					VolumeId:   pvLVMName,
 					TargetPath: "targetpath",
 					VolumeContext: map[string]string{
-						pkg.ParamVGName:           "newVG",
-						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
-						pkg.ParamSnapshotName:     "snapshot",
-						pkg.ParamSnapshotReadonly: "true",
-						pkg.PVName:                pvLVMName,
+						pkg.ParamVGName:       "newVG",
+						pkg.VolumeTypeKey:     string(pkg.VolumeTypeLVM),
+						pkg.ParamSnapshotName: "snapshot",
+						pkg.ParamReadonly:     "true",
+						pkg.PVName:            pvLVMName,
 					},
 					VolumeCapability: &csi.VolumeCapability{
 						AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}},

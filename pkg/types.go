@@ -75,6 +75,13 @@ const (
 	MPName       = "MountPoint"
 	DeviceName   = "Device"
 
+	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
+	DefaultSnapshotThreshold     = 0.5
+	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
+	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
+
 	// VolumeType MUST BE case sensitive
 	VolumeTypeMountPoint VolumeType = "MountPoint"
 	VolumeTypeLVM        VolumeType = "LVM"
@@ -88,13 +95,13 @@ const (
 	// This annotation is added to a PVC that has been triggered by scheduler to
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnoSelectedNode                     = "volume.kubernetes.io/selected-node"
-	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
+	LabelReschduleTimestamp              = "csi.aliyun.com/reschdule-timestamp"
 	EnvForceCreateVG                     = "Force_Create_VG"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
 
 	ParamSnapshotName     = "yoda.io/snapshot-name"
-	ParamSnapshotReadonly = "csi.aliyun.com/readonly"
+	ParamReadonly         = "csi.aliyun.com/readonly"
 	ParamSourceVolumeID   = "csi.aliyun.com/source-volume-id"
 	ParamVGName           = "vgName"
 	ParamLVSize           = "size"

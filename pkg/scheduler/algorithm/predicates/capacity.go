@@ -20,23 +20,27 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	log "k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
 // CapacityPredicate checks if local storage on a node matches the persistent volume claims, follow rules are applied:
-// 1. pvc contains vg or mount point or device claim
-// 2. node free size must larger or equal to pvcs
-// 3. for pvc of type mount point/device:
-//	 a. must contains more mount points than pvc count
+//  1. pvc contains vg or mount point or device claim
+//  2. node free size must larger or equal to pvcs
+//  3. for pvc of type mount point/device:
+//     a. must contains more mount points than pvc count
 func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (bool, error) {
 	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityPredicate] %s/%s", pod.Namespace, pod.Name))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
+	// 包含了快照卷
 	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true)
 	if err != nil {
 		return false, err
@@ -57,6 +61,8 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 	if len(lvmPVCs) > 0 {
 		trace.Step("Computing AllocateLVMVolume")
 
+		// 如果是只读快照卷，需要去掉
+		// 预测时不需要考虑这部分容量申请
 		fits, _, err = algo.AllocateLVMVolume(pod, lvmPVCs, node, ctx)
 		if err != nil {
 			log.Error(err)
@@ -90,9 +96,15 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		}
 	}
 
-	err, lvmPVCs, _, _ = algorithm.GetPodPvcs(pod, ctx, true)
-	if err != nil {
+	// 处理下只读snapshot
+	if fits, err = algo.ProcessSnapshotPVC(lvmPVCs, node.Name, ctx.CoreV1Informers, ctx.SnapshotInformers); err != nil {
 		return false, err
+	}
+	if !fits {
+		klog.Info("pod %s/%s not fit node %s readonly snapshot", pod.Namespace, pod.Name)
+		return false, errors.NewSnapshotError(pkg.VolumeTypeLVM)
+	} else {
+		klog.Info("pod %s/%s fit node %s readonly snapshot!", pod.Namespace, pod.Name)
 	}
 
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {

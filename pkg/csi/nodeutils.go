@@ -50,6 +50,14 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 	log.Infof("createLV: vg %s, volume %s, LVM Type %s", vgName, req.GetVolumeId(), lvmType)
 
 	volumeID := req.GetVolumeId()
+	var isSnapshot bool
+	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
+		if ro, exist := req.VolumeContext[localtype.ParamReadonly]; exist && ro == "true" {
+			// if volume is ro snapshot, then mount snapshot lv
+			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
+			volumeID = req.VolumeContext[localtype.ParamSnapshotName]
+		}
+	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
 	if _, err := ns.osTool.Stat(devicePath); os.IsNotExist(err) {
 		newDev, bdevName, err := ns.createVolume(req.VolumeContext, volumeID, vgName, lvmType)
@@ -90,6 +98,11 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		return err
 	}
 
+	isSnapshotReadOnly := false
+	if value, exist := req.VolumeContext[localtype.ParamReadonly]; exist && value == "true" {
+		isSnapshotReadOnly = true
+	}
+
 	// check targetPath
 	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
 		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
@@ -109,7 +122,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 			fsType = DefaultFs
 		}
 		var options []string
-		if req.GetReadonly() {
+		if req.GetReadonly() || isSnapshotReadOnly {
 			options = append(options, "ro")
 		} else {
 			options = append(options, "rw")

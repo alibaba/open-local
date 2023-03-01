@@ -112,6 +112,12 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 		log.Infof("pv %s is in %s status, skipped", pv.Name, pv.Status.Phase)
 		return
 	}
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		log.Infof("pv %s is read only, skip updating cache", pv.Name)
+		return
+	}
+
 	e.Ctx.CtxLock.Lock()
 	defer e.Ctx.CtxLock.Unlock()
 	// get node name
@@ -161,7 +167,7 @@ func (e *ExtenderServer) onPVAdd(obj interface{}) {
 		log.Errorf("failed to extract pvc name from pv %s: %s", pv.Name, err.Error())
 		return
 	}
-	au, err := algorithm.ConvertAUFromPV(pv, e.Ctx.StorageV1Informers, e.Ctx.CoreV1Informers)
+	au, err := algorithm.ConvertAUFromPV(pv, e.Ctx.StorageV1Informers)
 	if err == nil {
 		e.Ctx.ClusterNodeCache.BindingInfo[pvcKey] = au
 		log.V(6).Infof("%s was added into binding info", pvcKey)
@@ -191,6 +197,11 @@ func (e *ExtenderServer) onPVDelete(obj interface{}) {
 
 	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
+		return
+	}
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		log.Infof("pv %s is read only, skip updating cache", pv.Name)
 		return
 	}
 	node := utils.NodeNameFromPV(pv)
@@ -269,6 +280,11 @@ func (e *ExtenderServer) onPVUpdate(oldObj, newObj interface{}) {
 	}
 	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
+		return
+	}
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		log.Infof("pv %s is read only, skip updating cache", pv.Name)
 		return
 	}
 	// handle according to different type
@@ -419,6 +435,8 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		}
 	}
 	log.Infof("handing pod %s whose pvcs are all pending", utils.PodName(pod))
+	// todo: PodPvcAllowReschedule 入参并不正确
+	// 应该是从 pod 的 LabelReschduleTimestamp 上获取 time
 	if utils.PodPvcAllowReschedule(pvcs, nil) && pod.Spec.NodeName == "" {
 		for _, pvc := range pvcs {
 			contains := utils.PvcContainsSelectedNode(pvc)

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/alibaba/open-local/pkg/signals"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/docker/go-units"
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
@@ -137,17 +139,14 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: fail to validate CreateVolumeRequest: %s", err.Error())
 	}
 
-	// get necessary info
+	// get node name in pvc anno
 	parameters := req.GetParameters()
-	// volumeType
 	volumeType := parameters[pkg.VolumeTypeKey]
-	// pvc info
 	pvcName := parameters[pkg.PVCName]
 	pvcNameSpace := parameters[pkg.PVCNameSpace]
 	if pvcName == "" || pvcNameSpace == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "CreateVolume: pvcName(%s) or pvcNamespace(%s) can not be empty", pvcNameSpace, pvcName)
 	}
-	// node name in pvc anno
 	pvc, err := cs.pvcLister.PersistentVolumeClaims(pvcNameSpace).Get(pvcName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pvc: %s", err.Error())
@@ -179,6 +178,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchExtender)
 		switch volumeType {
 		case string(pkg.VolumeTypeLVM):
+			// 若为只读快照，则直接退出
+			if utils.IsReadOnlySnapshotPVC2(pvc, cs.options.snapclient) {
+				break
+			}
+
 			// extender scheduling
 			paramMap, err = cs.scheduleLVMVolume(nodeName, pvcName, pvcNameSpace, parameters)
 			if err != nil {
@@ -276,18 +280,20 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			paramMap[localtype.ParamSourceVolumeID] = srcVolumeID
 			paramMap[localtype.ParamSnapshotName] = snapshotID
 
-			// todo: 不需要原 PV 的 vgName
-			// get node name and vg name from src volume
-			// pv, err := cs.pvLister.Get(srcVolumeID)
-			// if err != nil {
-			// 	return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get src pv: %s", err.Error())
-			// }
-			// todo
-			// vgName := utils.GetVGNameFromCsiPV(pv)
-			// if vgName == "" {
-			// 	return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get vgName from pv %s", pv.Name)
-			// }
-			// paramMap[VgNameTag] = vgName
+			if utils.IsReadOnlySnapshotPVC2(pvc, cs.options.snapclient) {
+				log.Infof("pvc %s/%s snapshot is ro", pvcNameSpace, pvcName)
+				// get node name and vg name from src volume
+				pv, err := cs.pvLister.Get(srcVolumeID)
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get pv: %s", err.Error())
+				}
+				vgName := utils.GetVGNameFromCsiPV(pv)
+				if vgName == "" {
+					return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get vgName from pv %s", pv.Name)
+				}
+				paramMap[VgNameTag] = vgName
+				paramMap[localtype.ParamReadonly] = "true"
+			}
 			log.Infof("CreateVolume: get restic snapshot snapshot volume %s info", volumeID)
 		} else {
 			return nil, status.Errorf(codes.Unimplemented, "unsupported snapshot %s", volumeType)
@@ -329,6 +335,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	return response, nil
 }
 
+// todo
+// 若有只读快照存在，则不能删除 pv
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	log.V(4).Infof("DeleteVolume: called with args %+v", *req)
 	// Step 1: check request
@@ -357,7 +365,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
 			isSnapshot = true
 		}
-		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
+		if value, exist := attributes[localtype.ParamReadonly]; exist && value == "true" {
 			isSnapshotReadOnly = true
 		}
 	}
@@ -437,6 +445,9 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 }
 
 // CreateSnapshot create lvm snapshot
+// 处理两类快照
+// 只读快照
+// 读写快照
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	log.V(4).Infof("CreateSnapshot: called with args %+v", *req)
 
@@ -474,6 +485,12 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		cs.inFlight.Delete(snapshotName)
 	}()
 
+	// 判断是否为只读快照
+	readonly := false
+	if value, exist := req.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		readonly = true
+	}
+
 	// get grpc client
 	conn, err := cs.getNodeConn(nodeName)
 	if err != nil {
@@ -481,12 +498,43 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 	defer conn.Close()
 
-	// create restic snapshot
-	sizeBytes, err := conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, req.Secrets)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to create snapshot %s: %s", snapshotName, err.Error())
-	}
+	var sizeBytes int64
+	if readonly {
+		log.Infof("snapshot %s is readonly", snapshotName)
+		// get snapshot initial size from parameter
+		initialSize, _, _, err := getSnapshotInitialInfo(req.Parameters)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "CreateSnapshot: get snapshot %s initial info error: %s", req.Name, err.Error())
+		}
+		// update initialSize if initialSize is bigger than pv request size
+		srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
+		if srcPVSize < int64(initialSize) {
+			initialSize = uint64(srcPVSize)
+		}
 
+		// create lvm snapshot
+		var lvmName string
+		if lvmName, err = conn.GetVolume(ctx, vgName, snapshotName); err != nil {
+			return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
+		}
+		if lvmName == "" {
+			sizeBytes, err = conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, true, int64(initialSize), nil)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
+			}
+			log.Infof("CreateSnapshot: create ro snapshot %s successfully", snapshotName)
+		} else {
+			log.Infof("CreateSnapshot: lvm snapshot %s in node %s already exists", snapshotName, nodeName)
+		}
+	} else {
+		log.Infof("snapshot %s is readwrite", snapshotName)
+		// create rw snapshot
+		sizeBytes, err = conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, false, 0, req.Secrets)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to create snapshot %s: %s", snapshotName, err.Error())
+		}
+		log.Infof("CreateSnapshot: create rw snapshot %s successfully", snapshotName)
+	}
 	if sizeBytes == 0 {
 		srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
 		sizeBytes = srcPVSize
@@ -512,6 +560,17 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	}
 	srcVolumeID := *snapContent.Spec.Source.VolumeHandle
 
+	snapshotClass, err := cs.options.snapclient.SnapshotV1().VolumeSnapshotClasses().Get(context.TODO(), *snapContent.Spec.VolumeSnapshotClassName, metav1.GetOptions{})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapshotClass %s error: %s", *snapContent.Spec.VolumeSnapshotClassName, err.Error())
+	}
+
+	// 判断是否为只读快照
+	readonly := false
+	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		readonly = true
+	}
+
 	if ok := cs.inFlight.Insert(snapshotID); !ok {
 		return nil, status.Errorf(codes.Aborted, VolumeOperationAlreadyExists, snapshotID)
 	}
@@ -519,19 +578,10 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		cs.inFlight.Delete(snapshotID)
 	}()
 
-	s3URL := req.Secrets[S3_URL]
-	s3AK := req.Secrets[S3_AK]
-	s3SK := req.Secrets[S3_SK]
-	if s3URL != "" {
-		// restic 快照逻辑
-		// 此处 snapshot id 即为 tag
-		out, err := restic.DeleteDataByID(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("delete restic data by ID %s successfully: %#v", snapshotID, out)
-	} else {
-		// 普通快照的逻辑
+	if readonly {
+		// todo:
+		// 必须要求删除快照时 源pv 还在，不然快照删除不了
+		// 原 pv 需要设置 finalizer
 		pv, err := cs.pvLister.Get(srcVolumeID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get pv: %s", err.Error())
@@ -542,7 +592,6 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		}
 		log.Infof("DeleteSnapshot: vg of snapshot %s is %s", snapshotID, vgName)
 
-		// Step 4: get grpc client
 		nodeName := utils.GetNodeNameFromCsiPV(pv)
 		if nodeName == "" {
 			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: fail to get node name of pv %s", pv.Name)
@@ -559,7 +608,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 			return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get lvm snapshot %s failed: %s", snapshotID, err.Error())
 		}
 		if lvmName != "" {
-			err := conn.DeleteSnapshot(ctx, vgName, snapshotID, nil)
+			err := conn.DeleteSnapshot(ctx, vgName, snapshotID, true, nil)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "DeleteSnapshot: delete lvm snapshot %s failed: %s", snapshotID, err.Error())
 			}
@@ -568,6 +617,17 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 			// return immediately
 			return &csi.DeleteSnapshotResponse{}, nil
 		}
+	} else {
+		s3URL := req.Secrets[S3_URL]
+		s3AK := req.Secrets[S3_AK]
+		s3SK := req.Secrets[S3_SK]
+		// restic 快照逻辑
+		// 此处 snapshot id 即为 tag
+		out, err := restic.DeleteDataByID(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("delete restic data by ID %s successfully: %#v", snapshotID, out)
 	}
 
 	log.Infof("DeleteSnapshot: delete snapshot %s successfully", snapshotID)
@@ -846,4 +906,39 @@ func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 		}
 	}
 	return foundAll
+}
+
+func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, threshold float64, increaseSize uint64, err error) {
+	initialSize = localtype.DefaultSnapshotInitialSize
+	threshold = localtype.DefaultSnapshotThreshold
+	increaseSize = localtype.DefaultSnapshotExpansionSize
+	err = nil
+
+	// Step 1: get snapshot initial size
+	if str, exist := param[localtype.ParamSnapshotInitialSize]; exist {
+		size, err := units.RAMInBytes(str)
+		if err != nil {
+			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get initialSize from snapshot annotation failed: %s", err.Error())
+		}
+		initialSize = uint64(size)
+	}
+	// Step 2: get snapshot expand threshold
+	if str, exist := param[localtype.ParamSnapshotThreshold]; exist {
+		str = strings.ReplaceAll(str, "%", "")
+		thr, err := strconv.ParseFloat(str, 64)
+		if err != nil {
+			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: parse float failed: %s", err.Error())
+		}
+		threshold = thr / 100
+	}
+	// Step 3: get snapshot increase size
+	if str, exist := param[localtype.ParamSnapshotExpansionSize]; exist {
+		size, err := units.RAMInBytes(str)
+		if err != nil {
+			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get increase size from snapshot annotation failed: %s", err.Error())
+		}
+		increaseSize = uint64(size)
+	}
+	log.Infof("getSnapshotInitialInfo: initialSize(%d), threshold(%f), increaseSize(%d)", initialSize, threshold, increaseSize)
+	return
 }

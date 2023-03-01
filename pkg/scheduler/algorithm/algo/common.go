@@ -25,9 +25,10 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/utils"
-
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
 )
@@ -67,6 +68,11 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
+		// pvc source 是只读快照，就 continue
+		if utils.IsReadOnlySnapshotPVC(pvc, ctx.SnapshotInformers) {
+			klog.Infof("pvc %s is readonly, skip lvm predicating", pvc.Namespace, pvc.Name)
+			continue
+		}
 		vgName, err := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
 		if err != nil {
 			return false, units, err
@@ -537,6 +543,7 @@ func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.Sch
 	return score, units, nil
 }
 
+// 不需要单独处理 readonly snapshot, 因为若filter阶段只选出一个node，不会进入score。
 func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
 	if len(pvcs) <= 0 {
 		return
@@ -570,6 +577,10 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
+		if utils.IsReadOnlySnapshotPVC(pvc, ctx.SnapshotInformers) {
+			klog.Infof("pvc %s is readonly, skip lvm prioritying", pvc.Namespace, pvc.Name)
+			continue
+		}
 		vgName, err := utils.GetVGNameFromPVC(pvc, ctx.StorageV1Informers.StorageClasses().Lister())
 		if err != nil {
 			return false, units, err
@@ -836,4 +847,41 @@ func ScoreDevice(units []cache.AllocatedUnit) (score int) {
 
 	score = int(scoref / float64(len(units)) * float64(MaxScore))
 	return score
+}
+
+// If there is no readonly snapshot pvc, just return true
+func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, coreV1Informers corev1informers.Interface, snapshotInformers volumesnapshotinformers.Interface) (fits bool, err error) {
+	for _, pvc := range pvcs {
+		// step 0: check if is snapshot pvc
+		// pvc source 是只读快照，就 continue
+		if !utils.IsReadOnlySnapshotPVC(pvc, snapshotInformers) {
+			continue
+		}
+		klog.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is readonly snapshot", pvc.Namespace, pvc.Name)
+		// step 1: get snapshot api
+		snapName := pvc.Spec.DataSource.Name
+		snapNamespace := pvc.Namespace
+		snapshot, err := snapshotInformers.VolumeSnapshots().Lister().VolumeSnapshots(snapNamespace).Get(snapName)
+		if err != nil {
+			return false, fmt.Errorf("[ProcessSnapshotPVC]get snapshot %s/%s failed: %s", snapNamespace, snapName, err.Error())
+		}
+		klog.Infof("[ProcessSnapshotPVC]snapshot is %s", snapshot.Name)
+		// step 2: get src pvc
+		srcPVCName := *snapshot.Spec.Source.PersistentVolumeClaimName
+		srcPVCNamespace := snapNamespace
+		srcPVC, err := coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(srcPVCNamespace).Get(srcPVCName)
+		if err != nil {
+			return false, fmt.Errorf("[ProcessSnapshotPVC]get src pvc %s/%s failed: %s", snapNamespace, snapName, err.Error())
+		}
+		klog.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
+		// step 3: get src node name
+		srcNodeName := srcPVC.Annotations[localtype.AnnoSelectedNode]
+		klog.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)
+		// step 4: check
+		if srcNodeName != nodeName {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }

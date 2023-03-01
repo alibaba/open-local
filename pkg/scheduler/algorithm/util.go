@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	corev1informers "k8s.io/client-go/informers/core/v1"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
@@ -32,7 +31,7 @@ import (
 	log "k8s.io/klog/v2"
 )
 
-//GetPodPvcs returns the pending pvcs which are needed for scheduling
+// GetPodPvcs returns the pending pvcs which are needed for scheduling
 func GetPodPvcs(pod *corev1.Pod, ctx *SchedulingContext, skipBound bool) (
 	err error,
 	lvmPVCs []*corev1.PersistentVolumeClaim,
@@ -145,10 +144,10 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 }
 
 /*
-	ConvertAUFromPV convert an AllocatedUnit from an bound open-local PV
-	we assure the pv is a valid open-local pv
+ConvertAUFromPV convert an AllocatedUnit from an bound open-local PV
+we assure the pv is a valid open-local pv
 */
-func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface, coreInformer corev1informers.Interface) (*cache.AllocatedUnit, error) {
+func ConvertAUFromPV(pv *corev1.PersistentVolume, scInformer storagev1informers.Interface) (*cache.AllocatedUnit, error) {
 	_, nodeName := utils.IsLocalPV(pv)
 	_, volumeType := utils.IsOpenLocalPV(pv)
 	requested := utils.GetPVSize(pv)

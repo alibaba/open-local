@@ -526,6 +526,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		} else {
 			log.Infof("CreateSnapshot: lvm snapshot %s in node %s already exists", snapshotName, nodeName)
 		}
+		if sizeBytes == 0 {
+			sizeBytes = int64(initialSize)
+		}
 	} else {
 		log.Infof("snapshot %s is readwrite", snapshotName)
 		// create rw snapshot
@@ -534,10 +537,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot: fail to create snapshot %s: %s", snapshotName, err.Error())
 		}
 		log.Infof("CreateSnapshot: create rw snapshot %s successfully", snapshotName)
-	}
-	if sizeBytes == 0 {
-		srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
-		sizeBytes = srcPVSize
+		if sizeBytes == 0 {
+			srcPVSize, _ := srcPV.Spec.Capacity.Storage().AsInt64()
+			sizeBytes = srcPVSize
+		}
 	}
 
 	log.Infof("CreateSnapshot: create snapshot %s successfully", snapshotName)

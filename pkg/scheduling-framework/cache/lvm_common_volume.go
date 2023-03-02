@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,12 +20,14 @@ import (
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
 )
 
-/**
+/*
+*
 prefilter pvc infos for pod
 */
 type LVMPVCInfo struct {
@@ -108,7 +110,8 @@ func (lvm *LVMPVAllocated) DeepCopy() PVAllocated {
 
 var _ PVPVCAllocator = &lvmCommonPVAllocator{}
 
-/**
+/*
+*
 LVM Type PVC/PV allocator
 */
 type lvmCommonPVAllocator struct {
@@ -273,7 +276,7 @@ func (allocator *lvmCommonPVAllocator) pvDelete(nodeName string, pv *corev1.Pers
 	allocator.cache.pvAllocatedDetails.DeleteByPV(old)
 }
 
-func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.StorageClassLister, lvmPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
+func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, lvmPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
 	if allocator.cache.GetPVCAllocatedDetailCopy(lvmPVC.Namespace, lvmPVC.Name) != nil {
 		return nil
 	}
@@ -290,10 +293,10 @@ func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.Storage
 		VGName:  vgName,
 	}
 
-	if podVolumeInfos.LVMPVCs == nil {
-		podVolumeInfos.LVMPVCs = NewLVMCommonPVCInfos()
+	if podVolumeInfos.LVMPVCsNotROSnapshot == nil {
+		podVolumeInfos.LVMPVCsNotROSnapshot = NewLVMCommonPVCInfos()
 	}
-	infos := podVolumeInfos.LVMPVCs
+	infos := podVolumeInfos.LVMPVCsNotROSnapshot
 
 	if lvmPVCInfo.VGName == "" {
 		// 里面没有 vg 信息
@@ -306,7 +309,7 @@ func (allocator *lvmCommonPVAllocator) prefilter(scLister storagelisters.Storage
 
 func (allocator *lvmCommonPVAllocator) preAllocate(nodeName string, podVolumeInfos *PodLocalVolumeInfo, nodeStateClone *NodeStorageState) ([]PVAllocated, error) {
 	var allocateUnits []PVAllocated
-	if !podVolumeInfos.LVMPVCs.HaveLocalVolumes() {
+	if !podVolumeInfos.LVMPVCsNotROSnapshot.HaveLocalVolumes() {
 		return allocateUnits, nil
 	}
 
@@ -316,7 +319,7 @@ func (allocator *lvmCommonPVAllocator) preAllocate(nodeName string, podVolumeInf
 		return allocateUnits, err
 	}
 
-	infos := podVolumeInfos.LVMPVCs
+	infos := podVolumeInfos.LVMPVCsNotROSnapshot
 
 	for _, pvcInfo := range infos.LVMPVCsWithVgNameNotAllocated {
 

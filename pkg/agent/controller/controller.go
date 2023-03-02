@@ -18,22 +18,24 @@ package controller
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
-	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-
+	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/discovery"
+	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localinformerfactory "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	"k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	log "k8s.io/klog/v2"
 )
 
@@ -93,6 +95,18 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	go wait.Until(func() {
 		c.runWorker(discoverer)
 	}, time.Second, stopCh)
+
+	// get auto expand snapshot interval
+	var err error
+	expandSnapInterval := discoverer.DiscoverInterval
+	tmp := os.Getenv(localtype.EnvExpandSnapInterval)
+	if tmp != "" {
+		expandSnapInterval, err = strconv.Atoi(tmp)
+		if err != nil {
+			return err
+		}
+	}
+	go wait.Until(discoverer.ExpandSnapshotLVIfNeeded, time.Duration(expandSnapInterval)*time.Second, stopCh)
 
 	log.Info("Started open-local agent")
 	<-stopCh

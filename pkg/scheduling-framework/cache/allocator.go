@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@ package cache
 
 import (
 	"github.com/alibaba/open-local/pkg"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 )
@@ -26,19 +27,21 @@ type PVCInfos interface {
 }
 
 /*
-	calculate at step preFilter to avoid duplicate calculating after
+calculate at step preFilter to avoid duplicate calculating after
 */
 type PodLocalVolumeInfo struct {
-	LVMPVCs       *LVMCommonPVCInfos
-	DevicePVCs    *DevicePVCInfos
-	InlineVolumes InlineVolumes
+	LVMPVCsNotROSnapshot *LVMCommonPVCInfos
+	LVMPVCsROSnapshot    LVMSnapshotPVCInfos
+	DevicePVCs           *DevicePVCInfos
+	InlineVolumes        InlineVolumes
 }
 
 func NewPodLocalVolumeInfo() *PodLocalVolumeInfo {
 	return &PodLocalVolumeInfo{
-		DevicePVCs:    NewDevicePVCInfos(),
-		LVMPVCs:       NewLVMCommonPVCInfos(),
-		InlineVolumes: InlineVolumes{},
+		DevicePVCs:           NewDevicePVCInfos(),
+		LVMPVCsNotROSnapshot: NewLVMCommonPVCInfos(),
+		LVMPVCsROSnapshot:    LVMSnapshotPVCInfos{},
+		InlineVolumes:        InlineVolumes{},
 	}
 }
 
@@ -46,12 +49,11 @@ func (info *PodLocalVolumeInfo) HaveLocalVolumes() bool {
 	if info == nil {
 		return false
 	}
-	return info.LVMPVCs.HaveLocalVolumes() ||
-		info.DevicePVCs.HaveLocalVolumes() || info.InlineVolumes.HaveLocalVolumes()
+	return info.LVMPVCsNotROSnapshot.HaveLocalVolumes() || info.LVMPVCsROSnapshot.HaveLocalVolumes() || info.DevicePVCs.HaveLocalVolumes() || info.InlineVolumes.HaveLocalVolumes()
 }
 
 /*
-	use by event handler
+use by event handler
 */
 type PVPVCEventAllocator interface {
 	pvcAdd(nodeName string, pvc *corev1.PersistentVolumeClaim, volumeName string)
@@ -64,7 +66,7 @@ type PVPVCEventAllocator interface {
 /* user by scheduler*/
 type PVCScheduleAllocator interface {
 	//prefilter: caculate podVolumeInfos
-	prefilter(scLister storagelisters.StorageClassLister, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error
+	prefilter(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error
 	//use by scheduler filter/reserve, to preAllocate resource
 	preAllocate(nodeName string, podVolumeInfos *PodLocalVolumeInfo, nodeStateClone *NodeStorageState) ([]PVAllocated, error)
 	//convert detail to allocateInfo which will patch to PV
@@ -83,7 +85,7 @@ type PVPVCAllocator interface {
 }
 
 /*
-	use by event handler
+use by event handler
 */
 type InlineVolumeEventAllocator interface {
 	podAdd(pod *corev1.Pod)

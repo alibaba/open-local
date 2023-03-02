@@ -106,6 +106,7 @@ const (
 	ParamVGName           = "vgName"
 	ParamLVSize           = "size"
 	EnvSnapshotPrefix     = "SNAPSHOT_PREFIX"
+	EnvExpandSnapInterval = "Expand_Snapshot_Interval"
 	DefaultSnapshotPrefix = "snap"
 
 	Separator = "<:SEP:>"

@@ -69,6 +69,7 @@ func ProcessLVMPVCPredicate(pvcs []*corev1.PersistentVolumeClaim, node *corev1.N
 	// process pvcsWithVG first
 	for _, pvc := range pvcsWithVG {
 		// pvc source 是只读快照，就 continue
+		// todo: 没有判断 snapshot 是否存在
 		if utils.IsReadOnlySnapshotPVC(pvc, ctx.SnapshotInformers) {
 			klog.Infof("pvc %s is readonly, skip lvm predicating", pvc.Namespace, pvc.Name)
 			continue

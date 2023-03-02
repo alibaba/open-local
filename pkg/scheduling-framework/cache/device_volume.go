@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,14 +17,15 @@ package cache
 
 import (
 	"fmt"
+	"sort"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/utils"
-	"k8s.io/klog/v2"
-	"sort"
-
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/klog/v2"
 )
 
 type DevicePVCInfo struct {
@@ -211,7 +212,7 @@ func (allocator *devicePVAllocator) pvUpdate(nodeName string, oldPV, newPV *core
 	klog.V(6).Infof("allocate for device pv (%#v) success, current deviceState: %#v", new, deviceState)
 }
 
-func (allocator *devicePVAllocator) prefilter(scLister storagelisters.StorageClassLister, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
+func (allocator *devicePVAllocator) prefilter(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
 	if allocator.cache.GetPVCAllocatedDetailCopy(localPVC.Namespace, localPVC.Name) != nil {
 		return nil
 	}

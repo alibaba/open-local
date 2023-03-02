@@ -13,9 +13,12 @@ import (
 	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-
+	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	volumesnapshotinformersfactory "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	corev1informers "k8s.io/client-go/informers/core/v1"
@@ -72,9 +75,11 @@ type LocalPlugin struct {
 	coreV1Informers    corev1informers.Interface
 	storageV1Informers storagev1informers.Interface
 	localInformers     nodelocalstorageinformer.Interface
+	snapshotInformers  volumesnapshotinformers.Interface
 
 	kubeClientSet  kubernetes.Interface
 	localClientSet localclientset.Interface
+	snapClientSet  volumesnapshot.Interface
 
 	cache *cache.NodeStorageAllocatedCache
 }
@@ -123,10 +128,15 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 	if err != nil {
 		return nil, fmt.Errorf("error building yoda clientset: %s", err.Error())
 	}
+	snapClient, err := volumesnapshot.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error building snapshot clientset: %s", err.Error())
+	}
 
 	// cache
 	cxt := context.Background()
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
+	snapshotInformerFactory := volumesnapshotinformersfactory.NewSharedInformerFactory(snapClient, 0)
 
 	strategyType := getStrategyType(args.SchedulerStrategy)
 	nodeCache := cache.NewNodeStorageAllocatedCache(strategyType)
@@ -141,10 +151,12 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		scLister:           f.SharedInformerFactory().Storage().V1().StorageClasses().Lister(),
 		storageV1Informers: f.SharedInformerFactory().Storage().V1(),
 		localInformers:     localStorageInformerFactory.Csi().V1alpha1(),
-
-		kubeClientSet:  f.ClientSet(),
-		localClientSet: localClient,
+		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
+		kubeClientSet:      f.ClientSet(),
+		localClientSet:     localClient,
+		snapClientSet:      snapClient,
 	}
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshots().Informer()
 
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
@@ -173,6 +185,8 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 
 	localStorageInformerFactory.Start(cxt.Done())
 	localStorageInformerFactory.WaitForCacheSync(cxt.Done())
+	snapshotInformerFactory.Start(cxt.Done())
+	snapshotInformerFactory.WaitForCacheSync(cxt.Done())
 
 	return localPlugin, nil
 }
@@ -208,6 +222,18 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 	//not use local pv, return success
 	if !podVolumeInfo.HaveLocalVolumes() {
 		return framework.NewStatus(framework.Success)
+	}
+
+	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.LVMPVCsROSnapshot)
+	if err != nil {
+		if _, ok := err.(errors.PredicateError); !ok {
+			klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
+			return framework.AsStatus(err)
+		}
+	}
+	if !fits {
+		klog.V(6).Infof("pod have snapshot pvc, node %s not fit pod: %s", nodeName, err.Error())
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node not fit pod have pvc snapshot: %s", err.Error()))
 	}
 
 	nodeAllocate, err := plugin.cache.PreAllocate(pod, podVolumeInfo, nil, nodeName)

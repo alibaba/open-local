@@ -28,10 +28,12 @@ spec:
       name: html
     spec:
       dataSource:
-        name: volumesnapshot-A
+        name: new-snapshot-test # 指定刚创建的VolumeSnapshot名称
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
-      storageClassName: example
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: open-local-lvm
       resources:
         requests:
           storage: 4Gi

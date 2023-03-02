@@ -9,9 +9,9 @@ import (
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
-	storagelisters "k8s.io/client-go/listers/storage/v1"
-
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -163,10 +163,11 @@ eventHandlers完整流程（PVC/PV）
 */
 
 type NodeStorageAllocatedCache struct {
-	strategyType          pkg.StrategyType
-	lvmPVAllocator        PVPVCAllocator
-	inlineVolumeAllocator InlineVolumeAllocator
-	deviceAllocator       PVPVCAllocator
+	strategyType           pkg.StrategyType
+	lvmPVAllocator         PVPVCAllocator
+	lvmSnapshotPVAllocator PVPVCAllocator
+	inlineVolumeAllocator  InlineVolumeAllocator
+	deviceAllocator        PVPVCAllocator
 
 	states                       map[string] /*nodeName*/ *NodeStorageState
 	inlineVolumeAllocatedDetails map[string] /*nodeName*/ NodeInlineVolumeAllocatedDetails
@@ -187,6 +188,7 @@ func NewNodeStorageAllocatedCache(strategyType pkg.StrategyType) *NodeStorageAll
 	cache.lvmPVAllocator = NewLVMCommonPVAllocator(cache)
 	cache.inlineVolumeAllocator = NewInlineVolumeAllocator(cache)
 	cache.deviceAllocator = NewDevicePVAllocator(cache)
+	cache.lvmSnapshotPVAllocator = NewLVMSnapshotPVAllocator(cache)
 	return cache
 }
 
@@ -405,6 +407,12 @@ func (c *NodeStorageAllocatedCache) AddOrUpdatePV(pv *corev1.PersistentVolume, n
 		return
 	}
 
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		klog.Infof("pv %s is read only, skip updating cache", pv.Name)
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -422,6 +430,12 @@ func (c *NodeStorageAllocatedCache) DeletePV(pv *corev1.PersistentVolume, nodeNa
 		return
 	}
 
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		klog.Infof("pv %s is read only, skip updating cache", pv.Name)
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -433,12 +447,12 @@ func (c *NodeStorageAllocatedCache) DeletePV(pv *corev1.PersistentVolume, nodeNa
 	allocator.pvDelete(nodeName, pv)
 }
 
-func (c *NodeStorageAllocatedCache) PrefilterPVC(scLister storagelisters.StorageClassLister, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
-	allocator := c.getAllocatorByPVC(scLister, localPVC)
+func (c *NodeStorageAllocatedCache) PrefilterPVC(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
+	allocator := c.getAllocatorByPVC(scLister, localPVC, snapClient)
 	if allocator == nil {
 		return nil
 	}
-	return allocator.prefilter(scLister, localPVC, podVolumeInfos)
+	return allocator.prefilter(scLister, snapClient, localPVC, podVolumeInfos)
 }
 
 func (c *NodeStorageAllocatedCache) PrefilterInlineVolumes(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo) error {
@@ -592,12 +606,15 @@ func (c *NodeStorageAllocatedCache) getAllocatorByVolumeType(volumeType pkg.Volu
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.StorageClassLister, pvc *corev1.PersistentVolumeClaim) PVPVCAllocator {
+func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.StorageClassLister, pvc *corev1.PersistentVolumeClaim, snapClient snapshot.Interface) PVPVCAllocator {
 	if isLocalPV, pvType := utils.IsLocalPVC(pvc, scLister); isLocalPV {
 		switch pvType {
 		case pkg.VolumeTypeLVM:
-
-			return c.lvmPVAllocator
+			if utils.IsReadOnlySnapshotPVC2(pvc, snapClient) {
+				return c.lvmSnapshotPVAllocator
+			} else {
+				return c.lvmPVAllocator
+			}
 		case pkg.VolumeTypeDevice:
 			return c.deviceAllocator
 		default:

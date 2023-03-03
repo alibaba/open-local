@@ -171,12 +171,15 @@ func NewLocalPluginWithKubeconfig(configuration runtime.Object, f framework.Hand
 		scLister:           f.SharedInformerFactory().Storage().V1().StorageClasses().Lister(),
 		storageV1Informers: f.SharedInformerFactory().Storage().V1(),
 		localInformers:     localStorageInformerFactory.Csi().V1alpha1(),
-		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
-		kubeClientSet:      f.ClientSet(),
-		localClientSet:     localClient,
-		snapClientSet:      snapClient,
+		// todo: 偷懒的行为，应该需要列清楚各个informer，比如VolumeSnapshotsInfomer、VolumeSnapshotClassesInformer
+		snapshotInformers: snapshotInformerFactory.Snapshot().V1(),
+		kubeClientSet:     f.ClientSet(),
+		localClientSet:    localClient,
+		snapClientSet:     snapClient,
 	}
 	snapshotInformerFactory.Snapshot().V1().VolumeSnapshots().Informer()
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshotContents().Informer()
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshotClasses().Informer()
 
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{

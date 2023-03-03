@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
-	"k8s.io/klog/v2"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
@@ -25,8 +24,10 @@ import (
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	"k8s.io/client-go/kubernetes"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	restclient "k8s.io/client-go/rest"
 	clientgocache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
@@ -100,6 +101,29 @@ var _ = framework.PreBindPlugin(&LocalPlugin{})
 
 // NewLocalPlugin
 func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+	args := OpenLocalArg{}
+
+	if configuration != nil {
+		unknownObj, ok := configuration.(*runtime.Unknown)
+		if !ok {
+			return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", configuration)
+		}
+
+		if err := frameworkruntime.DecodeInto(unknownObj, &args); err != nil {
+			return nil, err
+		}
+	}
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", args.KubeConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("error building kubeconfig: %s", err.Error())
+	}
+
+	return NewLocalPluginWithKubeconfig(configuration, f, cfg)
+}
+
+// NewLocalPluginWithKubeconfig
+func NewLocalPluginWithKubeconfig(configuration runtime.Object, f framework.Handle, cfg *restclient.Config) (framework.Plugin, error) {
 
 	args := OpenLocalArg{}
 
@@ -119,10 +143,6 @@ func NewLocalPlugin(configuration runtime.Object, f framework.Handle) (framework
 		return nil, err
 	}
 
-	cfg, err := clientcmd.BuildConfigFromFlags("", args.KubeConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("error building kubeconfig: %s", err.Error())
-	}
 	// client
 	localClient, err := localclientset.NewForConfig(cfg)
 	if err != nil {

@@ -40,12 +40,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	S3_URL = "s3URL"
-	S3_AK  = "s3AK"
-	S3_SK  = "s3SK"
-)
-
 var (
 	lvmdPort string
 )

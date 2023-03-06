@@ -670,7 +670,7 @@ func CreateTestPersistentVolume(pvInfos []TestPVInfo) (pvs []*corev1.PersistentV
 			pv.Spec.CSI.VolumeAttributes[localtype.VolumeTypeKey] = pvInfo.VolumeType
 		}
 		if pvInfo.IsSnapshot {
-			pv.Spec.CSI.VolumeAttributes[localtype.ParamSnapshotName] = "snapshot"
+			pv.Spec.CSI.VolumeAttributes[localtype.ParamSnapshotID] = "snapshot"
 		}
 
 		if pvInfo.NodeName != "" {

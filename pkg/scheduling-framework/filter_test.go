@@ -232,9 +232,9 @@ func Test_PreFilter(t *testing.T) {
 			}
 
 			_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), snapshotclass, metav1.CreateOptions{})
-			plugin.snapshotInformers.VolumeSnapshotClasses().Informer().GetIndexer().Add(snapshot)
+			_ = plugin.snapshotInformers.VolumeSnapshotClasses().Informer().GetIndexer().Add(snapshot)
 			_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Create(context.Background(), snapshot, metav1.CreateOptions{})
-			plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(snapshot)
+			_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(snapshot)
 
 			cycleState := framework.NewCycleState()
 

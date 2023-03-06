@@ -56,10 +56,6 @@ const (
 	DirectTag = "direct"
 	// StripingType striping type
 	StripingType = "striping"
-
-	S3_URL = "s3URL"
-	S3_AK  = "s3AK"
-	S3_SK  = "s3SK"
 )
 
 type CSIPlugin struct {

@@ -652,7 +652,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 						pkg.ParamReadonly:       "true",
 						pkg.AnnoSelectedNode:    utils.NodeName4,
 						pkg.VGName:              "newVG",
-						pkg.ParamSnapshotName:   snapshotContentName,
+						pkg.ParamSnapshotID:     snapshotContentName,
 						pkg.ParamSourceVolumeID: pvName,
 					},
 					AccessibleTopology: []*csi.Topology{
@@ -763,10 +763,10 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
-						pkg.ParamVGName:       "newVG",
-						pkg.VolumeTypeKey:     string(pkg.VolumeTypeLVM),
-						pkg.ParamSnapshotName: "snapshotName",
-						pkg.ParamReadonly:     "true",
+						pkg.ParamVGName:     "newVG",
+						pkg.VolumeTypeKey:   string(pkg.VolumeTypeLVM),
+						pkg.ParamSnapshotID: "snapshotName",
+						pkg.ParamReadonly:   "true",
 					},
 				},
 			},

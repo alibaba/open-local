@@ -238,8 +238,9 @@ func ListPV(vgName string) ([]*lib.PV, error) {
 
 // CreateSnapshot creates a new volume snapshot
 func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error) {
-	var sizeBytes int64 = 0
+	var sizeBytes int64
 	if readonly {
+		// ro
 		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", roInitSize), fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
 		cmd := strings.Join(args, " ")
 		_, err := utils.Run(cmd)
@@ -247,7 +248,9 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 			return 0, err
 		}
 	} else {
+		// rw
 		// create temp snapshot
+		// todo: 这里一个问题是 当出现备份过程中删除 yoda-agent 再启动后volumesnapshot会报错（永远无法ready to use）
 		log.Infof("create temp snapshot %s for volume %s", snapshotName, srcVolumeName)
 		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", "4G", fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
 		cmd := strings.Join(args, " ")
@@ -297,9 +300,9 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 			log.Infof("umount temp dir %s", tempDir)
 		}()
 
-		s3URL, existURL := secrets[S3_URL]
-		s3AK, existAK := secrets[S3_AK]
-		s3SK, existSK := secrets[S3_SK]
+		s3URL, existURL := secrets[localtype.S3_URL]
+		s3AK, existAK := secrets[localtype.S3_AK]
+		s3SK, existSK := secrets[localtype.S3_SK]
 		if !(existURL && existAK && existSK) {
 			return 0, fmt.Errorf("secret is not valid when creating snapshot")
 		}
@@ -308,9 +311,12 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 		if err != nil {
 			return 0, fmt.Errorf("fail to backup data: %s", err.Error())
 		}
+		log.Infof("backup data %s successfully, use s3 %d bytes", srcVolumeName, sizeBytes)
 	}
 
-	return sizeBytes, nil
+	// todo: 不用 sizeBytes 因为 restic 返回的 total 没有包含文件系统
+	// return sizeBytes, nil
+	return 0, nil
 }
 
 // RemoveSnapshot removes a volume snapshot

@@ -7,7 +7,9 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"time"
 
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/pkg/errors"
 	log "k8s.io/klog/v2"
 )
@@ -43,12 +45,22 @@ func CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey string
 }
 
 func BackupData(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup, backupTag string) (int64, error) {
+	defer utils.TimeTrack(time.Now(), fmt.Sprintf("backup %s to s3 %s", pathToBackup, repository))
 	if err := GetOrCreateRepository(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return 0, fmt.Errorf("fail to get or create restic repository: %s", err.Error())
 	}
 
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return 0, fmt.Errorf("fail to check if repository is reachable: %s", err.Error())
+	}
+
+	exist, err := CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag)
+	if err != nil {
+		return 0, err
+	}
+	if exist {
+		log.Warningf("path %s have been already backed up, tag is %s", pathToBackup, backupTag)
+		return 0, nil
 	}
 
 	// Create backup and dump it on the object store
@@ -66,16 +78,16 @@ func BackupData(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup, bac
 	return info.TotalBytes, nil
 }
 
-func RestoreData(s3Endpoint, ak, sk, repository, encryptionKey, restorePath, backupTag string) (map[string]interface{}, error) {
+func RestoreData(s3Endpoint, ak, sk, repository, encryptionKey, pathToRestore, backupTag string) (map[string]interface{}, error) {
+	defer utils.TimeTrack(time.Now(), fmt.Sprintf("restore %s from s3 %s", pathToRestore, repository))
 	var cmd string
 	var err error
-
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return nil, err
 	}
 
 	// Generate restore command based on the identifier passed
-	cmd = RestoreCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, restorePath)
+	cmd = RestoreCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, pathToRestore)
 	fmt.Printf("restore cmd: %s\n", cmd)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
@@ -90,6 +102,7 @@ func RestoreData(s3Endpoint, ak, sk, repository, encryptionKey, restorePath, bac
 }
 
 func PruneData(s3Endpoint, ak, sk, repository, encryptionKey string) (string, error) {
+	defer utils.TimeTrack(time.Now(), fmt.Sprintf("prune data from s3 %s", repository))
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return "", err
 	}
@@ -103,6 +116,7 @@ func PruneData(s3Endpoint, ak, sk, repository, encryptionKey string) (string, er
 }
 
 func DeleteDataByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag string, reclaimSpace bool) (map[string]interface{}, error) {
+	defer utils.TimeTrack(time.Now(), fmt.Sprintf("delete data from s3 %s", repository))
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return nil, err
 	}
@@ -112,32 +126,47 @@ func DeleteDataByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag str
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to forget data, could not get snapshotID from tag(%s): %s, %s", deleteTag, err.Error(), string(out))
 	}
-	deleteIdentifier, err := SnapshotIDFromSnapshotLog(string(out))
+	deleteIDs, err := SnapshotIDFromSnapshotLog(string(out))
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to forget data, could not get snapshotID from tag, Tag: %s", deleteTag)
 	}
-	deleteID := deleteIdentifier
 
-	log.Infof("delete tag is %s, deleteID is %s", deleteTag, deleteID)
+	for _, deleteID := range deleteIDs {
+		log.Infof("delete tag is %s, deleteID is %v", deleteTag, deleteID)
+		cmd = ForgetCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteID)
+		out, err = exec.Command("sh", "-c", cmd).CombinedOutput()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to forget data: %s, %s", err.Error(), string(out))
+		}
+		log.Infof("delete data (tag: %s, id: %s) success", deleteTag, deleteID)
+	}
 
 	var spaceFreedTotal int64
-	cmd = ForgetCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteID)
-	out, err = exec.Command("sh", "-c", cmd).CombinedOutput()
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to forget data: %s, %s", err.Error(), string(out))
-	}
-	log.Infof("delete data %s,%s success", deleteTag, deleteID)
 	if reclaimSpace {
 		spaceFreedStr, err := PruneData(s3Endpoint, ak, sk, repository, encryptionKey)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error executing prune command")
 		}
 		spaceFreedTotal = ParseResticSizeStringBytes(spaceFreedStr)
+		log.Infof("prune data %d byte for %s", spaceFreedTotal, repository)
 	}
 
 	return map[string]interface{}{
 		DeleteDataOutputSpaceFreed: fmt.Sprintf("%d B", spaceFreedTotal),
 	}, nil
+}
+
+func CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag string) (bool, error) {
+	cmd := SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag)
+	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to check snapshot data, could not get snapshotID from tag(%s): %s, %s", tag, err.Error(), string(out))
+	}
+	_, err = SnapshotIDFromSnapshotLog(string(out))
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to check snapshot log, could not get snapshotID from tag %s", tag)
+	}
+	return true, nil
 }
 
 func parseLogAndCreateOutput(out string) (map[string]interface{}, error) {

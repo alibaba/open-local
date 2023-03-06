@@ -51,11 +51,11 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 
 	volumeID := req.GetVolumeId()
 	var isSnapshot bool
-	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
+	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotID]; isSnapshot {
 		if ro, exist := req.VolumeContext[localtype.ParamReadonly]; exist && ro == "true" {
 			// if volume is ro snapshot, then mount snapshot lv
-			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
-			volumeID = req.VolumeContext[localtype.ParamSnapshotName]
+			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotID])
+			volumeID = req.VolumeContext[localtype.ParamSnapshotID]
 		}
 	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
@@ -138,22 +138,42 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		// 判断是否为 restic 快照
 		// 将 s3 数据拷贝到 targetPath 中，完毕。
 		// 这里注意 param 的传递
-		snapshotName, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]
+		snapshotID, isSnapshot := req.VolumeContext[localtype.ParamSnapshotID]
 		if isSnapshot {
 			if !checkIfRestored(targetPath) {
+				log.Info("restore data to target path %s ...", targetPath)
+				snapContent, err := getVolumeSnapshotContent(ns.options.snapclient, snapshotID)
+				if err != nil {
+					return status.Errorf(codes.Internal, "mountLvmFS: get snapContent %s error: %s", snapshotID, err.Error())
+				}
+
+				secretName, exist := snapContent.Annotations[localtype.AnnDeletionSecretRefName]
+				if !exist {
+					return status.Errorf(codes.Internal, "mountLvmFS: no anno %s found in volumesnapshotcontent %s", localtype.AnnDeletionSecretRefName, snapContent.Name)
+				}
+				secretNamespace, exist := snapContent.Annotations[localtype.AnnDeletionSecretRefNamespace]
+				if !exist {
+					return status.Errorf(codes.Internal, "mountLvmFS: no anno %s found in volumesnapshotcontent %s", localtype.AnnDeletionSecretRefNamespace, snapContent.Name)
+				}
+				secret, err := ns.options.kubeclient.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					return status.Errorf(codes.Internal, fmt.Sprintf("fail to get secret %s/%s: %s", secretNamespace, secretName, err.Error()))
+				}
+
 				if err := labelRestored(targetPath); err != nil {
 					return err
 				}
 				// 写一个隐藏文件，标识是否已经restore过
 				srcVolomeID := req.VolumeContext[localtype.ParamSourceVolumeID]
-				s3URL := req.Secrets[S3_URL]
-				s3AK := req.Secrets[S3_AK]
-				s3SK := req.Secrets[S3_SK]
+				s3URL := string(secret.Data[S3_URL])
+				s3AK := string(secret.Data[S3_AK])
+				s3SK := string(secret.Data[S3_SK])
 				// restic
-				_, err := restic.RestoreData(s3URL, s3AK, s3SK, srcVolomeID, restic.GeneratePassword(), targetPath, snapshotName)
+				_, err = restic.RestoreData(s3URL, s3AK, s3SK, srcVolomeID, restic.GeneratePassword(), targetPath, snapshotID)
 				if err != nil {
 					return fmt.Errorf("fail to restore volume %s path %s: %s", srcVolomeID, targetPath, err.Error())
 				}
+				log.Info("restore data to target path %s successfully", targetPath)
 			} else {
 				log.Info("target path %s has been restored", targetPath)
 			}

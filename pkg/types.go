@@ -100,7 +100,7 @@ const (
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
 
-	ParamSnapshotName     = "yoda.io/snapshot-name"
+	ParamSnapshotID       = "csi.aliyun.com/snapshot-id"
 	ParamReadonly         = "csi.aliyun.com/readonly"
 	ParamSourceVolumeID   = "csi.aliyun.com/source-volume-id"
 	ParamVGName           = "vgName"
@@ -154,6 +154,9 @@ const (
 		- read by csi: nodeServer publishVolume
 	*/
 	AnnotationPVAllocatedInfoKey = "csi.aliyun.com/pv-allocated"
+
+	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
+	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
 var (

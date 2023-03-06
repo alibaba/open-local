@@ -107,17 +107,20 @@ func StatsCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, id, mode st
 }
 
 // SnapshotIDFromSnapshotLog gets the SnapshotID from Snapshot Command log
-func SnapshotIDFromSnapshotLog(output string) (string, error) {
+func SnapshotIDFromSnapshotLog(output string) ([]string, error) {
 	var result []map[string]interface{}
 	err := json.Unmarshal([]byte(output), &result)
 	if err != nil {
-		return "", errors.WithMessage(err, "Failed to unmarshall output from snapshotCommand")
+		return nil, errors.WithMessage(err, "Failed to unmarshall output from snapshotCommand")
 	}
 	if len(result) == 0 {
-		return "", errors.New("Snapshot not found")
+		return nil, nil
 	}
-	snapId := result[0]["short_id"]
-	return snapId.(string), nil
+	snapIds := make([]string, len(result))
+	for i := 0; i < len(result); i++ {
+		snapIds[i] = result[i]["short_id"].(string)
+	}
+	return snapIds, nil
 }
 
 // SnapshotIDFromBackupLog gets the SnapshotID from Backup Command log

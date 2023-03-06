@@ -46,7 +46,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
-	"k8s.io/klog/v2"
 	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
@@ -840,7 +839,7 @@ func IsReadOnlySnapshotPVC(claim *corev1.PersistentVolumeClaim, snapInformer vol
 		snasphotNamespace := claim.Namespace
 		snapshot, err := snapInformer.VolumeSnapshots().Lister().VolumeSnapshots(snasphotNamespace).Get(snasphotName)
 		if err != nil {
-			klog.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
 			return false
 		}
 		return IsSnapshotClassReadOnly(*snapshot.Spec.VolumeSnapshotClassName, snapInformer)
@@ -856,7 +855,7 @@ func IsReadOnlySnapshotPVC2(claim *corev1.PersistentVolumeClaim, snapClient snap
 		snasphotNamespace := claim.Namespace
 		snapshot, err := snapClient.SnapshotV1().VolumeSnapshots(snasphotNamespace).Get(context.TODO(), snasphotName, metav1.GetOptions{})
 		if err != nil {
-			klog.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
 			return false
 		}
 		return IsSnapshotClassReadOnly2(*snapshot.Spec.VolumeSnapshotClassName, snapClient)
@@ -867,7 +866,7 @@ func IsReadOnlySnapshotPVC2(claim *corev1.PersistentVolumeClaim, snapClient snap
 func IsSnapshotClassReadOnly(className string, snapInformer volumesnapshotinformers.Interface) bool {
 	snapshotClass, err := snapInformer.VolumeSnapshotClasses().Lister().Get(className)
 	if err != nil {
-		klog.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		log.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
 		return false
 	}
 	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
@@ -879,7 +878,7 @@ func IsSnapshotClassReadOnly(className string, snapInformer volumesnapshotinform
 func IsSnapshotClassReadOnly2(className string, snapClient snapshot.Interface) bool {
 	snapshotClass, err := snapClient.SnapshotV1().VolumeSnapshotClasses().Get(context.TODO(), className, metav1.GetOptions{})
 	if err != nil {
-		klog.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		log.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
 		return false
 	}
 	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
@@ -911,4 +910,9 @@ func FsInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
 	inodesUsed := inodes - inodesFree
 
 	return available, capacity, usage, inodes, inodesFree, inodesUsed, nil
+}
+
+func TimeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Infof("%s took %s", name, elapsed)
 }

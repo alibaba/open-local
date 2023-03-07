@@ -201,3 +201,20 @@ func NewInsufficientExclusiveResourceError(resource pkg.VolumeType, requested, m
 		maxSize:       max,
 	}
 }
+
+type SnapshotError struct {
+	resource pkg.VolumeType
+}
+
+func (e SnapshotError) GetReason() string {
+	return fmt.Sprintf("no lvm volume found when creating %s readonly snapshot", string(e.resource))
+}
+
+func (e *SnapshotError) Error() string {
+	return fmt.Sprintf("no lvm volume found when creating %s readonly snapshot", string(e.resource))
+}
+func NewSnapshotError(resource pkg.VolumeType) *SnapshotError {
+	return &SnapshotError{
+		resource: resource,
+	}
+}

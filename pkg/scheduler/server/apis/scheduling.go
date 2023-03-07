@@ -64,8 +64,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		log.Info(msg)
 		return nil, fmt.Errorf(msg)
 	}
-	containReadonlySnapshot := false
-	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodUnboundPvcs(pvc, ctx, containReadonlySnapshot)
+	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodUnboundPvcs(pvc, ctx)
 	if err != nil {
 		log.Errorf("failed to get pod unbound pvcs: %s", err.Error())
 		return nil, err

@@ -136,13 +136,18 @@ func (cmd *SpdkCommands) ListVG() ([]*lib.VG, error) {
 }
 
 // CreateSnapshot creates a new volume snapshot
-func (cmd *SpdkCommands) CreateSnapshot(ctx context.Context, vg string, snapshotName string, originLVName string, size uint64) (string, error) {
-	alias := vg + "/" + originLVName
-	return cmd.client.Snapshot(alias, snapshotName)
+func (cmd *SpdkCommands) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error) {
+	alias := vgName + "/" + srcVolumeName
+	// todo: need to know the sizeBytes of the snapshot
+	_, err := cmd.client.Snapshot(alias, snapshotName)
+	if err != nil {
+		return 0, err
+	}
+	return 0, nil
 }
 
 // RemoveSnapshot removes a volume snapshot
-func (cmd *SpdkCommands) RemoveSnapshot(ctx context.Context, vg string, name string) (string, error) {
+func (cmd *SpdkCommands) RemoveSnapshot(ctx context.Context, vg string, name string, readonly bool) (string, error) {
 	alias := vg + "/" + name
 	return "", cmd.client.DeleteLV(alias)
 }

@@ -1,4 +1,3 @@
-//go:build linux
 // +build linux
 
 /*
@@ -444,10 +443,10 @@ func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target
 
 func getDiskFormat(exec utilexec.Interface, disk string) (string, error) {
 	args := []string{"-p", "-s", "TYPE", "-s", "PTTYPE", "-o", "export", disk}
-	klog.Infof("Attempting to determine if disk %q is formatted using blkid with args: (%v)", disk, args)
+	klog.V(4).Infof("Attempting to determine if disk %q is formatted using blkid with args: (%v)", disk, args)
 	dataOut, err := exec.Command("blkid", args...).CombinedOutput()
 	output := string(dataOut)
-	klog.Infof("Output: %q", output)
+	klog.V(4).Infof("Output: %q", output)
 
 	if err != nil {
 		if exit, ok := err.(utilexec.ExitError); ok {

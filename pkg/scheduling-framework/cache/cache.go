@@ -9,9 +9,9 @@ import (
 
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
-	storagelisters "k8s.io/client-go/listers/storage/v1"
-
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -402,8 +402,14 @@ func (c *NodeStorageAllocatedCache) DeletePVC(pvc *corev1.PersistentVolumeClaim)
 
 func (c *NodeStorageAllocatedCache) AddOrUpdatePV(pv *corev1.PersistentVolume, nodeName string) {
 
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
+		return
+	}
+
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		klog.Infof("pv %s is read only, skip updating cache", pv.Name)
 		return
 	}
 
@@ -419,8 +425,14 @@ func (c *NodeStorageAllocatedCache) AddOrUpdatePV(pv *corev1.PersistentVolume, n
 }
 
 func (c *NodeStorageAllocatedCache) DeletePV(pv *corev1.PersistentVolume, nodeName string) {
-	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv, false)
+	isOpenLocalPV, pvType := utils.IsOpenLocalPV(pv)
 	if !isOpenLocalPV {
+		return
+	}
+
+	// skip readonly pv
+	if utils.IsReadOnlyPV(pv) {
+		klog.Infof("pv %s is read only, skip updating cache", pv.Name)
 		return
 	}
 
@@ -435,12 +447,12 @@ func (c *NodeStorageAllocatedCache) DeletePV(pv *corev1.PersistentVolume, nodeNa
 	allocator.pvDelete(nodeName, pv)
 }
 
-func (c *NodeStorageAllocatedCache) PrefilterPVC(scLister storagelisters.StorageClassLister, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
-	allocator := c.getAllocatorByPVC(scLister, localPVC)
+func (c *NodeStorageAllocatedCache) PrefilterPVC(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, localPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
+	allocator := c.getAllocatorByPVC(scLister, localPVC, snapClient)
 	if allocator == nil {
 		return nil
 	}
-	return allocator.prefilter(scLister, localPVC, podVolumeInfos)
+	return allocator.prefilter(scLister, snapClient, localPVC, podVolumeInfos)
 }
 
 func (c *NodeStorageAllocatedCache) PrefilterInlineVolumes(pod *corev1.Pod, podVolumeInfo *PodLocalVolumeInfo) error {
@@ -594,11 +606,11 @@ func (c *NodeStorageAllocatedCache) getAllocatorByVolumeType(volumeType pkg.Volu
 	return nil
 }
 
-func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.StorageClassLister, pvc *corev1.PersistentVolumeClaim) PVPVCAllocator {
-	if isLocalPV, pvType := utils.IsLocalPVC(pvc, scLister, true); isLocalPV {
+func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.StorageClassLister, pvc *corev1.PersistentVolumeClaim, snapClient snapshot.Interface) PVPVCAllocator {
+	if isLocalPV, pvType := utils.IsLocalPVC(pvc, scLister); isLocalPV {
 		switch pvType {
 		case pkg.VolumeTypeLVM:
-			if utils.IsSnapshotPVC(pvc) {
+			if utils.IsReadOnlySnapshotPVC2(pvc, snapClient) {
 				return c.lvmSnapshotPVAllocator
 			} else {
 				return c.lvmPVAllocator

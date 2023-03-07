@@ -55,9 +55,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
-	github.com/google/go-microservice-helpers v0.0.0-20190205165657-a91942da5417 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -66,7 +64,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
@@ -96,6 +93,12 @@ require (
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
+)
+
+require (
+	github.com/google/go-microservice-helpers v0.0.0-20190205165657-a91942da5417 // indirect
+	github.com/googleapis/gnostic v0.5.1 // indirect
+	github.com/pkg/errors v0.9.1
 )
 
 replace (

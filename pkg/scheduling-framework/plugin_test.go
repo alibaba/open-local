@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,18 +22,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	localfake "github.com/alibaba/open-local/pkg/generated/clientset/versioned/fake"
 	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	volumesnapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	volumesnapshotinformersfactory "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -97,10 +97,9 @@ func CreateTestPluginByStrategy(strategyType localtype.StrategyType) *LocalPlugi
 		storageV1Informers: k8sInformerFactory.Storage().V1(),
 		localInformers:     localInformerFactory.Csi().V1alpha1(),
 		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
-
-		kubeClientSet:  kubeclient,
-		localClientSet: localclient,
-		snapClientSet:  snapshotclient,
+		kubeClientSet:      kubeclient,
+		localClientSet:     localclient,
+		snapClientSet:      snapshotclient,
 	}
 
 	localStorageInformer := localInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
@@ -251,6 +250,7 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 		},
 	})
 
+	snapshotclassName := "testclass"
 	snapshot := &volumesnapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      utils.GetTestPVCPVSnapshot().PVCPending.SnapName,
@@ -260,8 +260,18 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 			Source: volumesnapshotv1.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &utils.GetTestPVCPVSnapshot().PVCPending.SourcePVCName,
 			},
+			VolumeSnapshotClassName: &snapshotclassName,
 		},
 	}
+	snapshotclass := utils.CreateVolumeSnapshotClass(&utils.TestVolumeSnapshotClassInfo{
+		Name: snapshotclassName,
+		Parameters: map[string]string{
+			pkg.ParamReadonly:              "true",
+			pkg.ParamSnapshotInitialSize:   "4Gi",
+			pkg.ParamSnapshotThreshold:     "50%",
+			pkg.ParamSnapshotExpansionSize: "1Gi",
+		},
+	})
 
 	snapshotPVC := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVSnapshot().PVCPending})[0]
 
@@ -276,9 +286,10 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 		nodeName string
 	}
 	type fields struct {
-		pvcs     map[string]*corev1.PersistentVolumeClaim
-		pvs      map[string]*corev1.PersistentVolume
-		snapshot *volumesnapshotv1.VolumeSnapshot
+		pvcs          map[string]*corev1.PersistentVolumeClaim
+		pvs           map[string]*corev1.PersistentVolume
+		snapshot      *volumesnapshotv1.VolumeSnapshot
+		snapshotClass *volumesnapshotv1.VolumeSnapshotClass
 	}
 
 	tests := []struct {
@@ -318,8 +329,9 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 				nodeName: utils.NodeName3,
 			},
 			fields: fields{
-				pvcs:     pvcsPending,
-				snapshot: snapshot,
+				pvcs:          pvcsPending,
+				snapshot:      snapshot,
+				snapshotClass: snapshotclass,
 			},
 			expectResult: &reserveResult{
 				status: framework.NewStatus(framework.Success),
@@ -345,6 +357,11 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 				_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(tt.fields.snapshot)
 			}
 
+			if tt.fields.snapshotClass != nil {
+				_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), tt.fields.snapshotClass, metav1.CreateOptions{})
+				_ = plugin.snapshotInformers.VolumeSnapshotClasses().Informer().GetIndexer().Add(tt.fields.snapshotClass)
+			}
+
 			cycleState := framework.NewCycleState()
 			plugin.PreFilter(context.Background(), cycleState, tt.args.pod)
 
@@ -361,7 +378,7 @@ func Test_Reserve_PodHaveNoLocalPVC(t *testing.T) {
 	}
 }
 
-func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
+func Test_Reserve_LVMPVC_NotROSnapshot(t *testing.T) {
 	podWithVG := utils.CreatePod(&utils.TestPodInfo{
 		PodName:      "podWithVG",
 		PodNameSpace: utils.LocalNameSpace,
@@ -429,7 +446,7 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				},
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
@@ -438,8 +455,9 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 								},
 							},
 						},
-						DevicePVCs:    cache.NewDevicePVCInfos(),
-						InlineVolumes: []*cache.InlineVolumeAllocated{},
+						LVMPVCsROSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:        cache.NewDevicePVCInfos(),
+						InlineVolumes:     []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -500,7 +518,7 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				},
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									Request: utils.GetPVCRequested(pvcWithoutVGPending),
@@ -508,9 +526,9 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 								},
 							},
 						},
-						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
-						DevicePVCs:      cache.NewDevicePVCInfos(),
-						InlineVolumes:   []*cache.InlineVolumeAllocated{},
+						LVMPVCsROSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:        cache.NewDevicePVCInfos(),
+						InlineVolumes:     []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -573,7 +591,7 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				pvBoundBeforeReserve:  pvwithoutVGBounding,
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									Request: utils.GetPVCRequested(pvcWithoutVGPending),
@@ -581,9 +599,9 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 								},
 							},
 						},
-						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
-						DevicePVCs:      cache.NewDevicePVCInfos(),
-						InlineVolumes:   []*cache.InlineVolumeAllocated{},
+						LVMPVCsROSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:        cache.NewDevicePVCInfos(),
+						InlineVolumes:     []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -646,7 +664,7 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 				pvBoundBeforeReserve:  pvwithoutVGLargeBounding,
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									Request: utils.GetPVCRequested(pvcWithoutVGLargePending),
@@ -654,9 +672,9 @@ func Test_Reserve_LVMPVC_NotSnapshot(t *testing.T) {
 								},
 							},
 						},
-						LVMPVCsSnapshot: []*cache.LVMPVCInfo{},
-						DevicePVCs:      cache.NewDevicePVCInfos(),
-						InlineVolumes:   []*cache.InlineVolumeAllocated{},
+						LVMPVCsROSnapshot: []*cache.LVMPVCInfo{},
+						DevicePVCs:        cache.NewDevicePVCInfos(),
+						InlineVolumes:     []*cache.InlineVolumeAllocated{},
 					},
 				},
 			},
@@ -779,9 +797,9 @@ func Test_Reserve_inlineVolume(t *testing.T) {
 			fields: fields{
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
-						DevicePVCs:         cache.NewDevicePVCInfos(),
+						LVMPVCsNotROSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsROSnapshot:    []*cache.LVMPVCInfo{},
+						DevicePVCs:           cache.NewDevicePVCInfos(),
 						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
@@ -926,8 +944,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				},
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						LVMPVCsNotROSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsROSnapshot:    []*cache.LVMPVCInfo{},
 						DevicePVCs: &cache.DevicePVCInfos{
 							SSDDevicePVCs: []*cache.DevicePVCInfo{},
 							HDDDevicePVCs: []*cache.DevicePVCInfo{
@@ -1001,8 +1019,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				pvBoundBeforeReserve:  pvDeviceBounding,
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						LVMPVCsNotROSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsROSnapshot:    []*cache.LVMPVCInfo{},
 						DevicePVCs: &cache.DevicePVCInfos{
 							SSDDevicePVCs: []*cache.DevicePVCInfo{},
 							HDDDevicePVCs: []*cache.DevicePVCInfo{
@@ -1058,8 +1076,8 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				deviceIncludes:        []string{"/dev/sdb", "/dev/sdc"},
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    []*cache.LVMPVCInfo{},
+						LVMPVCsNotROSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsROSnapshot:    []*cache.LVMPVCInfo{},
 						DevicePVCs: &cache.DevicePVCInfos{
 							SSDDevicePVCs: []*cache.DevicePVCInfo{},
 							HDDDevicePVCs: []*cache.DevicePVCInfo{
@@ -1801,7 +1819,7 @@ func Test_Reservation(t *testing.T) {
 	gotStatus = plugin.Reserve(context.Background(), cycleState, reservationPod, nodeName)
 	assert.Equal(t, framework.Success, gotStatus.Code(), "reservationPod should reserve success!")
 	for _, pvc := range pvcsPending {
-		isLocal, _ := utils.IsLocalPVC(pvc, plugin.scLister, false)
+		isLocal, _ := utils.IsLocalPVC(pvc, plugin.scLister)
 		assert.Equal(t, isLocal, plugin.cache.GetPVCAllocatedDetailCopy(pvc.Namespace, pvc.Name) != nil, "reservation PVC should schedule success")
 	}
 
@@ -1811,7 +1829,7 @@ func Test_Reservation(t *testing.T) {
 		_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
 		_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
 		plugin.OnPVUpdate(nil, pv)
-		isLocal, _ := utils.IsOpenLocalPV(pv, false)
+		isLocal, _ := utils.IsOpenLocalPV(pv)
 		assert.Equal(t, isLocal, plugin.cache.GetPVAllocatedDetailCopy(pv.Name) != nil, "reservation pv should bound success")
 	}
 	for _, pvc := range pvcsBounding {
@@ -1842,5 +1860,4 @@ func Test_Reservation(t *testing.T) {
 	assert.NotEmpty(t, plugin.cache.GetPodInlineVolumeDetailsCopy(nodeName, string(reservationPod.UID)), "check unreserve pod inlineVolumes")
 	nodeStorageUnreserve := plugin.cache.GetNodeStorageStateCopy(nodeName)
 	assert.Equal(t, nodeStorageByReservation, nodeStorageUnreserve, "nodeStorage should not change after unreserve pod")
-
 }

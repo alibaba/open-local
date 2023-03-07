@@ -75,6 +75,13 @@ const (
 	MPName       = "MountPoint"
 	DeviceName   = "Device"
 
+	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
+	DefaultSnapshotThreshold     = 0.5
+	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
+	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
+	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
+
 	// VolumeType MUST BE case sensitive
 	VolumeTypeMountPoint VolumeType = "MountPoint"
 	VolumeTypeLVM        VolumeType = "LVM"
@@ -88,24 +95,19 @@ const (
 	// This annotation is added to a PVC that has been triggered by scheduler to
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnoSelectedNode                     = "volume.kubernetes.io/selected-node"
-	LabelReschduleTimestamp              = "pod.oecp.io/reschdule-timestamp"
-	EnvExpandSnapInterval                = "Expand_Snapshot_Interval"
+	LabelReschduleTimestamp              = "csi.aliyun.com/reschdule-timestamp"
 	EnvForceCreateVG                     = "Force_Create_VG"
 	PendingWithoutScheduledFieldSelector = "status.phase=Pending,spec.nodeName="
 	TriggerPendingPodCycle               = time.Second * 300
 
-	ParamSnapshotName            = "yoda.io/snapshot-name"
-	ParamSnapshotReadonly        = "csi.aliyun.com/readonly"
-	ParamSnapshotInitialSize     = "csi.aliyun.com/snapshot-initial-size"
-	ParamSnapshotThreshold       = "csi.aliyun.com/snapshot-expansion-threshold"
-	ParamSnapshotExpansionSize   = "csi.aliyun.com/snapshot-expansion-size"
-	ParamVGName                  = "vgName"
-	ParamLVSize                  = "size"
-	EnvSnapshotPrefix            = "SNAPSHOT_PREFIX"
-	DefaultSnapshotPrefix        = "snap"
-	DefaultSnapshotInitialSize   = 4 * 1024 * 1024 * 1024
-	DefaultSnapshotThreshold     = 0.5
-	DefaultSnapshotExpansionSize = 1 * 1024 * 1024 * 1024
+	ParamSnapshotID       = "csi.aliyun.com/snapshot-id"
+	ParamReadonly         = "csi.aliyun.com/readonly"
+	ParamSourceVolumeID   = "csi.aliyun.com/source-volume-id"
+	ParamVGName           = "vgName"
+	ParamLVSize           = "size"
+	EnvSnapshotPrefix     = "SNAPSHOT_PREFIX"
+	EnvExpandSnapInterval = "Expand_Snapshot_Interval"
+	DefaultSnapshotPrefix = "snap"
 
 	Separator = "<:SEP:>"
 
@@ -152,6 +154,9 @@ const (
 		- read by csi: nodeServer publishVolume
 	*/
 	AnnotationPVAllocatedInfoKey = "csi.aliyun.com/pv-allocated"
+
+	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
+	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
 var (
@@ -167,6 +172,10 @@ var (
 	}
 	SupportedFS       = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
 	SchedulerStrategy = StrategyBinpack
+
+	S3_URL = "s3URL"
+	S3_AK  = "s3AK"
+	S3_SK  = "s3SK"
 )
 
 type UpdateStatus string

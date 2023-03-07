@@ -111,7 +111,6 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 	return
 }
 
-//
 func getAllLocalSnapshotLV() (lvs []*lvm.LogicalVolume, err error) {
 	// get all vg names
 	lvs = make([]*lvm.LogicalVolume, 0)

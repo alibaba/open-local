@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,10 +21,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-
 	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +59,21 @@ func Test_PreFilter(t *testing.T) {
 	pvcsPending := createPVC(complexPVCPVInfos.GetTestPVCPending())
 	pvcsBounding := createPVC(complexPVCPVInfos.GetTestPVCBounding())
 	pvsBounding := createPV(complexPVCPVInfos.GetTestPVBounding())
+
+	snapshot := utils.CreateVolumeSnapshot(&utils.TestVolumeSnapshotInfo{
+		SnapshotName:      "snapshot-" + utils.PVCSnapshot,
+		SnapshotClassName: "testclass",
+		SrcPVCName:        utils.PVCSnapshot,
+	})
+	snapshotclass := utils.CreateVolumeSnapshotClass(&utils.TestVolumeSnapshotClassInfo{
+		Name: "testclass",
+		Parameters: map[string]string{
+			pkg.ParamReadonly:              "true",
+			pkg.ParamSnapshotInitialSize:   "4Gi",
+			pkg.ParamSnapshotThreshold:     "50%",
+			pkg.ParamSnapshotExpansionSize: "1Gi",
+		},
+	})
 
 	type args struct {
 		pod *corev1.Pod
@@ -116,13 +131,13 @@ func Test_PreFilter(t *testing.T) {
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsSnapshot: cache.LVMSnapshotPVCInfos{
+						LVMPVCsROSnapshot: cache.LVMSnapshotPVCInfos{
 							{
 								Request: getSize(utils.GetTestPVCPVSnapshot().PVCPending.Size),
 								PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCSnapshot)],
 							},
 						},
-						LVMPVCsNotSnapshot: &cache.LVMCommonPVCInfos{
+						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
 							LVMPVCsWithVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
@@ -174,9 +189,9 @@ func Test_PreFilter(t *testing.T) {
 				status: framework.NewStatus(framework.Success),
 				stateData: &stateData{
 					podVolumeInfo: &cache.PodLocalVolumeInfo{
-						LVMPVCsNotSnapshot: cache.NewLVMCommonPVCInfos(),
-						LVMPVCsSnapshot:    cache.LVMSnapshotPVCInfos{},
-						DevicePVCs:         cache.NewDevicePVCInfos(),
+						LVMPVCsNotROSnapshot: cache.NewLVMCommonPVCInfos(),
+						LVMPVCsROSnapshot:    cache.LVMSnapshotPVCInfos{},
+						DevicePVCs:           cache.NewDevicePVCInfos(),
 						InlineVolumes: []*cache.InlineVolumeAllocated{
 							{
 								VolumeName:   "test_inline_volume",
@@ -215,6 +230,11 @@ func Test_PreFilter(t *testing.T) {
 				_, _ = plugin.kubeClientSet.CoreV1().PersistentVolumes().Create(context.Background(), pv, metav1.CreateOptions{})
 				_ = plugin.coreV1Informers.PersistentVolumes().Informer().GetIndexer().Add(pv)
 			}
+
+			_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), snapshotclass, metav1.CreateOptions{})
+			_ = plugin.snapshotInformers.VolumeSnapshotClasses().Informer().GetIndexer().Add(snapshot)
+			_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Create(context.Background(), snapshot, metav1.CreateOptions{})
+			_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(snapshot)
 
 			cycleState := framework.NewCycleState()
 
@@ -339,7 +359,7 @@ func Test_Filter_PodHaveNoLocalPVC(t *testing.T) {
 	}
 }
 
-func Test_Filter_LVMPVC_NotSnapshot(t *testing.T) {
+func Test_Filter_LVMPVC_NotROSnapshot(t *testing.T) {
 	podWithVG := utils.CreatePod(&utils.TestPodInfo{
 		PodName:      "podWithVG",
 		PodNameSpace: utils.LocalNameSpace,
@@ -707,6 +727,7 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 		},
 	})
 
+	snapshotclassName := "testclass"
 	snapshot := &volumesnapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      utils.GetTestPVCPVSnapshot().PVCPending.SnapName,
@@ -716,8 +737,18 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 			Source: volumesnapshotv1.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &utils.GetTestPVCPVSnapshot().PVCPending.SourcePVCName,
 			},
+			VolumeSnapshotClassName: &snapshotclassName,
 		},
 	}
+	snapshotclass := utils.CreateVolumeSnapshotClass(&utils.TestVolumeSnapshotClassInfo{
+		Name: snapshotclassName,
+		Parameters: map[string]string{
+			pkg.ParamReadonly:              "true",
+			pkg.ParamSnapshotInitialSize:   "4Gi",
+			pkg.ParamSnapshotThreshold:     "50%",
+			pkg.ParamSnapshotExpansionSize: "1Gi",
+		},
+	})
 
 	snapshotPVC := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVSnapshot().PVCPending})[0]
 	sourcePVC := utils.CreateTestPersistentVolumeClaim([]utils.TestPVCInfo{*utils.GetTestPVCPVWithVG().PVCBounding})[0]
@@ -726,9 +757,10 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 		pod *corev1.Pod
 	}
 	type fields struct {
-		snapshot    *volumesnapshotv1.VolumeSnapshot
-		snapshotPVC *corev1.PersistentVolumeClaim
-		sourcePVC   *corev1.PersistentVolumeClaim
+		snapshot      *volumesnapshotv1.VolumeSnapshot
+		snapshotClass *volumesnapshotv1.VolumeSnapshotClass
+		snapshotPVC   *corev1.PersistentVolumeClaim
+		sourcePVC     *corev1.PersistentVolumeClaim
 	}
 
 	tests := []struct {
@@ -737,35 +769,39 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 		fields       fields
 		expectFilter *filterResult
 	}{
-		{
-			name: "test pod with snapshot pvc but snapshot not found",
-			args: args{
-				pod: podWithSnapshot,
-			},
-			fields: fields{
-				snapshotPVC: snapshotPVC,
-				sourcePVC:   sourcePVC,
-			},
-			expectFilter: &filterResult{
-				nodeStatuses: map[string]*framework.Status{
-					utils.NodeName1: framework.NewStatus(framework.Error),
-					utils.NodeName2: framework.NewStatus(framework.Error),
-					utils.NodeName3: framework.NewStatus(framework.Error),
-					utils.NodeName4: framework.NewStatus(framework.Error),
-				},
-				stateData: &stateData{
-					allocateStateByNode: map[string]*cache.NodeAllocateState{},
-				},
-			},
-		},
+		// todo: 暂时先不判断 snapshot 存在
+		// 目前的逻辑是假设一定存在
+		// 若没有找到snasphot，判断为是非snapshot类型的lvm pvc
+		// {
+		// 	name: "test pod with snapshot pvc but snapshot not found",
+		// 	args: args{
+		// 		pod: podWithSnapshot,
+		// 	},
+		// 	fields: fields{
+		// 		snapshotPVC: snapshotPVC,
+		// 		sourcePVC:   sourcePVC,
+		// 	},
+		// 	expectFilter: &filterResult{
+		// 		nodeStatuses: map[string]*framework.Status{
+		// 			utils.NodeName1: framework.NewStatus(framework.Error),
+		// 			utils.NodeName2: framework.NewStatus(framework.Error),
+		// 			utils.NodeName3: framework.NewStatus(framework.Error),
+		// 			utils.NodeName4: framework.NewStatus(framework.Error),
+		// 		},
+		// 		stateData: &stateData{
+		// 			allocateStateByNode: map[string]*cache.NodeAllocateState{},
+		// 		},
+		// 	},
+		// },
 		{
 			name: "test pod with snapshot pvc but source pvc not found",
 			args: args{
 				pod: podWithSnapshot,
 			},
 			fields: fields{
-				snapshot:    snapshot,
-				snapshotPVC: snapshotPVC,
+				snapshot:      snapshot,
+				snapshotClass: snapshotclass,
+				snapshotPVC:   snapshotPVC,
 			},
 			expectFilter: &filterResult{
 				nodeStatuses: map[string]*framework.Status{
@@ -785,9 +821,10 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 				pod: podWithSnapshot,
 			},
 			fields: fields{
-				snapshot:    snapshot,
-				snapshotPVC: snapshotPVC,
-				sourcePVC:   sourcePVC,
+				snapshot:      snapshot,
+				snapshotClass: snapshotclass,
+				snapshotPVC:   snapshotPVC,
+				sourcePVC:     sourcePVC,
 			},
 			expectFilter: &filterResult{
 				nodeStatuses: map[string]*framework.Status{
@@ -849,6 +886,10 @@ func Test_Filter_LVMPVC_Snapshot(t *testing.T) {
 			if tt.fields.snapshot != nil {
 				_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshots(tt.fields.snapshot.Namespace).Create(context.Background(), tt.fields.snapshot, metav1.CreateOptions{})
 				_ = plugin.snapshotInformers.VolumeSnapshots().Informer().GetIndexer().Add(tt.fields.snapshot)
+			}
+			if tt.fields.snapshotClass != nil {
+				_, _ = plugin.snapClientSet.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), tt.fields.snapshotClass, metav1.CreateOptions{})
+				_ = plugin.snapshotInformers.VolumeSnapshotClasses().Informer().GetIndexer().Add(tt.fields.snapshotClass)
 			}
 
 			cycleState := framework.NewCycleState()

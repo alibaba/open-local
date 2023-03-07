@@ -32,8 +32,11 @@ import (
 
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/lib"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/utils"
 	"golang.org/x/net/context"
+
+	log "k8s.io/klog/v2"
 )
 
 const (
@@ -56,7 +59,7 @@ func (lvm *LvmCommads) ListLV(listspec string) ([]*lib.LV, error) {
 		if strings.Contains(err.Error(), "Failed to find logical volume") {
 			return lvs, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("%s,%s", err.Error(), out)
 	}
 	outStr := strings.TrimSpace(string(out))
 	outLines := strings.Split(outStr, "\n")
@@ -150,7 +153,7 @@ func (lvm *LvmCommads) RemoveLV(ctx context.Context, vg string, name string) (st
 	args := []string{localtype.NsenterCmd, "lvs", "-o", "lv_name,vg_name,origin", "-S", fmt.Sprintf("origin=%s,vg_name=%s", name, vg), "--noheadings", "--nosuffix"}
 	cmd := strings.Join(args, " ")
 	if out, err := utils.Run(cmd); err != nil {
-		return "", err
+		return out, err
 	} else {
 		if strings.Contains(out, name) {
 			return "", fmt.Errorf("logical volume %s/%s has snapshot, please remove snapshot first", vg, name)
@@ -194,7 +197,7 @@ func (lvm *LvmCommads) ListVG() ([]*lib.VG, error) {
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s,%s", err.Error(), out)
 	}
 	outStr := strings.TrimSpace(string(out))
 	outLines := strings.Split(outStr, "\n")
@@ -217,7 +220,7 @@ func ListPV(vgName string) ([]*lib.PV, error) {
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s,%s", err.Error(), out)
 	}
 	outStr := strings.TrimSpace(string(out))
 	outLines := strings.Split(outStr, "\n")
@@ -234,36 +237,110 @@ func ListPV(vgName string) ([]*lib.PV, error) {
 }
 
 // CreateSnapshot creates a new volume snapshot
-func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vg string, snapshotName string, originLVName string, size uint64) (string, error) {
-	if size == 0 {
-		return "", errors.New("size must be greater than 0")
+func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error) {
+	var sizeBytes int64
+	if readonly {
+		// ro
+		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", roInitSize), fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
+		cmd := strings.Join(args, " ")
+		_, err := utils.Run(cmd)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		// rw
+		// create temp snapshot
+		// todo: 这里一个问题是 当出现备份过程中删除 yoda-agent 再启动后volumesnapshot会报错（永远无法ready to use）
+		log.Infof("create temp snapshot %s for volume %s", snapshotName, srcVolumeName)
+		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", "4G", fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
+		cmd := strings.Join(args, " ")
+		out, err := utils.Run(cmd)
+		if err != nil {
+			return 0, fmt.Errorf("fail to run cmd %s: %s, %s", cmd, err.Error(), out)
+		}
+
+		defer func() {
+			args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vgName, snapshotName)}
+			cmd := strings.Join(args, " ")
+			if out, err = utils.Run(cmd); err != nil {
+				log.Errorf("fail to remove temp snapshot lv %s: %s, %s", snapshotName, err.Error(), out)
+			}
+			log.Infof("delete temp snapshot %s", snapshotName)
+		}()
+
+		// mount temp snapshot lv to temp dir
+		tempDir := fmt.Sprintf("/mnt/%s", snapshotName)
+		log.Infof("create temp dir %s", tempDir)
+		if err := os.MkdirAll(tempDir, 0777); err != nil {
+			return 0, fmt.Errorf("fail to create temp dir %s: %s", tempDir, err.Error())
+		}
+
+		defer func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				log.Errorf("fail to remove temp dir %s", tempDir)
+			}
+			log.Infof("delete temp dir %s successfully", tempDir)
+		}()
+
+		log.Infof("mount temp snapshot lv /dev/%s/%s to %s", vgName, snapshotName, tempDir)
+		args = []string{"mount", fmt.Sprintf("/dev/%s/%s", vgName, snapshotName), tempDir}
+		cmd = strings.Join(args, " ")
+		out, err = utils.Run(cmd)
+		if err != nil {
+			return 0, fmt.Errorf("fail to run cmd %s: %s,%s", cmd, err.Error(), out)
+		}
+		log.Infof("mount temp snapshot %s to %s successfully", snapshotName, tempDir)
+
+		defer func() {
+			args = []string{"umount", tempDir}
+			cmd = strings.Join(args, " ")
+			if _, err = utils.Run(cmd); err != nil {
+				log.Errorf("fail to umount temp dir %s", tempDir)
+			}
+			log.Infof("umount temp dir %s", tempDir)
+		}()
+
+		s3URL, existURL := secrets[localtype.S3_URL]
+		s3AK, existAK := secrets[localtype.S3_AK]
+		s3SK, existSK := secrets[localtype.S3_SK]
+		if !(existURL && existAK && existSK) {
+			return 0, fmt.Errorf("secret is not valid when creating snapshot")
+		}
+		// restic backup
+		sizeBytes, err = restic.BackupData(s3URL, s3AK, s3SK, srcVolumeName, restic.GeneratePassword(), tempDir, snapshotName)
+		if err != nil {
+			return 0, fmt.Errorf("fail to backup data: %s", err.Error())
+		}
+		log.Infof("backup data %s successfully, use s3 %d bytes", srcVolumeName, sizeBytes)
 	}
 
-	args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", size), fmt.Sprintf("%s/%s", vg, originLVName), "-y"}
-	cmd := strings.Join(args, " ")
-	out, err := utils.Run(cmd)
-
-	return string(out), err
+	// todo: 不用 sizeBytes 因为 restic 返回的 total 没有包含文件系统
+	// return sizeBytes, nil
+	return 0, nil
 }
 
 // RemoveSnapshot removes a volume snapshot
-func (lvm *LvmCommads) RemoveSnapshot(ctx context.Context, vg string, name string) (string, error) {
-	lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
-	if err != nil {
-		return "", fmt.Errorf("failed to list LVs: %v", err)
-	}
-	if len(lvs) == 0 {
-		return "lvm " + vg + "/" + name + " is not exist, skip remove", nil
-	}
-	if len(lvs) != 1 {
-		return "", fmt.Errorf("expected 1 LV, got %d", len(lvs))
-	}
+func (lvm *LvmCommads) RemoveSnapshot(ctx context.Context, vg string, name string, readonly bool) (string, error) {
+	if readonly {
+		lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
+		if err != nil {
+			return "", fmt.Errorf("failed to list LVs: %v", err)
+		}
+		if len(lvs) == 0 {
+			return "lvm " + vg + "/" + name + " is not exist, skip remove", nil
+		}
+		if len(lvs) != 1 {
+			return "", fmt.Errorf("expected 1 LV, got %d", len(lvs))
+		}
 
-	args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
-	cmd := strings.Join(args, " ")
-	out, err := utils.Run(cmd)
-
-	return string(out), err
+		args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+		cmd := strings.Join(args, " ")
+		_, err = utils.Run(cmd)
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", nil
 }
 
 // CreateVG create volume group

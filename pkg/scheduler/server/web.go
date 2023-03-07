@@ -45,19 +45,28 @@ import (
 	log "k8s.io/klog/v2"
 )
 
-func NewExtenderServer(kubeClient kubernetes.Interface,
+func NewExtenderServer(
+	kubeClient kubernetes.Interface,
 	localclient clientset.Interface,
 	snapClient volumesnapshot.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	localStorageInformerFactory informers.SharedInformerFactory,
 	volumesnapshotInformerFactory volumesnapshotinformers.SharedInformerFactory,
-	port int32, weights *pkg.NodeAntiAffinityWeight) *ExtenderServer {
+	port int32,
+	weights *pkg.NodeAntiAffinityWeight,
+) *ExtenderServer {
 	corev1Informers := kubeInformerFactory.Core().V1()
 	storagev1Informers := kubeInformerFactory.Storage().V1()
 	localStorageInformers := localStorageInformerFactory.Csi().V1alpha1()
 	snapshotInformers := volumesnapshotInformerFactory.Snapshot().V1()
 
-	Ctx := algorithm.NewSchedulingContext(corev1Informers, storagev1Informers, localStorageInformers, snapshotInformers, weights)
+	Ctx := algorithm.NewSchedulingContext(
+		corev1Informers,
+		storagev1Informers,
+		localStorageInformers,
+		snapshotInformers,
+		weights,
+	)
 
 	informersSyncd := make([]clientgocache.InformerSynced, 0)
 
@@ -224,7 +233,7 @@ func (e *ExtenderServer) TriggerPendingPodReschedule(stopCh <-chan struct{}) {
 			if pod.ObjectMeta.DeletionTimestamp != nil {
 				continue
 			}
-			pvcs, err := algorithm.GetAllPodPvcs(&pod, e.Ctx, true)
+			pvcs, err := algorithm.GetAllPodPvcs(&pod, e.Ctx)
 			if err != nil {
 				log.Errorf("failed to get pod pvcs: %s", err.Error())
 				continue

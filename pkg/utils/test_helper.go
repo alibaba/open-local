@@ -20,12 +20,12 @@ import (
 
 	localtype "github.com/alibaba/open-local/pkg"
 	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
-	"k8s.io/apimachinery/pkg/types"
-
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -670,7 +670,7 @@ func CreateTestPersistentVolume(pvInfos []TestPVInfo) (pvs []*corev1.PersistentV
 			pv.Spec.CSI.VolumeAttributes[localtype.VolumeTypeKey] = pvInfo.VolumeType
 		}
 		if pvInfo.IsSnapshot {
-			pv.Spec.CSI.VolumeAttributes[localtype.ParamSnapshotName] = "snapshot"
+			pv.Spec.CSI.VolumeAttributes[localtype.ParamSnapshotID] = "snapshot"
 		}
 
 		if pvInfo.NodeName != "" {
@@ -842,5 +842,40 @@ func CreateNode(nodeInfo *TestNodeInfo) *corev1.Node {
 				},
 			},
 		},
+	}
+}
+
+type TestVolumeSnapshotInfo struct {
+	SnapshotName      string
+	SnapshotClassName string
+	SrcPVCName        string
+}
+
+func CreateVolumeSnapshot(info *TestVolumeSnapshotInfo) *volumesnapshotv1.VolumeSnapshot {
+	return &volumesnapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      info.SnapshotName,
+			Namespace: "default",
+		},
+		Spec: volumesnapshotv1.VolumeSnapshotSpec{
+			VolumeSnapshotClassName: &info.SnapshotClassName,
+			Source: volumesnapshotv1.VolumeSnapshotSource{
+				PersistentVolumeClaimName: &info.SrcPVCName,
+			},
+		},
+	}
+}
+
+type TestVolumeSnapshotClassInfo struct {
+	Name       string
+	Parameters map[string]string
+}
+
+func CreateVolumeSnapshotClass(info *TestVolumeSnapshotClassInfo) *volumesnapshotv1.VolumeSnapshotClass {
+	return &volumesnapshotv1.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: info.Name,
+		},
+		Parameters: info.Parameters,
 	}
 }

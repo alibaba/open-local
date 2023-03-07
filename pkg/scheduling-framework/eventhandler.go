@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -64,11 +65,6 @@ func (plugin *LocalPlugin) OnPVUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	// 若 source 是快照则退出
-	attributes := pv.Spec.CSI.VolumeAttributes
-	if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
-		return
-	}
 	plugin.updatePV(pv)
 
 	klog.V(4).Infof("[OnPVUpdate]pv %s is handled", pv.Name)
@@ -84,12 +80,6 @@ func (plugin *LocalPlugin) OnPVDelete(obj interface{}) {
 
 	// 判断是否是 open-local pv
 	if !(pv.Spec.CSI != nil && utils.ContainsProvisioner(pv.Spec.CSI.Driver)) {
-		return
-	}
-
-	// 若 source 是快照则退出
-	attributes := pv.Spec.CSI.VolumeAttributes
-	if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
 		return
 	}
 

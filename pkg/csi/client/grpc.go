@@ -38,8 +38,8 @@ type Connection interface {
 	GetVolume(ctx context.Context, volGroup string, volumeID string) (string, error)
 	CreateVolume(ctx context.Context, opt *LVMOptions) (string, error)
 	DeleteVolume(ctx context.Context, volGroup string, volumeID string) error
-	CreateSnapshot(ctx context.Context, volGroup string, snapVolumeID string, volumeID string, size uint64) (string, error)
-	DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string) error
+	CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error)
+	DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string, readonly bool, secrets map[string]string) error
 	ExpandVolume(ctx context.Context, volGroup string, volumeID string, size uint64) error
 	CleanPath(ctx context.Context, path string) error
 	CleanDevice(ctx context.Context, device string) error
@@ -151,22 +151,22 @@ func (c *workerConnection) CreateVolume(ctx context.Context, opt *LVMOptions) (s
 	return rsp.GetCommandOutput(), nil
 }
 
-func (c *workerConnection) CreateSnapshot(ctx context.Context, volGroup string, snapVolumeID string, volumeID string, size uint64) (string, error) {
+func (c *workerConnection) CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error) {
 	client := lib.NewLVMClient(c.conn)
 
 	req := lib.CreateSnapshotRequest{
-		VolumeGroup: volGroup,
-		SnapName:    snapVolumeID,
-		LvName:      volumeID,
-		Size:        size,
+		VgName:        vgName,
+		SnapshotName:  snapshotName,
+		SrcVolumeName: srcVolumeName,
+		Readonly:      readonly,
+		RoInitSize:    roInitSize,
+		S3Secrets:     secrets,
 	}
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
-		log.Errorf("Create Lvm Snapshot with error: %s", err.Error())
-		return "", err
+		return 0, fmt.Errorf("fail to create snapshot: %s", err.Error())
 	}
-	log.V(6).Infof("Create Lvm Snapshot with result: %+v", rsp.CommandOutput)
-	return rsp.GetCommandOutput(), nil
+	return rsp.GetSizeBytes(), nil
 }
 
 func (c *workerConnection) GetVolume(ctx context.Context, volGroup string, volumeID string) (string, error) {
@@ -207,11 +207,13 @@ func (c *workerConnection) DeleteVolume(ctx context.Context, volGroup, volumeID 
 	return err
 }
 
-func (c *workerConnection) DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string) error {
+func (c *workerConnection) DeleteSnapshot(ctx context.Context, volGroup string, snapVolumeID string, readonly bool, secrets map[string]string) error {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.RemoveSnapshotRequest{
-		VolumeGroup: volGroup,
-		SnapName:    snapVolumeID,
+		VgName:       volGroup,
+		SnapshotName: snapVolumeID,
+		Readonly:     readonly,
+		S3Secrets:    secrets,
 	}
 	response, err := client.RemoveSnapshot(ctx, &req)
 	if err != nil {

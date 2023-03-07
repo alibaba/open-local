@@ -1,11 +1,10 @@
 /*
 Copyright 2022/9/9 Alibaba Cloud.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +18,7 @@ import (
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/utils"
 
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 )
@@ -61,18 +61,18 @@ func (allocator *lvmSnapshotPVAllocator) pvAdd(nodeName string, pv *corev1.Persi
 func (allocator *lvmSnapshotPVAllocator) pvUpdate(nodeName string, oldPV, newPV *corev1.PersistentVolume) {
 }
 
-func (allocator *lvmSnapshotPVAllocator) prefilter(scLister storagelisters.StorageClassLister, snapshotLocalPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
-	if !utils.IsSnapshotPVC(snapshotLocalPVC) {
+func (allocator *lvmSnapshotPVAllocator) prefilter(scLister storagelisters.StorageClassLister, snapClient snapshot.Interface, snapshotLocalPVC *corev1.PersistentVolumeClaim, podVolumeInfos *PodLocalVolumeInfo) error {
+	if !utils.IsReadOnlySnapshotPVC2(snapshotLocalPVC, snapClient) {
 		return nil
 	}
-	if podVolumeInfos.LVMPVCsSnapshot == nil {
-		podVolumeInfos.LVMPVCsSnapshot = LVMSnapshotPVCInfos{}
+	if podVolumeInfos.LVMPVCsROSnapshot == nil {
+		podVolumeInfos.LVMPVCsROSnapshot = LVMSnapshotPVCInfos{}
 	}
 	lvmPVCInfo := &LVMPVCInfo{
 		PVC:     snapshotLocalPVC,
 		Request: utils.GetPVCRequested(snapshotLocalPVC),
 	}
-	podVolumeInfos.LVMPVCsSnapshot = append(podVolumeInfos.LVMPVCsSnapshot, lvmPVCInfo)
+	podVolumeInfos.LVMPVCsROSnapshot = append(podVolumeInfos.LVMPVCsROSnapshot, lvmPVCInfo)
 	return nil
 }
 

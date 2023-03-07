@@ -18,6 +18,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,14 +30,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
-	"k8s.io/klog/v2"
-
-	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	"github.com/spf13/pflag"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -158,10 +158,10 @@ func GetVGNameFromCsiPV(pv *corev1.PersistentVolume) string {
 	if csi == nil {
 		return ""
 	}
-	if v, ok := csi.VolumeAttributes["vgName"]; ok {
+	if v, ok := csi.VolumeAttributes[localtype.VGName]; ok {
 		return v
 	}
-	log.V(6).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, "vgName")
+	log.V(6).Infof("PV %s has no csi volumeAttributes /%q", pv.Name, localtype.VGName)
 
 	return ""
 }
@@ -218,8 +218,8 @@ func GetNodeNameFromCsiPV(pv *corev1.PersistentVolume) string {
 		return ""
 	}
 	key := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Key
-	if key != pkg.KubernetesNodeIdentityKey {
-		log.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, pkg.KubernetesNodeIdentityKey)
+	if key != localtype.KubernetesNodeIdentityKey {
+		log.Errorf("pv %s with MatchExpressions %s, must be %s", pv.Name, key, localtype.KubernetesNodeIdentityKey)
 		return ""
 	}
 
@@ -384,7 +384,7 @@ func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagel
 	var scName string
 	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
 		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: scName is nil", scName, pvc.Namespace, pvc.Name)
-		klog.Errorf(err.Error())
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	scName = *pvc.Spec.StorageClassName
@@ -392,7 +392,7 @@ func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagel
 
 	if err != nil {
 		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
-		klog.Errorf(err.Error())
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	return sc, nil
@@ -445,7 +445,7 @@ func GetMediaTypeFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelist
 	return localtype.MediaType(mediaType), nil
 }
 
-func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
+func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (bool, localtype.VolumeType) {
 	sc, err := GetStorageClassFromPVC(claim, scLister)
 	if err != nil {
 		return false, ""
@@ -457,31 +457,12 @@ func IsLocalPVC(claim *corev1.PersistentVolumeClaim, scLister storagelisters.Sto
 	if !ContainsProvisioner(sc.Provisioner) {
 		return false, ""
 	}
-	if IsLocalSnapshotPVC(claim) && !containReadonlySnapshot {
-		return false, ""
-	}
 	return true, LocalPVType(sc)
 }
 
-func IsOpenLocalPV(pv *corev1.PersistentVolume, containReadonlySnapshot bool) (bool, localtype.VolumeType) {
-	var isSnapshot, isSnapshotReadOnly bool = false, false
-
+func IsOpenLocalPV(pv *corev1.PersistentVolume) (bool, localtype.VolumeType) {
 	if pv.Spec.CSI != nil && ContainsProvisioner(pv.Spec.CSI.Driver) {
 		attributes := pv.Spec.CSI.VolumeAttributes
-		// check if is snapshot pv according to pvc
-		if value, exist := attributes[localtype.ParamSnapshotName]; exist && value != "" {
-			isSnapshot = true
-		}
-		if value, exist := attributes[localtype.ParamSnapshotReadonly]; exist && value == "true" {
-			isSnapshotReadOnly = true
-		}
-		if isSnapshot && !isSnapshotReadOnly {
-			log.Errorf("[IsOpenLocalPV]only support ro snapshot pv!")
-			return false, ""
-		}
-		if isSnapshot && !containReadonlySnapshot {
-			return false, ""
-		}
 		// check open-local type
 		if value, exist := attributes[localtype.VolumeTypeKey]; exist {
 			if localtype, err := localtype.VolumeTypeFromString(value); err == nil {
@@ -490,29 +471,6 @@ func IsOpenLocalPV(pv *corev1.PersistentVolume, containReadonlySnapshot bool) (b
 		}
 	}
 	return false, localtype.VolumeTypeUnknown
-}
-
-func IsLocalSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	return IsSnapshotPVC(claim)
-}
-
-func IsSnapshotPVC(claim *corev1.PersistentVolumeClaim) bool {
-	// check if kind of datasource is "VolumeSnapshot"
-	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
-		return true
-	}
-	return false
-}
-
-func ContainsSnapshotPVC(claims []*corev1.PersistentVolumeClaim) (contain bool) {
-	contain = false
-	for _, claim := range claims {
-		if IsSnapshotPVC(claim) {
-			contain = true
-			break
-		}
-	}
-	return
 }
 
 func LocalPVType(sc *storagev1.StorageClass) localtype.VolumeType {
@@ -863,6 +821,72 @@ func IsBlockDevice(fullPath string) (bool, error) {
 	return (st.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
 }
 
+func IsReadOnlyPV(pv *corev1.PersistentVolume) bool {
+	if pv.Spec.CSI != nil {
+		attributes := pv.Spec.CSI.VolumeAttributes
+		if value, exist := attributes[localtype.ParamReadonly]; exist && value == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+func IsReadOnlySnapshotPVC(claim *corev1.PersistentVolumeClaim, snapInformer volumesnapshotinformers.Interface) bool {
+	// 数据源为快照
+	// 快照类表示为只读快照
+	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
+		snasphotName := claim.Spec.DataSource.Name
+		snasphotNamespace := claim.Namespace
+		snapshot, err := snapInformer.VolumeSnapshots().Lister().VolumeSnapshots(snasphotNamespace).Get(snasphotName)
+		if err != nil {
+			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			return false
+		}
+		return IsSnapshotClassReadOnly(*snapshot.Spec.VolumeSnapshotClassName, snapInformer)
+	}
+	return false
+}
+
+func IsReadOnlySnapshotPVC2(claim *corev1.PersistentVolumeClaim, snapClient snapshot.Interface) bool {
+	// 数据源为快照
+	// 快照类表示为只读快照
+	if claim.Spec.DataSource != nil && claim.Spec.DataSource.Kind == "VolumeSnapshot" {
+		snasphotName := claim.Spec.DataSource.Name
+		snasphotNamespace := claim.Namespace
+		snapshot, err := snapClient.SnapshotV1().VolumeSnapshots(snasphotNamespace).Get(context.TODO(), snasphotName, metav1.GetOptions{})
+		if err != nil {
+			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			return false
+		}
+		return IsSnapshotClassReadOnly2(*snapshot.Spec.VolumeSnapshotClassName, snapClient)
+	}
+	return false
+}
+
+func IsSnapshotClassReadOnly(className string, snapInformer volumesnapshotinformers.Interface) bool {
+	snapshotClass, err := snapInformer.VolumeSnapshotClasses().Lister().Get(className)
+	if err != nil {
+		log.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		return false
+	}
+	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		return true
+	}
+	return false
+}
+
+func IsSnapshotClassReadOnly2(className string, snapClient snapshot.Interface) bool {
+	snapshotClass, err := snapClient.SnapshotV1().VolumeSnapshotClasses().Get(context.TODO(), className, metav1.GetOptions{})
+	if err != nil {
+		log.Warningf("fail to get snapshotClass %s(may have been deleted): %s", className, err.Error())
+		return false
+	}
+	if value, exist := snapshotClass.Parameters[localtype.ParamReadonly]; exist && value == "true" {
+		return true
+	}
+	return false
+}
+
 // FsInfo linux returns (available bytes, byte capacity, byte usage, total inodes, inodes free, inode usage, error)
 // for the filesystem that path resides upon.
 func FsInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
@@ -886,4 +910,9 @@ func FsInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
 	inodesUsed := inodes - inodesFree
 
 	return available, capacity, usage, inodes, inodesFree, inodesUsed, nil
+}
+
+func TimeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Infof("%s took %s", name, elapsed)
 }

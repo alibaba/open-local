@@ -2,12 +2,14 @@ package csi
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/server"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/utils"
 	spdk "github.com/alibaba/open-local/pkg/utils/spdk"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -49,13 +51,11 @@ func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRe
 
 	volumeID := req.GetVolumeId()
 	var isSnapshot bool
-	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
-		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
+	if _, isSnapshot = req.VolumeContext[localtype.ParamSnapshotID]; isSnapshot {
+		if ro, exist := req.VolumeContext[localtype.ParamReadonly]; exist && ro == "true" {
 			// if volume is ro snapshot, then mount snapshot lv
-			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotName])
-			volumeID = req.VolumeContext[localtype.ParamSnapshotName]
-		} else {
-			return "", "", status.Errorf(codes.Unimplemented, "createLV: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
+			log.Infof("createLV: volume %s is readonly snapshot, mount snapshot lv %s directly", volumeID, req.VolumeContext[localtype.ParamSnapshotID])
+			volumeID = req.VolumeContext[localtype.ParamSnapshotID]
 		}
 	}
 	devicePath := filepath.Join("/dev/", vgName, volumeID)
@@ -90,7 +90,6 @@ func collectMountOptions(fsType string, mntFlags []string) []string {
 
 // include normal lvm & aep lvm type
 func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
-	// Step 1:
 	// target path
 	targetPath := req.TargetPath
 	// device path
@@ -99,17 +98,11 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		return err
 	}
 
-	// Step 2: check
-	// check snapshot
-	var isSnapshotReadOnly bool = false
-	if _, isSnapshot := req.VolumeContext[localtype.ParamSnapshotName]; isSnapshot {
-		if ro, exist := req.VolumeContext[localtype.ParamSnapshotReadonly]; exist && ro == "true" {
-			// if volume is ro snapshot, then mount snapshot lv
-			isSnapshotReadOnly = true
-		} else {
-			return fmt.Errorf("mountLvmFS: support ro snapshot only, please set %s parameter in volumesnapshotclass", localtype.ParamSnapshotReadonly)
-		}
+	isSnapshotReadOnly := false
+	if value, exist := req.VolumeContext[localtype.ParamReadonly]; exist && value == "true" {
+		isSnapshotReadOnly = true
 	}
+
 	// check targetPath
 	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
 		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
@@ -121,7 +114,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	if err != nil {
 		return fmt.Errorf("mountLvmFS: fail to check if %s is mounted: %s", targetPath, err.Error())
 	}
-	// Step 3: mount if not mounted
+	// mount if not mounted
 	if notMounted {
 		// fs type
 		fsType := req.GetVolumeCapability().GetMount().FsType
@@ -141,6 +134,51 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		if err := ns.k8smounter.FormatAndMount(devicePath, targetPath, fsType, options); err != nil {
 			return fmt.Errorf("mountLvmFS: fail to format and mount volume(volume id:%s, device path: %s): %s", req.VolumeId, devicePath, err.Error())
 		}
+
+		// 判断是否为 restic 快照
+		// 将 s3 数据拷贝到 targetPath 中，完毕。
+		// 这里注意 param 的传递
+		snapshotID, isSnapshot := req.VolumeContext[localtype.ParamSnapshotID]
+		if isSnapshot && !isSnapshotReadOnly {
+			if !checkIfRestored(targetPath) {
+				log.Info("restore data to target path %s ...", targetPath)
+				snapContent, err := getVolumeSnapshotContent(ns.options.snapclient, snapshotID)
+				if err != nil {
+					return status.Errorf(codes.Internal, "mountLvmFS: get snapContent %s error: %s", snapshotID, err.Error())
+				}
+
+				secretName, exist := snapContent.Annotations[localtype.AnnDeletionSecretRefName]
+				if !exist {
+					return status.Errorf(codes.Internal, "mountLvmFS: no anno %s found in volumesnapshotcontent %s", localtype.AnnDeletionSecretRefName, snapContent.Name)
+				}
+				secretNamespace, exist := snapContent.Annotations[localtype.AnnDeletionSecretRefNamespace]
+				if !exist {
+					return status.Errorf(codes.Internal, "mountLvmFS: no anno %s found in volumesnapshotcontent %s", localtype.AnnDeletionSecretRefNamespace, snapContent.Name)
+				}
+				secret, err := ns.options.kubeclient.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					return status.Errorf(codes.Internal, fmt.Sprintf("fail to get secret %s/%s: %s", secretNamespace, secretName, err.Error()))
+				}
+
+				if err := labelRestored(targetPath); err != nil {
+					return err
+				}
+				// 写一个隐藏文件，标识是否已经restore过
+				srcVolomeID := req.VolumeContext[localtype.ParamSourceVolumeID]
+				s3URL := string(secret.Data[localtype.S3_URL])
+				s3AK := string(secret.Data[localtype.S3_AK])
+				s3SK := string(secret.Data[localtype.S3_SK])
+				// restic
+				_, err = restic.RestoreData(s3URL, s3AK, s3SK, srcVolomeID, restic.GeneratePassword(), targetPath, snapshotID)
+				if err != nil {
+					return fmt.Errorf("fail to restore volume %s path %s: %s", srcVolomeID, targetPath, err.Error())
+				}
+				log.Info("restore data to target path %s successfully", targetPath)
+			} else {
+				log.Info("target path %s has been restored", targetPath)
+			}
+		}
+
 		log.Infof("mountLvmFS: mount devicePath %s to targetPath %s successfully, options: %v", devicePath, targetPath, options)
 	}
 
@@ -488,4 +526,28 @@ func getPvInfo(client kubernetes.Interface, volumeID string) (int64, string, *v1
 
 	pvSizeMB := pvSize / (1024 * 1024)
 	return pvSizeMB, "m", pv, nil
+}
+
+const RestoreFileName = ".local.restored"
+
+func checkIfRestored(path string) bool {
+	restoredFile := filepath.Join(path, RestoreFileName)
+
+	if _, err := os.Stat(restoredFile); os.IsNotExist(err) {
+		log.Infof("not found: %s\n", restoredFile)
+		return false
+	} else if err != nil {
+		log.Errorf("error looking for %s: %s\n", restoredFile, err)
+		return false
+	}
+
+	return true
+}
+
+func labelRestored(path string) error {
+	if err := ioutil.WriteFile(filepath.Join(path, RestoreFileName), nil, 0644); err != nil {
+		return fmt.Errorf("error writing restored file: %s", err.Error())
+	}
+
+	return nil
 }

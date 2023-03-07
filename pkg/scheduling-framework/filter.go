@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,10 +17,12 @@ package plugin
 
 import (
 	"fmt"
+
+	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/algo"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
@@ -55,7 +57,7 @@ func (plugin *LocalPlugin) getPodLocalVolumeInfos(pod *corev1.Pod) (*cache.PodLo
 				klog.Errorf("failed to get storage class by name %s: %s", *scName, err.Error())
 				return volumeInfos, err
 			}
-			err = plugin.cache.PrefilterPVC(plugin.scLister, pvc, volumeInfos)
+			err = plugin.cache.PrefilterPVC(plugin.scLister, plugin.snapClientSet, pvc, volumeInfos)
 			if err != nil {
 				return volumeInfos, err
 			}
@@ -91,7 +93,7 @@ func (plugin *LocalPlugin) getInlineVolumeAllocates(pod *corev1.Pod) ([]*cache.I
 }
 
 func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot cache.LVMSnapshotPVCInfos) (bool, error) {
-	// if pod has snapshot pvc
+	// if pod has ro snapshot pvc
 	// select all snapshot pvcs, and check if nodes of them are the same
 	var fits = true
 	if len(lvmPVCsSnapshot) >= 0 {
@@ -106,7 +108,8 @@ func (plugin *LocalPlugin) filterBySnapshot(nodeName string, lvmPVCsSnapshot cac
 			return fits, err
 		}
 		if !fits {
-			return fits, nil
+			return fits, errors.NewSnapshotError(pkg.VolumeTypeLVM)
+			// return fits, nil
 		}
 	}
 	return fits, nil

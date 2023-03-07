@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/alibaba/open-local/pkg"
+	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/adapter"
 	"github.com/alibaba/open-local/pkg/csi/client"
 	"github.com/alibaba/open-local/pkg/csi/server"
@@ -96,6 +97,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 	pvcSnapshotForExtender.SetAnnotations(map[string]string{
 		pkg.AnnoSelectedNode: utils.NodeName4,
 	})
+	pvcPodSchedulerMap.Add(pvcSnapshotForExtender.Namespace, pvcSnapshotForExtender.Name, "default")
 	pvcs := []*corev1.PersistentVolumeClaim{
 		pvcForFW,
 		pvcWithouNodeNameForFW,
@@ -171,7 +173,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 			Name: snapshotClassName,
 		},
 		Parameters: map[string]string{
-			pkg.ParamSnapshotReadonly:      "true",
+			pkg.ParamReadonly:              "true",
 			pkg.ParamSnapshotInitialSize:   "4Gi",
 			pkg.ParamSnapshotThreshold:     "50%",
 			pkg.ParamSnapshotExpansionSize: "1Gi",
@@ -627,6 +629,7 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 						pkg.PVCNameSpace:  pvcSnapshotForExtender.Namespace,
 						pkg.PVCName:       pvcSnapshotForExtender.Name,
 						pkg.VolumeTypeKey: string(pkg.VolumeTypeLVM),
+						pkg.ParamReadonly: "true",
 					},
 					VolumeContentSource: &csi.VolumeContentSource{
 						Type: &csi.VolumeContentSource_Snapshot{
@@ -642,14 +645,15 @@ func Test_controllerServer_CreateVolume(t *testing.T) {
 					CapacityBytes: int64(150 * 1024 * 1024 * 1024),
 					VolumeId:      pvNameForSnapshot,
 					VolumeContext: map[string]string{
-						pkg.PVName:                pvNameForSnapshot,
-						pkg.PVCNameSpace:          pvcSnapshotForExtender.Namespace,
-						pkg.PVCName:               pvcSnapshotForExtender.Name,
-						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
-						pkg.AnnoSelectedNode:      utils.NodeName4,
-						pkg.VGName:                "newVG",
-						pkg.ParamSnapshotReadonly: "true",
-						pkg.ParamSnapshotName:     snapshotContentName,
+						pkg.PVName:              pvNameForSnapshot,
+						pkg.PVCNameSpace:        pvcSnapshotForExtender.Namespace,
+						pkg.PVCName:             pvcSnapshotForExtender.Name,
+						pkg.VolumeTypeKey:       string(pkg.VolumeTypeLVM),
+						pkg.ParamReadonly:       "true",
+						pkg.AnnoSelectedNode:    utils.NodeName4,
+						pkg.VGName:              "newVG",
+						pkg.ParamSnapshotID:     snapshotContentName,
+						pkg.ParamSourceVolumeID: pvName,
 					},
 					AccessibleTopology: []*csi.Topology{
 						{
@@ -759,10 +763,10 @@ func Test_controllerServer_DeleteVolume(t *testing.T) {
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				CSI: &corev1.CSIPersistentVolumeSource{
 					VolumeAttributes: map[string]string{
-						pkg.ParamVGName:           "newVG",
-						pkg.VolumeTypeKey:         string(pkg.VolumeTypeLVM),
-						pkg.ParamSnapshotName:     "snapshotName",
-						pkg.ParamSnapshotReadonly: "true",
+						pkg.ParamVGName:     "newVG",
+						pkg.VolumeTypeKey:   string(pkg.VolumeTypeLVM),
+						pkg.ParamSnapshotID: "snapshotName",
+						pkg.ParamReadonly:   "true",
 					},
 				},
 			},
@@ -1130,7 +1134,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly:    "true",
+						pkg.ParamReadonly:            "true",
 						pkg.ParamSnapshotInitialSize: "4ggi",
 					},
 				},
@@ -1147,7 +1151,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly:  "true",
+						pkg.ParamReadonly:          "true",
 						pkg.ParamSnapshotThreshold: "50,%",
 					},
 				},
@@ -1164,7 +1168,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly:      "true",
+						pkg.ParamReadonly:              "true",
 						pkg.ParamSnapshotExpansionSize: "1bGi",
 					},
 				},
@@ -1181,7 +1185,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly:      "true",
+						pkg.ParamReadonly:              "true",
 						pkg.ParamSnapshotInitialSize:   "4Gi",
 						pkg.ParamSnapshotThreshold:     "50%",
 						pkg.ParamSnapshotExpansionSize: "1Gi",
@@ -1207,7 +1211,7 @@ func Test_controllerServer_CreateSnapshot(t *testing.T) {
 					SourceVolumeId: pvName,
 					Name:           snapshotContentName,
 					Parameters: map[string]string{
-						pkg.ParamSnapshotReadonly:      "true",
+						pkg.ParamReadonly:              "true",
 						pkg.ParamSnapshotInitialSize:   "400Gi",
 						pkg.ParamSnapshotThreshold:     "50%",
 						pkg.ParamSnapshotExpansionSize: "1Gi",
@@ -1322,6 +1326,14 @@ func Test_controllerServer_DeleteSnapshot(t *testing.T) {
 			},
 		},
 	}
+	volumesnapshotclass := &volumesnapshotv1.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: snapshotClassName,
+		},
+		Parameters: map[string]string{
+			localtype.ParamReadonly: "true",
+		},
+	}
 
 	ctx := context.Background()
 	fakeKubeClient := fakekubeclientset.NewSimpleClientset()
@@ -1344,6 +1356,7 @@ func Test_controllerServer_DeleteSnapshot(t *testing.T) {
 		t.Errorf("fail to add node: %s", err.Error())
 	}
 	_, _ = fakeSnapClient.SnapshotV1().VolumeSnapshotContents().Create(context.Background(), volumesnapshotcontent, metav1.CreateOptions{})
+	_, _ = fakeSnapClient.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), volumesnapshotclass, metav1.CreateOptions{})
 
 	// pvcPodSchedulerMap
 	testfields := fields{

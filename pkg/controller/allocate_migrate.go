@@ -82,7 +82,7 @@ func (controller *Controller) patchAllocateInfoToPV(ctx context.Context, originP
 		return nil
 	}
 
-	isLocal, volumeType := utils.IsOpenLocalPV(originPV, false)
+	isLocal, volumeType := utils.IsOpenLocalPV(originPV)
 	if !isLocal {
 		return nil
 	}

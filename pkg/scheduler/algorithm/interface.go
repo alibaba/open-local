@@ -50,16 +50,18 @@ type SchedulingContext struct {
 	ClusterNodeCache       *cache.ClusterNodeCache
 	CoreV1Informers        corev1informers.Interface
 	StorageV1Informers     storagev1informers.Interface
-	SnapshotInformers      volumesnapshotinformers.Interface
 	LocalStorageInformer   nodelocalstorageinformer.Interface
+	SnapshotInformers      volumesnapshotinformers.Interface
 	NodeAntiAffinityWeight *pkg.NodeAntiAffinityWeight
 }
 
-func NewSchedulingContext(coreV1Informers corev1informers.Interface,
+func NewSchedulingContext(
+	coreV1Informers corev1informers.Interface,
 	storageV1informers storagev1informers.Interface,
 	localStorageInformer nodelocalstorageinformer.Interface,
 	snapshotInformer volumesnapshotinformers.Interface,
-	weights *pkg.NodeAntiAffinityWeight) *SchedulingContext {
+	weights *pkg.NodeAntiAffinityWeight,
+) *SchedulingContext {
 
 	return &SchedulingContext{
 		CtxLock:                sync.RWMutex{},

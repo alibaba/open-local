@@ -18,8 +18,9 @@ package priorities
 
 import (
 	"fmt"
-	"github.com/alibaba/open-local/pkg/utils"
 	"time"
+
+	"github.com/alibaba/open-local/pkg/utils"
 
 	"github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
@@ -32,8 +33,7 @@ import (
 func NodeAntiAffinity(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (int, error) {
 	trace := utiltrace.New(fmt.Sprintf("Scheduling[NodeAntiAffinity] %s/%s", pod.Namespace, pod.Name))
 	defer trace.LogIfLong(50 * time.Millisecond)
-	containReadonlySnapshot := false
-	err, _, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true, containReadonlySnapshot)
+	err, _, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true)
 	if err != nil {
 		return utils.MinScore, err
 	}

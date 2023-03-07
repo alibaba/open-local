@@ -6,14 +6,15 @@ import (
 	"math"
 	"sync"
 
+	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+
 	localtype "github.com/alibaba/open-local/pkg"
 	localclientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	informers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	nodelocalstorageinformer "github.com/alibaba/open-local/pkg/generated/informers/externalversions/storage/v1alpha1"
-	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
+	"github.com/alibaba/open-local/pkg/scheduler/errors"
 	"github.com/alibaba/open-local/pkg/scheduling-framework/cache"
 	"github.com/alibaba/open-local/pkg/utils"
-
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformersfactory "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
@@ -170,14 +171,15 @@ func NewLocalPluginWithKubeconfig(configuration runtime.Object, f framework.Hand
 		scLister:           f.SharedInformerFactory().Storage().V1().StorageClasses().Lister(),
 		storageV1Informers: f.SharedInformerFactory().Storage().V1(),
 		localInformers:     localStorageInformerFactory.Csi().V1alpha1(),
-		snapshotInformers:  snapshotInformerFactory.Snapshot().V1(),
-
-		kubeClientSet:  f.ClientSet(),
-		localClientSet: localClient,
-		snapClientSet:  snapClient,
+		// todo: 偷懒的行为，应该需要列清楚各个informer，比如VolumeSnapshotsInfomer、VolumeSnapshotClassesInformer
+		snapshotInformers: snapshotInformerFactory.Snapshot().V1(),
+		kubeClientSet:     f.ClientSet(),
+		localClientSet:    localClient,
+		snapClientSet:     snapClient,
 	}
-
 	snapshotInformerFactory.Snapshot().V1().VolumeSnapshots().Informer()
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshotContents().Informer()
+	snapshotInformerFactory.Snapshot().V1().VolumeSnapshotClasses().Informer()
 
 	localStorageInformer := localStorageInformerFactory.Csi().V1alpha1().NodeLocalStorages().Informer()
 	localStorageInformer.AddEventHandler(clientgocache.ResourceEventHandlerFuncs{
@@ -245,14 +247,16 @@ func (plugin *LocalPlugin) Filter(ctx context.Context, state *framework.CycleSta
 		return framework.NewStatus(framework.Success)
 	}
 
-	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.LVMPVCsSnapshot)
+	fits, err := plugin.filterBySnapshot(nodeName, podVolumeInfo.LVMPVCsROSnapshot)
 	if err != nil {
-		klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
-		return framework.AsStatus(err)
+		if _, ok := err.(errors.PredicateError); !ok {
+			klog.Errorf("ProcessSnapshotPVC fail: nodeName:%s, podUid:%s, err: %s", nodeName, pod.UID, err.Error())
+			return framework.AsStatus(err)
+		}
 	}
 	if !fits {
-		klog.V(6).Infof("pod have snapshot pvc, node %s not fit pod", nodeName)
-		return framework.NewStatus(framework.Unschedulable, "node not fit pod have pvc snapshot")
+		klog.V(6).Infof("pod have snapshot pvc, node %s not fit pod: %s", nodeName, err.Error())
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf("node not fit pod have pvc snapshot: %s", err.Error()))
 	}
 
 	nodeAllocate, err := plugin.cache.PreAllocate(pod, podVolumeInfo, nil, nodeName)
@@ -361,7 +365,7 @@ func (plugin *LocalPlugin) UnreserveReservation(ctx context.Context, state *fram
 // TODO 2) if Prebind step error, we will not revert patch info of pod, it can update next schedule cycle
 func (plugin *LocalPlugin) PreBind(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
 
-	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false, false)
+	err, lvmPVCs, _, devicePVCs := algorithm.GetPodPvcsByLister(p, plugin.coreV1Informers.PersistentVolumeClaims().Lister(), plugin.scLister, false)
 	if err != nil {
 		klog.Errorf("PreBind fail,GetPodPvcsByLister for pod(%s) error: %s", p.UID, err.Error())
 		return framework.AsStatus(err)

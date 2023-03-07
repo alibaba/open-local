@@ -80,14 +80,23 @@ func Run(opt *extenderOption) error {
 	}
 	snapClient, err := volumesnapshot.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("error building snapshot clientset: %s", err.Error())
+		return fmt.Errorf("fail to create snapshot clientset: %s", err.Error())
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, 0)
 	localStorageInformerFactory := informers.NewSharedInformerFactory(localClient, 0)
 	snapshotInformerFactory := volumesnapshotinformers.NewSharedInformerFactory(snapClient, 0)
 
-	extenderServer := server.NewExtenderServer(kubeClient, localClient, snapClient, kubeInformerFactory, localStorageInformerFactory, snapshotInformerFactory, opt.Port, weights)
+	extenderServer := server.NewExtenderServer(
+		kubeClient,
+		localClient,
+		snapClient,
+		kubeInformerFactory,
+		localStorageInformerFactory,
+		snapshotInformerFactory,
+		opt.Port,
+		weights,
+	)
 
 	log.Info("starting open-local scheduler extender")
 	kubeInformerFactory.Start(cxt.Done())

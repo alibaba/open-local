@@ -32,8 +32,8 @@ type LvmCmd interface {
 	RemoveLV(ctx context.Context, vg string, name string) (string, error)
 	CloneLV(ctx context.Context, src, dest string) (string, error)
 	ExpandLV(ctx context.Context, vgName string, volumeId string, expectSize uint64) (string, error)
-	CreateSnapshot(ctx context.Context, vg string, snapshotName string, originLVName string, size uint64) (string, error)
-	RemoveSnapshot(ctx context.Context, vg string, name string) (string, error)
+	CreateSnapshot(ctx context.Context, vgName string, snapshotName string, srcVolumeName string, readonly bool, roInitSize int64, secrets map[string]string) (int64, error)
+	RemoveSnapshot(ctx context.Context, vg string, name string, readonly bool) (string, error)
 	AddTagLV(ctx context.Context, vg string, name string, tags []string) (string, error)
 	RemoveTagLV(ctx context.Context, vg string, name string, tags []string) (string, error)
 	ListVG() ([]*lib.VG, error)
@@ -135,19 +135,19 @@ func (s Server) ListVG(ctx context.Context, in *lib.ListVGRequest) (*lib.ListVGR
 
 // CreateSnapshot create lvm snapshot
 func (s Server) CreateSnapshot(ctx context.Context, in *lib.CreateSnapshotRequest) (*lib.CreateSnapshotReply, error) {
-	log.V(6).Infof("Create LVM Snapshot with: %+v", in)
-	out, err := s.impl.CreateSnapshot(ctx, in.VolumeGroup, in.SnapName, in.LvName, in.Size)
+	log.V(6).Infof("create snapshot with: %+v", in)
+	sizeBytes, err := s.impl.CreateSnapshot(ctx, in.VgName, in.SnapshotName, in.SrcVolumeName, in.Readonly, in.RoInitSize, in.S3Secrets)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "CreateSnapshot: create snapshot with error: %s", err.Error())
+		return nil, status.Errorf(codes.Internal, "fail to create snapshot %s: %s", in.SnapshotName, err.Error())
 	}
-	log.V(6).Infof("Create LVM Snapshot Successful with result: %+v", out)
-	return &lib.CreateSnapshotReply{CommandOutput: out}, nil
+	log.V(6).Infof("create snapshot successfully with result: %+v", sizeBytes)
+	return &lib.CreateSnapshotReply{SizeBytes: sizeBytes}, nil
 }
 
 // RemoveSnapshot remove lvm snapshot
 func (s Server) RemoveSnapshot(ctx context.Context, in *lib.RemoveSnapshotRequest) (*lib.RemoveSnapshotReply, error) {
 	log.V(6).Infof("Remove LVM Snapshot with: %+v", in)
-	out, err := s.impl.RemoveSnapshot(ctx, in.VolumeGroup, in.SnapName)
+	out, err := s.impl.RemoveSnapshot(ctx, in.VgName, in.SnapshotName, in.Readonly)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "RemoveSnapshot: remove snapshot with error: %s", err.Error())
 	}

@@ -13,7 +13,7 @@ IMAGE_NAME_FOR_DOCKERHUB=thebeatles1994/${NAME}
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"
 GIT_COMMIT=$(shell git rev-parse HEAD)
-VERSION=v0.7.0-dev-restic-0
+VERSION=v0.7.0-dev
 
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 CRD_VERSION=v1alpha1
@@ -48,6 +48,11 @@ image:
 image-arm64:
 	docker build . -t ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION}-arm64 -f ./Dockerfile.arm64
 	docker tag ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION}-arm64 ${IMAGE_NAME_FOR_ACR}:${VERSION}-arm64
+
+.PHONY: image-tools
+image-tools:
+	docker build . -t ${IMAGE_NAME_FOR_DOCKERHUB}:tools -f ./Dockerfile.tools
+	docker tag ${IMAGE_NAME_FOR_DOCKERHUB}:tools ${IMAGE_NAME_FOR_ACR}:tools
 
 # generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen

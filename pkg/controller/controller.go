@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	localtype "github.com/alibaba/open-local/pkg"
@@ -85,6 +86,7 @@ type Controller struct {
 	recorder  record.EventRecorder
 
 	nlscName string
+	mux      *sync.Mutex
 }
 
 type SyncNLSItem struct {
@@ -149,6 +151,7 @@ func NewController(
 		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeLocalStorageInitConfig"),
 		recorder:              eventRecorder,
 		nlscName:              nlscName,
+		mux:                   &sync.Mutex{},
 	}
 
 	klog.Info("Setting up event handlers")
@@ -168,12 +171,14 @@ func NewController(
 		},
 		UpdateFunc: c.handleNLS,
 	})
-
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.handlePod(nil, obj)
 		},
 		UpdateFunc: c.handlePod,
+	})
+	snapshotContentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: c.triggerCleanUnusedRepo,
 	})
 
 	return c
@@ -198,6 +203,9 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	if DefaultFeatureGate.Enabled(OrphanedSnapshotContent) {
 		go wait.Until(c.cleanOrphanSnapshotContents, time.Minute, stopCh)
 	}
+
+	// 设置环境变量
+	go wait.Until(c.CleanUnusedResticRepo, 24*time.Hour, stopCh)
 
 	klog.Info("Started controller")
 	<-stopCh
@@ -379,6 +387,10 @@ func (c *Controller) handleNLS(old, new interface{}) {
 
 func (c *Controller) handlePod(old, new interface{}) {
 	c.enqueueSyncPVItemByPod(old, new)
+}
+
+func (c *Controller) triggerCleanUnusedRepo(obj interface{}) {
+	c.CleanUnusedResticRepo()
 }
 
 func (c *Controller) enqueueSyncPVItemByPod(old, new interface{}) (skip bool) {

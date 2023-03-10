@@ -18,12 +18,16 @@ package agent
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/alibaba/open-local/pkg/agent/common"
 	"github.com/alibaba/open-local/pkg/agent/controller"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
+	"github.com/alibaba/open-local/pkg/utils"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +38,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	log "k8s.io/klog/v2"
-	"time"
 )
 
 var (
@@ -63,27 +66,33 @@ func Start(opt *agentOption) error {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(opt.Master, opt.Kubeconfig)
 	if err != nil {
-		return fmt.Errorf("Error building kubeconfig: %s", err.Error())
+		return fmt.Errorf("fail to build kubeconfig: %s", err.Error())
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building kubernetes clientset: %s", err.Error())
+		return fmt.Errorf("fail to build kubernetes clientset: %s", err.Error())
 	}
+	// restic
+	restic.ClusterID, err = utils.GetClusterID(kubeClient)
+	if err != nil {
+		return fmt.Errorf("fail to get cluster id: %s", err.Error())
+	}
+	log.Infof("cluster id is %s", restic.ClusterID)
 
 	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building example clientset: %s", err.Error())
+		return fmt.Errorf("fail to build example clientset: %s", err.Error())
 	}
 
 	snapClient, err := snapshot.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building example snapClient: %s", err.Error())
+		return fmt.Errorf("fail to build example snapClient: %s", err.Error())
 	}
 
 	config, err := getAgentConfig(opt)
 	if err != nil {
-		return fmt.Errorf("Error LoadAgentConfigs: %s", err.Error())
+		return fmt.Errorf("fail to get agent config: %s", err.Error())
 	}
 
 	utilruntime.Must(localscheme.AddToScheme(scheme.Scheme))

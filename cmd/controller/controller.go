@@ -23,7 +23,9 @@ import (
 	"github.com/alibaba/open-local/pkg/controller"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
+	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
+	"github.com/alibaba/open-local/pkg/utils"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	"github.com/spf13/cobra"
@@ -55,7 +57,7 @@ func init() {
 // Start will start controller
 func Start(opt *controllerOption) error {
 	if err := controller.DefaultMutableFeatureGate.SetFromMap(opt.FeatureGates); err != nil {
-		return fmt.Errorf("Unable to setup feature-gates: %s", err)
+		return fmt.Errorf("fail to setup feature-gates: %s", err)
 	}
 
 	// set up signals so we handle the first shutdown signal gracefully
@@ -63,22 +65,28 @@ func Start(opt *controllerOption) error {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(opt.Master, opt.Kubeconfig)
 	if err != nil {
-		return fmt.Errorf("Error building kubeconfig: %s", err.Error())
+		return fmt.Errorf("fail to build kubeconfig: %s", err.Error())
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building kubernetes clientset: %s", err.Error())
+		return fmt.Errorf("fail to build kubernetes clientset: %s", err.Error())
 	}
+	// restic
+	restic.ClusterID, err = utils.GetClusterID(kubeClient)
+	if err != nil {
+		return fmt.Errorf("fail to get cluster id: %s", err.Error())
+	}
+	log.Infof("cluster id is %s", restic.ClusterID)
 
 	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building open-local clientset: %s", err.Error())
+		return fmt.Errorf("fail to build open-local clientset: %s", err.Error())
 	}
 
 	snapClient, err := snapshot.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("Error building snapshot clientset: %s", err.Error())
+		return fmt.Errorf("fail to build snapshot clientset: %s", err.Error())
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
@@ -93,7 +101,7 @@ func Start(opt *controllerOption) error {
 
 	log.Info("Starting open-local controller")
 	if err = controller.Run(2, stopCh); err != nil {
-		return fmt.Errorf("Error running controller: %s", err.Error())
+		return fmt.Errorf("fail to run controller: %s", err.Error())
 	}
 	log.Info("Quitting now")
 	return nil

@@ -17,10 +17,14 @@ limitations under the License.
 package csi
 
 import (
+	"fmt"
+
 	"github.com/alibaba/open-local/pkg/csi"
 	lvmserver "github.com/alibaba/open-local/pkg/csi/server"
 	local "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	"github.com/alibaba/open-local/pkg/om"
+	"github.com/alibaba/open-local/pkg/restic"
+	"github.com/alibaba/open-local/pkg/utils"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
@@ -60,19 +64,26 @@ func Start(opt *csiOption) error {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(opt.Master, opt.Kubeconfig)
 	if err != nil {
-		log.Fatalf("Error building kubeconfig: %s", err.Error())
+		log.Fatalf("fail to build kubeconfig: %s", err.Error())
 	}
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
+		log.Fatalf("fail to build kubernetes clientset: %s", err.Error())
 	}
+	// restic
+	restic.ClusterID, err = utils.GetClusterID(kubeClient)
+	if err != nil {
+		return fmt.Errorf("fail to get cluster id: %s", err.Error())
+	}
+	log.Infof("cluster id is %s", restic.ClusterID)
+
 	snapClient, err := snapshot.NewForConfig(cfg)
 	if err != nil {
-		log.Fatalf("Error building snapshot clientset: %s", err.Error())
+		log.Fatalf("fail to build snapshot clientset: %s", err.Error())
 	}
 	localclient, err := local.NewForConfig(cfg)
 	if err != nil {
-		log.Fatalf("Error building local clientset: %s", err.Error())
+		log.Fatalf("fail to build local clientset: %s", err.Error())
 	}
 
 	driver := csi.NewDriver(

@@ -157,6 +157,8 @@ const (
 
 	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
+	ParamSnapshotSecretName       = "csi.storage.k8s.io/snapshotter-secret-name"
+	ParamSnapshotSecretNamespace  = "csi.storage.k8s.io/snapshotter-secret-namespace"
 )
 
 var (
@@ -173,9 +175,13 @@ var (
 	SupportedFS       = []string{VolumeFSTypeExt3, VolumeFSTypeExt4, VolumeFSTypeXFS}
 	SchedulerStrategy = StrategyBinpack
 
-	S3_URL = "s3URL"
-	S3_AK  = "s3AK"
-	S3_SK  = "s3SK"
+	S3_URL            = "s3URL"
+	S3_AK             = "s3AK"
+	S3_SK             = "s3SK"
+	S3_Token          = "s3Token"
+	S3_Region         = "s3REGION"
+	S3_ForcePathStyle = "s3ForcePathStyle"
+	S3_DisableSSL     = "s3DisableSSL"
 )
 
 type UpdateStatus string

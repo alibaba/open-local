@@ -54,14 +54,14 @@ func BackupData(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup, bac
 		return 0, fmt.Errorf("fail to check if repository is reachable: %s", err.Error())
 	}
 
-	exist, err := CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag)
-	if err != nil {
-		return 0, err
-	}
-	if exist {
-		log.Warningf("path %s have been already backed up, tag is %s", pathToBackup, backupTag)
-		return 0, nil
-	}
+	// exist, err := CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// if exist {
+	// 	log.Warningf("path %s have been already backed up, tag is %s", pathToBackup, backupTag)
+	// 	return 0, nil
+	// }
 
 	// Create backup and dump it on the object store
 	cmd := BackupCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, pathToBackup)
@@ -124,6 +124,10 @@ func DeleteDataByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag str
 	cmd := SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
+		if DoesRepoExist(err.Error()) {
+			log.Warningf("fail to delete data from s3(%s): %s, ignoring...", repository, err.Error())
+			return nil, nil
+		}
 		return nil, errors.Wrapf(err, "failed to forget data, could not get snapshotID from tag(%s): %s, %s", deleteTag, err.Error(), string(out))
 	}
 	deleteIDs, err := SnapshotIDFromSnapshotLog(string(out))

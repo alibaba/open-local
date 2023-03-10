@@ -1,0 +1,11 @@
+FROM alpine:3.9
+
+# run ./hack/download-restic.sh first
+
+COPY restic_0.12.0_linux_amd64.bz2 restic_0.12.0_linux_amd64.bz2
+COPY restic_0.12.0_linux_arm64.bz2 restic_0.12.0_linux_arm64.bz2
+
+
+RUN bunzip2 restic_0.12.0_linux_amd64.bz2 && mv restic_0.12.0_linux_amd64 /usr/local/bin/restic-amd64 && chmod +x /usr/local/bin/restic-amd64
+
+RUN bunzip2 restic_0.12.0_linux_arm64.bz2 && mv restic_0.12.0_linux_arm64 /usr/local/bin/restic-arm64 && chmod +x /usr/local/bin/restic-arm64

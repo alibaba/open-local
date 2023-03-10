@@ -49,6 +49,11 @@ image-arm64:
 	docker build . -t ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION}-arm64 -f ./Dockerfile.arm64
 	docker tag ${IMAGE_NAME_FOR_DOCKERHUB}:${VERSION}-arm64 ${IMAGE_NAME_FOR_ACR}:${VERSION}-arm64
 
+.PHONY: image-tools
+image-tools:
+	docker build . -t ${IMAGE_NAME_FOR_DOCKERHUB}:tools -f ./Dockerfile.tools
+	docker tag ${IMAGE_NAME_FOR_DOCKERHUB}:tools ${IMAGE_NAME_FOR_ACR}:tools
+
 # generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
 	./hack/update-codegen.sh

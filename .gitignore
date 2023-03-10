@@ -6,6 +6,7 @@
 *.dylib
 bin/
 .vscode
+*.bz2
 
 # Test binary, built with `go test -c`
 *.test

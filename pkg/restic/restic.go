@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alibaba/open-local/pkg/utils"
@@ -53,15 +54,6 @@ func BackupData(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup, bac
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
 		return 0, fmt.Errorf("fail to check if repository is reachable: %s", err.Error())
 	}
-
-	// exist, err := CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// if exist {
-	// 	log.Warningf("path %s have been already backed up, tag is %s", pathToBackup, backupTag)
-	// 	return 0, nil
-	// }
 
 	// Create backup and dump it on the object store
 	cmd := BackupCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, pathToBackup)
@@ -115,35 +107,22 @@ func PruneData(s3Endpoint, ak, sk, repository, encryptionKey string) (string, er
 	return spaceFreed, errors.Wrapf(err, "failed to prune data after forget")
 }
 
-func DeleteDataByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag string, reclaimSpace bool) (map[string]interface{}, error) {
+func DeleteDataByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag string, reclaimSpace bool) (map[string]interface{}, error) {
 	defer utils.TimeTrack(time.Now(), fmt.Sprintf("delete data from s3 %s", repository))
 	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+		if strings.Contains(err.Error(), RepoDoesNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	cmd := SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag)
+	log.Infof("delete tag is %s", deleteTag)
+	cmd := ForgetCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
-		if DoesRepoExist(err.Error()) {
-			log.Warningf("fail to delete data from s3(%s): %s, ignoring...", repository, err.Error())
-			return nil, nil
-		}
-		return nil, errors.Wrapf(err, "failed to forget data, could not get snapshotID from tag(%s): %s, %s", deleteTag, err.Error(), string(out))
+		return nil, errors.Wrapf(err, "failed to forget data: %s, %s", err.Error(), string(out))
 	}
-	deleteIDs, err := SnapshotIDFromSnapshotLog(string(out))
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to forget data, could not get snapshotID from tag, Tag: %s", deleteTag)
-	}
-
-	for _, deleteID := range deleteIDs {
-		log.Infof("delete tag is %s, deleteID is %v", deleteTag, deleteID)
-		cmd = ForgetCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteID)
-		out, err = exec.Command("sh", "-c", cmd).CombinedOutput()
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to forget data: %s, %s", err.Error(), string(out))
-		}
-		log.Infof("delete data (tag: %s, id: %s) success", deleteTag, deleteID)
-	}
+	log.Infof("delete data (tag: %s) success", deleteTag)
 
 	var spaceFreedTotal int64
 	if reclaimSpace {
@@ -160,17 +139,17 @@ func DeleteDataByID(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag str
 	}, nil
 }
 
-func CheckSnapshotExistByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag string) (bool, error) {
-	cmd := SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag)
+func CheckSnapshotExist(s3Endpoint, ak, sk, repository, encryptionKey string) (bool, error) {
+	cmd := SnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to check snapshot data, could not get snapshotID from tag(%s): %s, %s", tag, err.Error(), string(out))
+		return false, errors.Wrapf(err, "failed to check snapshot data, could not get snapshotID: %s, %s", err.Error(), string(out))
 	}
-	_, err = SnapshotIDFromSnapshotLog(string(out))
+	ids, err := SnapshotIDFromSnapshotLog(string(out))
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to check snapshot log, could not get snapshotID from tag %s", tag)
+		return false, errors.Wrapf(err, "failed to check snapshot log, could not get snapshotID")
 	}
-	return true, nil
+	return len(ids) != 0, nil
 }
 
 func parseLogAndCreateOutput(out string) (map[string]interface{}, error) {

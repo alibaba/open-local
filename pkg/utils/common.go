@@ -45,6 +45,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	storagev1informers "k8s.io/client-go/informers/storage/v1"
+	"k8s.io/client-go/kubernetes"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	log "k8s.io/klog/v2"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
@@ -915,4 +916,12 @@ func FsInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
 func TimeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Infof("%s took %s", name, elapsed)
+}
+
+func GetClusterID(client *kubernetes.Clientset) (string, error) {
+	ns, err := client.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return string(ns.UID), nil
 }

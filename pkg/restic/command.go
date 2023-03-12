@@ -182,7 +182,7 @@ func resticArgs(s3Endpoint, ak, sk, repository, encryptionKey string) []string {
 	args := []string{
 		fmt.Sprintf("export %s=%s\n", AWSAccessKeyID, ak),
 		fmt.Sprintf("export %s=%s\n", AWSSecretAccessKey, sk),
-		fmt.Sprintf("export %s=s3:%s/%s/%s\n", ResticRepository, s3Endpoint, ResticPrefix, repository),
+		fmt.Sprintf("export %s=s3:%s/%s/%s/%s\n", ResticRepository, s3Endpoint, RepoBucket, ClusterID, repository),
 		fmt.Sprintf("export %s=%s\n", ResticPassword, encryptionKey),
 		// 限制使用的CPU核数（默认情况下，restic 使用所有可用的 CPU 内核）
 		"export GOMAXPROCS=1\n",

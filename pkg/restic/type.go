@@ -14,8 +14,10 @@ const (
 
 	PasswordIncorrect = "password is incorrect"
 	RepoDoesNotExist  = "repo does not exist"
-	ResticPrefix      = "open-local/restic"
+	RepoBucket        = "open-local"
 )
+
+var ClusterID = "unknown"
 
 type backupStatusLine struct {
 	MessageType string `json:"message_type"`

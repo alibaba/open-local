@@ -628,7 +628,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		s3SK := req.Secrets[localtype.S3_SK]
 		// restic 快照逻辑
 		// 此处 snapshot id 即为 tag
-		out, err := restic.DeleteDataByID(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
+		out, err := restic.DeleteDataByTag(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
 		if err != nil {
 			return nil, err
 		}

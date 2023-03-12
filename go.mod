@@ -3,6 +3,7 @@ module github.com/alibaba/open-local
 go 1.18
 
 require (
+	github.com/aws/aws-sdk-go v1.44.44
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/docker/go-units v0.4.0
 	github.com/golang/protobuf v1.5.2
@@ -59,6 +60,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect

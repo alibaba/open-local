@@ -17,13 +17,14 @@ const (
 	RepoBucket        = "open-local"
 )
 
-var ClusterID = "unknown"
-
 type backupStatusLine struct {
 	MessageType string `json:"message_type"`
 	// seen in status lines
-	TotalBytes int64 `json:"total_bytes_processed"`
-	DataAdded  int64 `json:"data_added"`
+	DataAdded           int64   `json:"data_added"`
+	BytesDone           int64   `json:"bytes_done"`
+	TotalBytes          int64   `json:"total_bytes"`
+	TotalBytesProcessed int64   `json:"total_bytes_processed"`
+	PercentDone         float64 `json:"percent_done"`
 	// seen in summary line at the end
 	SnapshotID string `json:"snapshot_id"`
 }

@@ -142,7 +142,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		if isSnapshot && !isSnapshotReadOnly {
 			if !checkIfRestored(targetPath) {
 				log.Info("restore data to target path %s ...", targetPath)
-				snapContent, err := getVolumeSnapshotContent(ns.options.snapclient, snapshotID)
+				snapContent, err := utils.GetVolumeSnapshotContent(ns.options.snapclient, snapshotID)
 				if err != nil {
 					return status.Errorf(codes.Internal, "mountLvmFS: get snapContent %s error: %s", snapshotID, err.Error())
 				}
@@ -169,7 +169,11 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 				s3AK := string(secret.Data[localtype.S3_AK])
 				s3SK := string(secret.Data[localtype.S3_SK])
 				// restic
-				_, err = restic.RestoreData(s3URL, s3AK, s3SK, srcVolomeID, restic.GeneratePassword(), targetPath, snapshotID)
+				r, err := restic.NewResticClient(s3URL, s3AK, s3SK, restic.GeneratePassword(), ns.options.kubeclient)
+				if err != nil {
+					return err
+				}
+				_, err = r.RestoreData(srcVolomeID, targetPath, snapshotID)
 				if err != nil {
 					return fmt.Errorf("fail to restore volume %s path %s: %s", srcVolomeID, targetPath, err.Error())
 				}

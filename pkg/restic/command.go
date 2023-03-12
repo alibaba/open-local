@@ -9,99 +9,83 @@ import (
 	"github.com/pkg/errors"
 )
 
-func InitCommand(s3Endpoint, ak, sk, repository, encryptionKey string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func InitCommand(s3Endpoint, ak, sk, repository, encryptionKey, clusterID string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "init")
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // BackupCommandByID returns restic backup command
-func BackupCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func BackupCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, pathToBackup string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "backup", pathToBackup)
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // BackupCommandByTag returns restic backup command with tag
-func BackupCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, includePath string) string {
+func BackupCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, backupTag, includePath string) string {
 	cmd := []string{
 		fmt.Sprintf("cd %s\n", includePath),
 	}
-	cmd = append(cmd, resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)...)
-	cmd = append(cmd, "backup", "--tag", backupTag, ".", "--json", "|", "jq -r 'select(.message_type==\"summary\")'")
+	cmd = append(cmd, resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)...)
+	cmd = append(cmd, "backup", "--tag", backupTag, ".", "--json")
 	command := strings.Join(cmd, " ")
 	return command
 }
 
-func LatestSnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func LatestSnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey, clusterID string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "snapshots", "--last", "--json")
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // RestoreCommandByID returns restic restore command with snapshotID as the identifier
-func RestoreCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, id, restorePath string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func RestoreCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, id, restorePath string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "restore", id, "--target", restorePath)
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // RestoreCommandByTag returns restic restore command with tag as the identifier
-func RestoreCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag, restorePath string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func RestoreCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, tag, restorePath string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "restore", "--tag", tag, "latest", "--target", restorePath)
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // SnapshotsCommand returns restic snapshots command
-func SnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func SnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey, clusterID string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "snapshots", "--json")
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // SnapshotsCommandByTag returns restic snapshots command
-func SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func SnapshotsCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, tag string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "snapshots", "--tag", tag, "--json")
 	command := strings.Join(cmd, " ")
 	return command
 }
 
 // ForgetCommandByTag returns restic forget command
-func ForgetCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, tag string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func ForgetCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, clusterID, tag string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "forget", "--tag", tag)
 	command := strings.Join(cmd, " ")
 	return command
 }
 
-// ForgetCommandByID returns restic forget command
-func ForgetCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, id string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
-	cmd = append(cmd, "forget", id)
-	command := strings.Join(cmd, " ")
-	return command
-}
-
 // PruneCommand returns restic prune command
-func PruneCommand(s3Endpoint, ak, sk, repository, encryptionKey string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
+func PruneCommand(s3Endpoint, ak, sk, repository, encryptionKey, clusterID string) string {
+	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID)
 	cmd = append(cmd, "prune")
-	command := strings.Join(cmd, " ")
-	return command
-}
-
-// StatsCommandByID returns restic stats command
-func StatsCommandByID(s3Endpoint, ak, sk, repository, encryptionKey, id, mode string) string {
-	cmd := resticArgs(s3Endpoint, ak, sk, repository, encryptionKey)
-	cmd = append(cmd, "stats", id, "--mode", mode)
 	command := strings.Join(cmd, " ")
 	return command
 }
@@ -178,11 +162,11 @@ func SnapshotStatsFromBackupLog(output string) (fileCount string, backupSize str
 	return fileCount, backupSize, phySize
 }
 
-func resticArgs(s3Endpoint, ak, sk, repository, encryptionKey string) []string {
+func resticArgs(s3Endpoint, ak, sk, repository, encryptionKey, clusterID string) []string {
 	args := []string{
 		fmt.Sprintf("export %s=%s\n", AWSAccessKeyID, ak),
 		fmt.Sprintf("export %s=%s\n", AWSSecretAccessKey, sk),
-		fmt.Sprintf("export %s=s3:%s/%s/%s/%s\n", ResticRepository, s3Endpoint, RepoBucket, ClusterID, repository),
+		fmt.Sprintf("export %s=s3:%s/%s/%s/%s\n", ResticRepository, s3Endpoint, RepoBucket, clusterID, repository),
 		fmt.Sprintf("export %s=%s\n", ResticPassword, encryptionKey),
 		// 限制使用的CPU核数（默认情况下，restic 使用所有可用的 CPU 内核）
 		"export GOMAXPROCS=1\n",

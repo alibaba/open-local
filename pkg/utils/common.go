@@ -33,6 +33,7 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	csilib "github.com/container-storage-interface/spec/lib/go/csi"
+	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	"github.com/spf13/pflag"
@@ -918,10 +919,20 @@ func TimeTrack(start time.Time, name string) {
 	log.Infof("%s took %s", name, elapsed)
 }
 
-func GetClusterID(client *kubernetes.Clientset) (string, error) {
-	ns, err := client.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
+func GetClusterID(kubeclient kubernetes.Interface) (string, error) {
+	ns, err := kubeclient.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 	return string(ns.UID), nil
+}
+
+func GetVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentID string) (*snapshotapi.VolumeSnapshotContent, error) {
+	// Step 1: get yoda snapshot prefix
+	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
+	if prefix == "" {
+		prefix = localtype.DefaultSnapshotPrefix
+	}
+	// Step 2: get snapshot content api
+	return snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentID, prefix, "snapcontent", 1), metav1.GetOptions{})
 }

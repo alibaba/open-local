@@ -19,7 +19,6 @@ package csi
 import (
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -35,8 +34,6 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/docker/go-units"
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
-	snapshotapi "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -273,7 +270,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			snapshotID := sourceSnapshot.GetSnapshotId()
 			log.Infof("CreateVolume: snapshotID of volume %s is %s", volumeID, snapshotID)
 			// get src volume ID
-			snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotID)
+			snapContent, err := utils.GetVolumeSnapshotContent(cs.options.snapclient, snapshotID)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get snapshot content: %s", err.Error())
 			}
@@ -559,7 +556,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	}
 
 	// get volumeID from snapshotcontent
-	snapContent, err := getVolumeSnapshotContent(cs.options.snapclient, snapshotID)
+	snapContent, err := utils.GetVolumeSnapshotContent(cs.options.snapclient, snapshotID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "DeleteSnapshot: get snapContent %s error: %s", snapshotID, err.Error())
 	}
@@ -628,7 +625,11 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		s3SK := req.Secrets[localtype.S3_SK]
 		// restic 快照逻辑
 		// 此处 snapshot id 即为 tag
-		out, err := restic.DeleteDataByTag(s3URL, s3AK, s3SK, srcVolumeID, restic.GeneratePassword(), snapshotID, true)
+		r, err := restic.NewResticClient(s3URL, s3AK, s3SK, restic.GeneratePassword(), cs.options.kubeclient)
+		if err != nil {
+			return nil, err
+		}
+		out, err := r.DeleteDataByTag(srcVolumeID, snapshotID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -773,16 +774,6 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	}
 	conn, err := client.NewGrpcConnection(addr, time.Duration(cs.options.grpcConnectionTimeout*int(time.Second)))
 	return conn, err
-}
-
-func getVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentID string) (*snapshotapi.VolumeSnapshotContent, error) {
-	// Step 1: get yoda snapshot prefix
-	prefix := os.Getenv(localtype.EnvSnapshotPrefix)
-	if prefix == "" {
-		prefix = localtype.DefaultSnapshotPrefix
-	}
-	// Step 2: get snapshot content api
-	return snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentID, prefix, "snapcontent", 1), metav1.GetOptions{})
 }
 
 func getNodeAddr(node *v1.Node, nodeID string) (string, error) {

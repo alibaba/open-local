@@ -29,15 +29,21 @@ import (
 	"github.com/google/credstore/client"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	snapscheme "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/scheme"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
-	"k8s.io/client-go/rest"
-	log "k8s.io/klog/v2"
-
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -78,6 +84,24 @@ func Start(port string) {
 	if cmd == nil {
 		log.Errorf("retrieve nls failed, try to run as LVM")
 		cmd = &LvmCommads{}
+	}
+	if lvmCommads, ok := cmd.(*LvmCommads); ok {
+		kubeClient, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("fail to build kubernetes clientset: %s", err.Error())
+		}
+		snapClient, err := snapshot.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("fail to build snapClient: %s", err.Error())
+		}
+
+		utilruntime.Must(snapscheme.AddToScheme(snapscheme.Scheme))
+		eventBroadcaster := record.NewBroadcaster()
+		eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+		eventRecorder := eventBroadcaster.NewRecorder(snapscheme.Scheme, corev1.EventSource{Component: "open-local-csiplugin"})
+		lvmCommads.kubeclient = kubeClient
+		lvmCommads.snapclient = snapClient
+		lvmCommads.recorder = eventRecorder
 	}
 	svr := NewServer(cmd)
 

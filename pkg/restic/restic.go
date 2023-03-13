@@ -1,6 +1,7 @@
 package restic
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -12,17 +13,44 @@ import (
 
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/pkg/errors"
+	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog/v2"
 )
 
+type ResticClient struct {
+	s3Endpoint    string
+	ak            string
+	sk            string
+	encryptionKey string
+	kubeclient    kubernetes.Interface
+	clusterID     string
+}
+
+// 申请 restic client 要求必须传入 repository
+func NewResticClient(s3Endpoint, ak, sk, encryptionKey string, kubeclient kubernetes.Interface) (*ResticClient, error) {
+	clusterID, err := utils.GetClusterID(kubeclient)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResticClient{
+		s3Endpoint:    s3Endpoint,
+		ak:            ak,
+		sk:            sk,
+		encryptionKey: encryptionKey,
+		kubeclient:    kubeclient,
+		clusterID:     clusterID,
+	}, nil
+}
+
 // GetOrCreateRepository will check if the repository already exists and initialize one if not
-func GetOrCreateRepository(s3Endpoint, ak, sk, repository, encryptionKey string) error {
-	_, err := getLatestSnapshots(s3Endpoint, ak, sk, repository, encryptionKey)
+func (r *ResticClient) GetOrCreateRepository(repository string) error {
+	_, err := r.getLatestSnapshots(repository)
 	if err == nil {
 		return nil
 	}
 	// Create a repository
-	cmd := InitCommand(s3Endpoint, ak, sk, repository, encryptionKey)
+	cmd := InitCommand(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID)
 	if out, err := exec.Command("sh", "-c", cmd).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create object store backup location: %s, %s", err.Error(), string(out))
 	}
@@ -31,8 +59,8 @@ func GetOrCreateRepository(s3Endpoint, ak, sk, repository, encryptionKey string)
 }
 
 // CheckIfRepoIsReachable checks if repo can be reached by trying to list snapshots
-func CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey string) error {
-	out, err := getLatestSnapshots(s3Endpoint, ak, sk, repository, encryptionKey)
+func (r *ResticClient) CheckIfRepoIsReachable(repository string) error {
+	out, err := r.getLatestSnapshots(repository)
 	if err != nil && IsPasswordIncorrect(out) { // If password didn't work
 		return fmt.Errorf(PasswordIncorrect)
 	}
@@ -45,41 +73,94 @@ func CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey string
 	return nil
 }
 
-func BackupData(s3Endpoint, ak, sk, repository, encryptionKey, pathToBackup, backupTag string) (int64, error) {
+const (
+	backupProgressCheckInterval = 4 * time.Second
+)
+
+func (r *ResticClient) BackupData(repository, pathToBackup, backupTag string, updateEventFunc func(float64)) (int64, error) {
 	defer utils.TimeTrack(time.Now(), fmt.Sprintf("backup %s to s3 %s", pathToBackup, repository))
-	if err := GetOrCreateRepository(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+	if err := r.GetOrCreateRepository(repository); err != nil {
 		return 0, fmt.Errorf("fail to get or create restic repository: %s", err.Error())
 	}
 
-	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+	if err := r.CheckIfRepoIsReachable(repository); err != nil {
 		return 0, fmt.Errorf("fail to check if repository is reachable: %s", err.Error())
 	}
 
 	// Create backup and dump it on the object store
-	cmd := BackupCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, pathToBackup)
-	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+	quit := make(chan struct{})
+	stdoutBuf := new(bytes.Buffer)
+	stderrBuf := new(bytes.Buffer)
+
+	cmdStr := BackupCommandByTag(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID, backupTag, pathToBackup)
+	cmd := exec.Command("sh", "-c", cmdStr)
+	cmd.Stdout = stdoutBuf
+	cmd.Stderr = stderrBuf
+
+	err := cmd.Start()
 	if err != nil {
-		return 0, fmt.Errorf("fail to run restic backup command: %s,%s", err.Error(), out)
+		return 0, err
 	}
 
-	info, err := decodeBackupStatusLine(out)
+	go func() {
+		ticker := time.NewTicker(backupProgressCheckInterval)
+		for {
+			select {
+			case <-ticker.C:
+				lastLine := getLastLine(stdoutBuf.Bytes())
+				if len(lastLine) > 0 {
+					stat, err := decodeBackupStatusLine(lastLine)
+					if err != nil {
+						log.Errorf("fail to get restic backup progress: %s", err.Error())
+					}
+
+					// if the line contains a non-empty bytes_done field, we can update the
+					// caller with the progress
+					if stat.BytesDone != 0 {
+						updateEventFunc(stat.PercentDone)
+					}
+				}
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	err = cmd.Wait()
 	if err != nil {
-		return 0, fmt.Errorf("fail to decode backup status line: %s", err.Error())
+		return 0, err
+	}
+	quit <- struct{}{}
+
+	summary, err := getSummaryLine(stdoutBuf.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	stat, err := decodeBackupStatusLine(summary)
+	if err != nil {
+		return 0, err
+	}
+	if stat.MessageType != "summary" {
+		return 0, fmt.Errorf("fail to get restic backup summary: %s", string(summary))
 	}
 
-	return info.TotalBytes, nil
+	// update progress to 100%
+	updateEventFunc(1)
+
+	return stat.TotalBytesProcessed, nil
 }
 
-func RestoreData(s3Endpoint, ak, sk, repository, encryptionKey, pathToRestore, backupTag string) (map[string]interface{}, error) {
+func (r *ResticClient) RestoreData(repository, pathToRestore, backupTag string) (map[string]interface{}, error) {
 	defer utils.TimeTrack(time.Now(), fmt.Sprintf("restore %s from s3 %s", pathToRestore, repository))
 	var cmd string
 	var err error
-	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+	if err := r.CheckIfRepoIsReachable(repository); err != nil {
 		return nil, err
 	}
 
 	// Generate restore command based on the identifier passed
-	cmd = RestoreCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, backupTag, pathToRestore)
+	cmd = RestoreCommandByTag(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID, backupTag, pathToRestore)
 	fmt.Printf("restore cmd: %s\n", cmd)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
@@ -93,12 +174,12 @@ func RestoreData(s3Endpoint, ak, sk, repository, encryptionKey, pathToRestore, b
 	return outMap, nil
 }
 
-func PruneData(s3Endpoint, ak, sk, repository, encryptionKey string) (string, error) {
+func (r *ResticClient) PruneData(repository string) (string, error) {
 	defer utils.TimeTrack(time.Now(), fmt.Sprintf("prune data from s3 %s", repository))
-	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+	if err := r.CheckIfRepoIsReachable(repository); err != nil {
 		return "", err
 	}
-	cmd := PruneCommand(s3Endpoint, ak, sk, repository, encryptionKey)
+	cmd := PruneCommand(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s, %s", err, out)
@@ -107,9 +188,9 @@ func PruneData(s3Endpoint, ak, sk, repository, encryptionKey string) (string, er
 	return spaceFreed, errors.Wrapf(err, "failed to prune data after forget")
 }
 
-func DeleteDataByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag string, reclaimSpace bool) (map[string]interface{}, error) {
+func (r *ResticClient) DeleteDataByTag(repository string, deleteTag string, reclaimSpace bool) (map[string]interface{}, error) {
 	defer utils.TimeTrack(time.Now(), fmt.Sprintf("delete data from s3 %s", repository))
-	if err := CheckIfRepoIsReachable(s3Endpoint, ak, sk, repository, encryptionKey); err != nil {
+	if err := r.CheckIfRepoIsReachable(repository); err != nil {
 		if strings.Contains(err.Error(), RepoDoesNotExist) {
 			return nil, nil
 		}
@@ -117,7 +198,7 @@ func DeleteDataByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag st
 	}
 
 	log.Infof("delete tag is %s", deleteTag)
-	cmd := ForgetCommandByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag)
+	cmd := ForgetCommandByTag(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID, deleteTag)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to forget data: %s, %s", err.Error(), string(out))
@@ -126,7 +207,7 @@ func DeleteDataByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag st
 
 	var spaceFreedTotal int64
 	if reclaimSpace {
-		spaceFreedStr, err := PruneData(s3Endpoint, ak, sk, repository, encryptionKey)
+		spaceFreedStr, err := r.PruneData(repository)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error executing prune command")
 		}
@@ -139,8 +220,8 @@ func DeleteDataByTag(s3Endpoint, ak, sk, repository, encryptionKey, deleteTag st
 	}, nil
 }
 
-func CheckSnapshotExist(s3Endpoint, ak, sk, repository, encryptionKey string) (bool, error) {
-	cmd := SnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey)
+func (r *ResticClient) CheckSnapshotExist(repository string) (bool, error) {
+	cmd := SnapshotsCommand(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to check snapshot data, could not get snapshotID: %s, %s", err.Error(), string(out))
@@ -174,9 +255,9 @@ func parseLogAndCreateOutput(out string) (map[string]interface{}, error) {
 	return op, nil
 }
 
-func getLatestSnapshots(s3Endpoint, ak, sk, repository, encryptionKey string) (string, error) {
+func (r *ResticClient) getLatestSnapshots(repository string) (string, error) {
 	// Use the latest snapshots command to check if the repository exists
-	cmd := LatestSnapshotsCommand(s3Endpoint, ak, sk, repository, encryptionKey)
+	cmd := LatestSnapshotsCommand(r.s3Endpoint, r.ak, r.sk, repository, r.encryptionKey, r.clusterID)
 	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 	return string(out), err
 }
@@ -254,4 +335,34 @@ func decodeBackupStatusLine(lastLine []byte) (backupStatusLine, error) {
 		return stat, errors.Wrapf(err, "unable to decode backup JSON line: %s", string(lastLine))
 	}
 	return stat, nil
+}
+
+// getLastLine returns the last line of a byte array. The string is assumed to
+// have a newline at the end of it, so this returns the substring between the
+// last two newlines.
+func getLastLine(b []byte) []byte {
+	if len(b) == 0 {
+		return []byte("")
+	}
+	// subslice the byte array to ignore the newline at the end of the string
+	lastNewLineIdx := bytes.LastIndex(b[:len(b)-1], []byte("\n"))
+	return b[lastNewLineIdx+1 : len(b)-1]
+}
+
+// getSummaryLine looks for the summary JSON line
+// (`{"message_type:"summary",...`) in the restic backup command output. Due to
+// an issue in Restic, this might not always be the last line
+// (https://github.com/restic/restic/issues/2389). It returns an error if it
+// can't be found.
+func getSummaryLine(b []byte) ([]byte, error) {
+	summaryLineIdx := bytes.LastIndex(b, []byte(`{"message_type":"summary"`))
+	if summaryLineIdx < 0 {
+		return nil, errors.New("unable to find summary in restic backup command output")
+	}
+	// find the end of the summary line
+	newLineIdx := bytes.Index(b[summaryLineIdx:], []byte("\n"))
+	if newLineIdx < 0 {
+		return nil, errors.New("unable to get summary line from restic backup command output")
+	}
+	return b[summaryLineIdx : summaryLineIdx+newLineIdx], nil
 }

@@ -34,8 +34,12 @@ import (
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/utils"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"golang.org/x/net/context"
-
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2"
 	log "k8s.io/klog/v2"
 )
 
@@ -46,7 +50,11 @@ const (
 	ProjQuotaNamespacePrefix = "/mnt/quotapath.%s"
 )
 
-type LvmCommads struct{}
+type LvmCommads struct {
+	kubeclient kubernetes.Interface
+	snapclient snapshot.Interface
+	recorder   record.EventRecorder
+}
 
 // ListLV lists lvm volumes
 func (lvm *LvmCommads) ListLV(listspec string) ([]*lib.LV, error) {
@@ -307,7 +315,19 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 			return 0, fmt.Errorf("secret is not valid when creating snapshot")
 		}
 		// restic backup
-		sizeBytes, err = restic.BackupData(s3URL, s3AK, s3SK, srcVolumeName, restic.GeneratePassword(), tempDir, snapshotName)
+		r, err := restic.NewResticClient(s3URL, s3AK, s3SK, restic.GeneratePassword(), lvm.kubeclient)
+		if err != nil {
+			return 0, err
+		}
+		updateEventFunc := func(percent float64) {
+			content, err := utils.GetVolumeSnapshotContent(lvm.snapclient, snapshotName)
+			if err != nil {
+				klog.Errorf("fail to get %s: %s", snapshotName, err.Error())
+				return
+			}
+			lvm.recorder.Eventf(content, corev1.EventTypeNormal, "backup-data-to-s3", "progress %0.2f %%", percent*100)
+		}
+		sizeBytes, err = r.BackupData(srcVolumeName, tempDir, snapshotName, updateEventFunc)
 		if err != nil {
 			return 0, fmt.Errorf("fail to backup data: %s", err.Error())
 		}

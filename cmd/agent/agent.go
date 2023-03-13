@@ -25,9 +25,7 @@ import (
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localscheme "github.com/alibaba/open-local/pkg/generated/clientset/versioned/scheme"
 	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
-	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
-	"github.com/alibaba/open-local/pkg/utils"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -73,12 +71,6 @@ func Start(opt *agentOption) error {
 	if err != nil {
 		return fmt.Errorf("fail to build kubernetes clientset: %s", err.Error())
 	}
-	// restic
-	restic.ClusterID, err = utils.GetClusterID(kubeClient)
-	if err != nil {
-		return fmt.Errorf("fail to get cluster id: %s", err.Error())
-	}
-	log.Infof("cluster id is %s", restic.ClusterID)
 
 	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {

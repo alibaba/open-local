@@ -23,9 +23,7 @@ import (
 	"github.com/alibaba/open-local/pkg/controller"
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localinformers "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
-	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
-	"github.com/alibaba/open-local/pkg/utils"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	"github.com/spf13/cobra"
@@ -72,12 +70,6 @@ func Start(opt *controllerOption) error {
 	if err != nil {
 		return fmt.Errorf("fail to build kubernetes clientset: %s", err.Error())
 	}
-	// restic
-	restic.ClusterID, err = utils.GetClusterID(kubeClient)
-	if err != nil {
-		return fmt.Errorf("fail to get cluster id: %s", err.Error())
-	}
-	log.Infof("cluster id is %s", restic.ClusterID)
 
 	localClient, err := clientset.NewForConfig(cfg)
 	if err != nil {

@@ -26,9 +26,15 @@ func (c *Controller) CleanUnusedResticRepo() {
 	klog.Infof("CleanUnusedResticRepo: start clean unused restic repo...")
 	defer utils.TimeTrack(time.Now(), "clean s3 unused restic repo")
 
+	clusterID, err := utils.GetClusterID(c.kubeclientset)
+	if err != nil {
+		klog.Errorf("fail to get clusterID: %s", err.Error())
+		return
+	}
+
 	var (
-		expForYoda  = regexp.MustCompile(restic.ClusterID + "/yoda-[a-z0-9-]+")
-		expForLocal = regexp.MustCompile(restic.ClusterID + "/local-[a-z0-9-]+")
+		expForYoda  = regexp.MustCompile(clusterID + "/yoda-[a-z0-9-]+")
+		expForLocal = regexp.MustCompile(clusterID + "/local-[a-z0-9-]+")
 	)
 
 	snapshotContents, err := c.snapshotContentLister.List(labels.Everything())
@@ -115,7 +121,7 @@ func (c *Controller) CleanUnusedResticRepo() {
 			continue
 		}
 
-		prefix := restic.ClusterID
+		prefix := clusterID
 		req := &s3.ListObjectsV2Input{
 			Bucket: &bucketName,
 			Prefix: &prefix,
@@ -157,7 +163,7 @@ func (c *Controller) CleanUnusedResticRepo() {
 		// 逐个判断是否需要删除 restic repository
 		// 根据环境中是否有相关 snapshotcontent 的 source id 为 pv id
 		for prefixName, objectNames := range prefixNames {
-			_, exist := sourceIdMap[prefixName[len(restic.ClusterID)+1:]]
+			_, exist := sourceIdMap[prefixName[len(clusterID)+1:]]
 			if exist {
 				// 表示此 repo 有对应的 snapshot 资源指向
 				klog.Infof("CleanUnusedResticRepo: repo %s is protected, skip...", prefixName)

@@ -44,7 +44,7 @@ func AllocateLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, no
 	if pod == nil {
 		return fits, units, fmt.Errorf("pod is nil")
 	}
-	klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+	klog.Infof("allocating lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
 
 	fits, units, err = ProcessLVMPVCPredicate(pvcs, node, ctx)
 	if err != nil {
@@ -55,7 +55,7 @@ func AllocateLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, no
 		return false, units, nil
 	}
 	klog.Infof("node %s is capable of lvm %d pvcs", node.Name, len(pvcs))
-	klog.V(6).Infof("pod=%s/%s, node=%s, units:%#v", pod.Namespace, pod.Name, node.Name, units)
+	klog.V(6).Infof("pod=%s, node=%s, units:%#v", utils.GetName(pod.ObjectMeta), node.Name, units)
 	return true, units, nil
 }
 
@@ -164,7 +164,7 @@ func HandleInlineLVMVolume(ctx *algorithm.SchedulingContext, node *corev1.Node, 
 		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 			vgName, requestedSize := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
 			if vgName == "" {
-				return false, units, fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+				return false, units, fmt.Errorf("no vgName found in inline volume of Pod %s", utils.GetName(pod.ObjectMeta))
 			}
 			vg, ok := cacheVGsMap[cache.ResourceName(vgName)]
 			if !ok {
@@ -235,7 +235,7 @@ func AllocateMountPointVolume(
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating mount point volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
@@ -323,7 +323,7 @@ func DividePVCAccordingToMediaType(pvcs []*corev1.PersistentVolumeClaim, scListe
 		case localtype.MediaTypeHDD:
 			pvcsWithTypeHDD = append(pvcsWithTypeHDD, pvc)
 		default:
-			err = fmt.Errorf("mediaType %s not support! pvc: %s/%s", mediaType, pvc.Namespace, pvc.Name)
+			err = fmt.Errorf("mediaType %s not support! pvc: %s", mediaType, utils.GetName(pvc.ObjectMeta))
 			klog.Errorf(err.Error())
 			return
 		}
@@ -424,7 +424,7 @@ func AllocateDeviceVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim,
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating device volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
 	fits, units, err = ProcessDevicePVC(pod, pvcs, node, ctx)
@@ -525,7 +525,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 
 func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
 	if pod != nil {
-		klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	fits, units, err := HandleInlineLVMVolume(ctx, node, pod)
@@ -550,7 +550,7 @@ func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node 
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating lvm volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	fits, units, err := ProcessLVMPVCPriority(pod, pvcs, node, ctx)
@@ -599,8 +599,8 @@ func ProcessLVMPVCPriority(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim
 				return false, units, fmt.Errorf("not enough lv storage on %s/%s, requested size %s,  free size %s",
 					node.Name, vgName, quanReq.String(), quanFree.String())
 			}
-			return false, units, fmt.Errorf("not enough lv storage on %s/%s for pod %s/%s, requested size %s,  free size %s",
-				node.Name, vgName, pod.Namespace, pod.Name, quanReq.String(), quanFree.String())
+			return false, units, fmt.Errorf("not enough lv storage on %s/%s for pod %s, requested size %s,  free size %s",
+				node.Name, vgName, utils.GetName(pod.ObjectMeta), quanReq.String(), quanFree.String())
 		}
 		tmp := cacheVGsMap[cache.ResourceName(vgName)]
 		tmp.Requested += requestedSize
@@ -668,8 +668,8 @@ func Binpack(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.No
 						node.Name, quanReq.String(), vg.Name, quanFree.String(), localtype.SchedulerStrategy)
 
 				}
-				return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s for pod %s/%s, requested size %s, max free size[VG: %s] %s, strategiy %s. you need to expand the vg",
-					node.Name, pod.Namespace, pod.Name, quanReq.String(), vg.Name, quanFree.String(), localtype.SchedulerStrategy)
+				return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s for pod %s, requested size %s, max free size[VG: %s] %s, strategiy %s. you need to expand the vg",
+					node.Name, utils.GetName(pod.ObjectMeta), quanReq.String(), vg.Name, quanFree.String(), localtype.SchedulerStrategy)
 			}
 			continue
 		}
@@ -718,8 +718,8 @@ func Spread(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, node *corev1.Nod
 			return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s, requested size %s,  free size %s, strategiy %s. you need to expand the vg",
 				node.Name, cacheVGsSlice[0].Name, quanReq.String(), quanFree.String(), localtype.SchedulerStrategy)
 		}
-		return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s for pod %s/%s, requested size %s,  free size %s, strategiy %s. you need to expand the vg",
-			node.Name, cacheVGsSlice[0].Name, pod.Namespace, pod.Name, quanReq.String(), quanFree.String(), localtype.SchedulerStrategy)
+		return false, units, fmt.Errorf("[multipleVGs]not enough lv storage on %s/%s for pod %s, requested size %s,  free size %s, strategiy %s. you need to expand the vg",
+			node.Name, cacheVGsSlice[0].Name, utils.GetName(pod.ObjectMeta), quanReq.String(), quanFree.String(), localtype.SchedulerStrategy)
 	}
 	cacheVGsSlice[0].Requested += requestedSize
 	u := cache.AllocatedUnit{
@@ -782,7 +782,7 @@ func ScoreMountPointVolume(
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating mount point volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating mount point volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
@@ -818,7 +818,7 @@ func ScoreDeviceVolume(
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating device volume for pod %s/%s", pod.Namespace, pod.Name)
+		klog.Infof("allocating device volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
@@ -858,13 +858,13 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, c
 		if !utils.IsReadOnlySnapshotPVC(pvc, snapshotInformers) {
 			continue
 		}
-		klog.Infof("[ProcessSnapshotPVC]data source of pvc %s/%s is readonly snapshot", pvc.Namespace, pvc.Name)
+		klog.Infof("[ProcessSnapshotPVC]data source of pvc %s is readonly snapshot", utils.GetName(pvc.ObjectMeta))
 		// step 1: get snapshot api
 		snapName := pvc.Spec.DataSource.Name
 		snapNamespace := pvc.Namespace
 		snapshot, err := snapshotInformers.VolumeSnapshots().Lister().VolumeSnapshots(snapNamespace).Get(snapName)
 		if err != nil {
-			return false, fmt.Errorf("[ProcessSnapshotPVC]get snapshot %s/%s failed: %s", snapNamespace, snapName, err.Error())
+			return false, fmt.Errorf("[ProcessSnapshotPVC]get snapshot %s failed: %s", utils.GetNameKey(snapNamespace, snapName), err.Error())
 		}
 		klog.Infof("[ProcessSnapshotPVC]snapshot is %s", snapshot.Name)
 		// step 2: get src pvc
@@ -872,9 +872,9 @@ func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, c
 		srcPVCNamespace := snapNamespace
 		srcPVC, err := coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(srcPVCNamespace).Get(srcPVCName)
 		if err != nil {
-			return false, fmt.Errorf("[ProcessSnapshotPVC]get src pvc %s/%s failed: %s", snapNamespace, snapName, err.Error())
+			return false, fmt.Errorf("[ProcessSnapshotPVC]get src pvc %s failed: %s", utils.GetNameKey(srcPVCNamespace, srcPVCName), err.Error())
 		}
-		klog.Infof("[ProcessSnapshotPVC]source pvc is %s/%s", srcPVC.Namespace, srcPVC.Name)
+		klog.Infof("[ProcessSnapshotPVC]source pvc is %s", utils.GetName(srcPVC.ObjectMeta))
 		// step 3: get src node name
 		srcNodeName := srcPVC.Annotations[localtype.AnnoSelectedNode]
 		klog.Infof("[ProcessSnapshotPVC]source node is %s", srcNodeName)

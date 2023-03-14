@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -145,7 +145,7 @@ func NewPVAllocatedDetails() *PVAllocatedDetails {
 }
 
 func (l *PVAllocatedDetails) GetByPVC(pvcNamespace, pvcName string) PVAllocated {
-	pvcAllocated, ok := l.pvcAllocated[utils.GetPVCKey(pvcNamespace, pvcName)]
+	pvcAllocated, ok := l.pvcAllocated[utils.GetNameKey(pvcNamespace, pvcName)]
 	if ok {
 		return pvcAllocated
 	}
@@ -170,7 +170,7 @@ func (l *PVAllocatedDetails) DeleteByPV(remove PVAllocated) {
 	}
 	baseInfo := remove.GetBasePVAllocated()
 	if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
-		delete(l.pvcAllocated, utils.GetPVCKey(baseInfo.PVCNamespace, baseInfo.PVCName))
+		delete(l.pvcAllocated, utils.GetNameKey(baseInfo.PVCNamespace, baseInfo.PVCName))
 	}
 	if baseInfo.VolumeName != "" {
 		delete(l.pvAllocated, baseInfo.VolumeName)
@@ -178,18 +178,17 @@ func (l *PVAllocatedDetails) DeleteByPV(remove PVAllocated) {
 }
 
 /*
-
  */
 func (l *PVAllocatedDetails) AssumeByPVC(newAllocated PVAllocated) {
 	baseInfo := newAllocated.GetBasePVAllocated()
 	if baseInfo.PVCName != "" && baseInfo.PVCNamespace != "" {
-		l.pvcAllocated[utils.GetPVCKey(baseInfo.PVCNamespace, baseInfo.PVCName)] = newAllocated
+		l.pvcAllocated[utils.GetNameKey(baseInfo.PVCNamespace, baseInfo.PVCName)] = newAllocated
 	}
 
 }
 
 /*
-	pvEvent must use this, may add pvcNameSpace/pvcName
+pvEvent must use this, may add pvcNameSpace/pvcName
 */
 func (l *PVAllocatedDetails) AssumeByPVEvent(newAllocated PVAllocated) bool {
 	baseInfo := newAllocated.GetBasePVAllocated()

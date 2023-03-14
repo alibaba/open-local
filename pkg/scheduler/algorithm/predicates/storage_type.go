@@ -35,7 +35,7 @@ import (
 // 3. if no volume is required, do nothing
 func StorageTypePredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (bool, error) {
 	var scName *string
-	trace := utiltrace.New(fmt.Sprintf("Scheduling[StorageTypePredicate] %s/%s", pod.Namespace, pod.Name))
+	trace := utiltrace.New(fmt.Sprintf("Scheduling[StorageTypePredicate] %s", utils.GetName(pod.ObjectMeta)))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
 	if len(pod.Spec.Volumes) == 0 {
@@ -69,7 +69,7 @@ func StorageTypePredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, nod
 			name := v.PersistentVolumeClaim.ClaimName
 			pvc, err := ctx.CoreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(ns).Get(name)
 			if err != nil {
-				log.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
+				log.Errorf("failed to get pvc by name %s: %s", utils.GetNameKey(ns, name), err.Error())
 				return false, err
 			}
 

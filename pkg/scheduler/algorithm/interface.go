@@ -44,7 +44,7 @@ type NodeBinder interface {
 // 1. node cache
 // 2. pv cache
 // 3. nodelocalstorage cache
-
+// todo: 把 informer 改为 lister
 type SchedulingContext struct {
 	CtxLock                sync.RWMutex
 	ClusterNodeCache       *cache.ClusterNodeCache

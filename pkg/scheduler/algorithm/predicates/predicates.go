@@ -54,7 +54,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 	pod := args.Pod
 
 	if utils.NeedSkip(args) {
-		log.Infof("predicate: skip pod %s/%s scheduling", pod.Namespace, pod.Name)
+		log.Infof("predicate: skip pod %s scheduling", utils.GetName(pod.ObjectMeta))
 		return &schedulerapi.ExtenderFilterResult{
 			Nodes:       args.Nodes,
 			NodeNames:   args.NodeNames,
@@ -78,7 +78,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 	errStr := ""
 
 	for _, nodeName := range nodeNames {
-		log.Infof("predicating pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
+		log.Infof("predicating pod %s with node %s", utils.GetName(pod.ObjectMeta), nodeName)
 
 		node, err := p.Ctx.CoreV1Informers.Nodes().Lister().Get(nodeName)
 		if err != nil {
@@ -86,11 +86,11 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			continue
 		}
 		fits, failReasons, err := Predicates(p.Ctx, p.PredicateFuncs, pod, node)
-		log.Infof("pod=%s/%s, node=%s,fits: %t,failReasons: %s, err: %v",
-			pod.Namespace, pod.Name, node.Name, fits, failReasons, err)
+		log.Infof("pod=%s, node=%s,fits: %t,failReasons: %s, err: %v",
+			utils.GetName(pod.ObjectMeta), node.Name, fits, failReasons, err)
 
 		if err != nil {
-			log.Errorf("node %s is not suitable for pod %s/%s, err: %s ", node.Name, pod.Namespace, pod.Name, err.Error())
+			log.Errorf("node %s is not suitable for pod %s, err: %s ", node.Name, utils.GetName(pod.ObjectMeta), err.Error())
 			canNotSchedule[nodeName] = err.Error()
 			errStr = err.Error()
 			break
@@ -98,7 +98,7 @@ func (p Predicate) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.Extend
 			if fits {
 				canSchedule = append(canSchedule, nodeName)
 			} else {
-				log.Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
+				log.Infof("node %s is not suitable for pod %s, reason: %s ", node.Name, utils.GetName(pod.ObjectMeta), failReasons)
 				canNotSchedule[nodeName] = strings.Join(failReasons, ",")
 			}
 		}
@@ -131,16 +131,13 @@ func Predicates(Ctx *algorithm.SchedulingContext, PredicateFuncs []PredicateFunc
 		log.Infof("fits: %t,failReasons: %s, err: %+v", fits, failReasons, err)
 
 		if isError && err != nil {
-			log.Errorf("scheduling terminated for %s/%s: %s", pod.Namespace, pod.Name, err.Error())
+			log.Errorf("scheduling terminated for %s: %s", utils.GetName(pod.ObjectMeta), err.Error())
 			return fits, failedReasons, err
 		}
 		if fits {
-			//return fits, []string{}, nil
 			continue
 		} else {
-			//log.Infof("node %s is not suitable for pod %s/%s, reason: %s ", node.Name, pod.Namespace, pod.Name, failReasons)
 			failedReasons = append(failedReasons, failReasons...)
-			//return fits, failReasons, nil
 		}
 	}
 	return len(failedReasons) == 0 && fits, failedReasons, nil

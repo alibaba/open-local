@@ -30,7 +30,7 @@ import (
 )
 
 func CapacityMatch(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (int, error) {
-	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityMatch] %s/%s", pod.Namespace, pod.Name))
+	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityMatch] %s", utils.GetName(pod.ObjectMeta)))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
 	err, lvmPVCs, mpPVCs, devicePVCs := algorithm.GetPodPvcs(pod, ctx, true)

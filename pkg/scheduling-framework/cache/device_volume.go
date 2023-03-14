@@ -176,7 +176,7 @@ func (allocator *devicePVAllocator) pvUpdate(nodeName string, oldPV, newPV *core
 			}
 			pvcDetail := allocator.cache.pvAllocatedDetails.GetByPVC(pvcNamespace, pvcName)
 			if pvcDetail == nil {
-				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetPVCKey(pvcNamespace, pvcName))
+				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetNameKey(pvcNamespace, pvcName))
 				return
 			}
 			deviceDetail := pvcDetail.(*DeviceTypePVAllocated)
@@ -238,7 +238,7 @@ func (allocator *devicePVAllocator) prefilter(scLister storagelisters.StorageCla
 		pvcInfo.MediaType = mediaType
 		deviceInfos.HDDDevicePVCs = append(deviceInfos.HDDDevicePVCs, pvcInfo)
 	default:
-		return fmt.Errorf("mediaType %s not support! pvc: %s/%s", mediaType, localPVC.Namespace, localPVC.Name)
+		return fmt.Errorf("mediaType %s not support! pvc: %s", mediaType, utils.GetName(localPVC.ObjectMeta))
 	}
 	return nil
 }
@@ -307,14 +307,14 @@ func (allocator *devicePVAllocator) reserve(nodeName string, nodeUnits *NodeAllo
 		if allocateExist != nil {
 			continue
 		}
-		if pvcInfo, ok := allocator.cache.pvcInfosMap[utils.GetPVCKey(unit.PVCNamespace, unit.PVCName)]; ok && pvcInfo.PVCStatus == corev1.ClaimBound {
-			klog.Infof("skip reserveDevicePVC for bound pvc %s/%s", unit.PVCNamespace, unit.PVCName)
+		if pvcInfo, ok := allocator.cache.pvcInfosMap[utils.GetNameKey(unit.PVCNamespace, unit.PVCName)]; ok && pvcInfo.PVCStatus == corev1.ClaimBound {
+			klog.Infof("skip reserveDevicePVC for bound pvc %s", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 			continue
 		}
 
 		deviceState, ok := currentStorageState.DeviceStates[unit.DeviceName]
 		if !ok {
-			err := fmt.Errorf("reserveDevicePVC fail, device(%s) have not found for pvc(%s) on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveDevicePVC fail, device(%s) have not found for pvc(%s) on node %s", unit.DeviceName, utils.GetNameKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
@@ -324,7 +324,7 @@ func (allocator *devicePVAllocator) reserve(nodeName string, nodeUnits *NodeAllo
 		}
 
 		if deviceState.Allocatable < unit.Requested {
-			err := fmt.Errorf("reserveDevicePVC fail, device(%s) allocatable small than pvc(%s) request on node %s", unit.DeviceName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveDevicePVC fail, device(%s) allocatable small than pvc(%s) request on node %s", unit.DeviceName, utils.GetNameKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
@@ -393,7 +393,7 @@ func (allocator *devicePVAllocator) revertDeviceByPVCIfNeed(nodeName, pvcNameSpa
 	}
 	deviceAllocated, ok := allocatedByPVC.(*DeviceTypePVAllocated)
 	if !ok {
-		klog.Errorf("can not convert pvc(%s) AllocateInfo to DeviceTypePVAllocated", utils.GetPVCKey(pvcNameSpace, pvcName))
+		klog.Errorf("can not convert pvc(%s) AllocateInfo to DeviceTypePVAllocated", utils.GetNameKey(pvcNameSpace, pvcName))
 		return
 	}
 
@@ -402,7 +402,7 @@ func (allocator *devicePVAllocator) revertDeviceByPVCIfNeed(nodeName, pvcNameSpa
 	}
 
 	allocator.revertDeviceForState(nodeName, deviceAllocated.DeviceName)
-	allocator.cache.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
+	allocator.cache.pvAllocatedDetails.DeleteByPVC(utils.GetNameKey(pvcNameSpace, pvcName))
 }
 
 func getFreeDevice(nodeStateClone *NodeStorageState) (freeDeviceSSD, freeDeviceHDD []*DeviceResourcePool) {

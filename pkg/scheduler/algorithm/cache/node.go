@@ -495,7 +495,7 @@ func (nc *NodeCache) AddPodInlineVolumeInfo(pod *corev1.Pod) error {
 			if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 				vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
 				if vgName == "" {
-					return fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+					return fmt.Errorf("no vgName found in inline volume of Pod %s", utils.GetName(pod.ObjectMeta))
 				}
 				inlineVolumeInfo := InlineVolumeInfo{
 					VgName:       vgName,

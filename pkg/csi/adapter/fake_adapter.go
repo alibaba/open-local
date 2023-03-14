@@ -17,9 +17,8 @@ limitations under the License.
 package adapter
 
 import (
-	"fmt"
-
 	"github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
 )
 
 type FakeAdapter struct {
@@ -39,6 +38,6 @@ func (adapter *FakeAdapter) ScheduleVolume(volumeType, pvcName, pvcNamespace, vg
 		Disk:                  "/mnt/data/data-0",
 		Device:                "/dev/sdd",
 		VolumeType:            volumeType,
-		PersistentVolumeClaim: fmt.Sprintf("%s/%s", pvcNamespace, pvcName),
+		PersistentVolumeClaim: utils.GetNameKey(pvcNamespace, pvcName),
 	}, nil
 }

@@ -202,7 +202,7 @@ func (allocator *lvmCommonPVAllocator) pvAdd(nodeName string, pv *corev1.Persist
 			}
 			pvcDetail := allocator.cache.pvAllocatedDetails.GetByPVC(pvcNamespace, pvcName)
 			if pvcDetail == nil {
-				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetPVCKey(pvcNamespace, pvcName))
+				klog.Errorf("can't find pvcDetail for pvc(%s)", utils.GetNameKey(pvcNamespace, pvcName))
 				return
 			}
 			lvmDetail := pvcDetail.(*LVMPVAllocated)
@@ -398,8 +398,8 @@ func (allocator *lvmCommonPVAllocator) reserve(nodeName string, nodeUnits *NodeA
 		if allocateExist != nil { //add by eventhandler for pvcBound
 			continue
 		}
-		if pvcInfo, ok := allocator.cache.pvcInfosMap[utils.GetPVCKey(unit.PVCNamespace, unit.PVCName)]; ok && pvcInfo.PVCStatus == corev1.ClaimBound {
-			klog.Infof("skip reserveLVMPVC for bound pvc %s/%s", unit.PVCNamespace, unit.PVCName)
+		if pvcInfo, ok := allocator.cache.pvcInfosMap[utils.GetNameKey(unit.PVCNamespace, unit.PVCName)]; ok && pvcInfo.PVCStatus == corev1.ClaimBound {
+			klog.Infof("skip reserveLVMPVC for bound pvc %s", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 			continue
 		}
 
@@ -410,12 +410,12 @@ func (allocator *lvmCommonPVAllocator) reserve(nodeName string, nodeUnits *NodeA
 
 		vgState, ok := currentStorageState.VGStates[unit.VGName]
 		if !ok {
-			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not found for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not found for pvc(%s) on node %s", unit.VGName, utils.GetNameKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
 		if vgState.Allocatable < vgState.Requested+unit.Requested {
-			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not enough space for pvc(%s) on node %s", unit.VGName, utils.GetPVCKey(unit.PVCNamespace, unit.PVCName), nodeName)
+			err := fmt.Errorf("reserveLVMPVC fail, volumeGroup(%s) have not enough space for pvc(%s) on node %s", unit.VGName, utils.GetNameKey(unit.PVCNamespace, unit.PVCName), nodeName)
 			return err
 		}
 
@@ -457,7 +457,7 @@ func (allocator *lvmCommonPVAllocator) revertIfNeed(nodeName, pvcNameSpace, pvcN
 
 	lvmAllocated, ok := allocatedByPVC.(*LVMPVAllocated)
 	if !ok {
-		klog.Errorf("can not convert pvc(%s) AllocateInfo to LVMPVAllocated", utils.GetPVCKey(pvcNameSpace, pvcName))
+		klog.Errorf("can not convert pvc(%s) AllocateInfo to LVMPVAllocated", utils.GetNameKey(pvcNameSpace, pvcName))
 		return
 	}
 	//add by pvc event, no vgName && allocateSize = 0
@@ -477,13 +477,13 @@ func (allocator *lvmCommonPVAllocator) revertIfNeed(nodeName, pvcNameSpace, pvcN
 
 	vgState, ok := nodeState.VGStates[lvmAllocated.VGName]
 	if !ok {
-		klog.Errorf("revertLVMByPVCIfNeed fail, volumeGroup(%s) have not found for pvc(%s) on node %s", lvmAllocated.VGName, utils.GetPVCKey(pvcNameSpace, pvcName), nodeName)
+		klog.Errorf("revertLVMByPVCIfNeed fail, volumeGroup(%s) have not found for pvc(%s) on node %s", lvmAllocated.VGName, utils.GetNameKey(pvcNameSpace, pvcName), nodeName)
 		return
 	}
 
 	vgState.Requested = vgState.Requested - lvmAllocated.Allocated
-	allocator.cache.pvAllocatedDetails.DeleteByPVC(utils.GetPVCKey(pvcNameSpace, pvcName))
-	klog.V(6).Infof("revert for pvc (%s) success, current vgState: %#v", utils.GetPVCKey(pvcNameSpace, pvcName), vgState)
+	allocator.cache.pvAllocatedDetails.DeleteByPVC(utils.GetNameKey(pvcNameSpace, pvcName))
+	klog.V(6).Infof("revert for pvc (%s) success, current vgState: %#v", utils.GetNameKey(pvcNameSpace, pvcName), vgState)
 }
 
 func (allocator *lvmCommonPVAllocator) updateVGRequestByDelta(nodeName string, vgName string, delta int64) {

@@ -58,7 +58,7 @@ func SchedulingPVCWrap(ctx *algorithm.SchedulingContext) httprouter.Handle {
 
 		info, err := apis.SchedulingPVC(ctx, pvc, node)
 		if err != nil {
-			log.Errorf("failed to scheduling pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+			log.Errorf("failed to scheduling pvc %s: %s", utils.GetName(pvc.ObjectMeta), err.Error())
 			utils.HttpResponse(w, http.StatusInternalServerError, []byte(err.Error()))
 			return
 		}
@@ -87,7 +87,7 @@ func validatePVCParams(ctx *algorithm.SchedulingContext, w http.ResponseWriter, 
 	//body := io.TeeReader(r.Body, &buf)
 	pvc, err = ctx.CoreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(namespace).Get(name)
 	if err != nil {
-		log.Errorf("failed to fetch requested pvc %s/%s: %s", namespace, name, err.Error())
+		log.Errorf("failed to fetch requested pvc %s: %s", utils.GetNameKey(namespace, name), err.Error())
 		utils.HttpResponse(w, http.StatusInternalServerError, []byte(err.Error()))
 		return nil, err
 	}
@@ -104,12 +104,12 @@ func validatePVCParams(ctx *algorithm.SchedulingContext, w http.ResponseWriter, 
 				pvcStatusSize = v.Value()
 			}
 			if pvcSpecSize != pvcStatusSize {
-				log.Infof("expand pvc size %s/%s from %d to %d", pvc.Namespace, pvc.Name, pvcStatusSize, pvcSpecSize)
+				log.Infof("expand pvc size %s from %d to %d", utils.GetName(pvc.ObjectMeta), pvcStatusSize, pvcSpecSize)
 				return pvc, nil
 			}
 		}
 
-		err := fmt.Errorf("invalid status for scheduling pvc %s/%s: unexpected phase %s", pvc.Namespace, pvc.Name, pvc.Status.Phase)
+		err := fmt.Errorf("invalid status for scheduling pvc %s: unexpected phase %s", utils.GetName(pvc.ObjectMeta), pvc.Status.Phase)
 		utils.HttpResponse(w, http.StatusInternalServerError, []byte(err.Error()))
 		return nil, err
 	}

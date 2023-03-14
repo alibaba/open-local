@@ -84,11 +84,11 @@ func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeC
 			name := v.PersistentVolumeClaim.ClaimName
 			pvc, err := pvcLister.PersistentVolumeClaims(ns).Get(name)
 			if err != nil {
-				log.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
+				log.Errorf("failed to get pvc by name %s: %s", utils.GetNameKey(ns, name), err.Error())
 				return err, lvmPVCs, mpPVCs, devicePVCs
 			}
 			if pvc.Status.Phase == corev1.ClaimBound && skipBound {
-				log.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
+				log.Infof("skip scheduling bound pvc %s", utils.GetName(pvc.ObjectMeta))
 				continue
 			}
 			scName := pvc.Spec.StorageClassName
@@ -105,16 +105,16 @@ func GetPodPvcsByLister(pod *corev1.Pod, pvcLister corelisters.PersistentVolumeC
 			if isLocalPV, pvType = utils.IsLocalPVC(pvc, scLister); isLocalPV {
 				switch pvType {
 				case pkg.VolumeTypeLVM:
-					log.V(4).Infof("got pvc %s/%s as lvm pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s as lvm pvc", utils.GetName(pvc.ObjectMeta))
 					lvmPVCs = append(lvmPVCs, pvc)
 				case pkg.VolumeTypeMountPoint:
-					log.V(4).Infof("got pvc %s/%s as mount point pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s as mount point pvc", utils.GetName(pvc.ObjectMeta))
 					mpPVCs = append(mpPVCs, pvc)
 				case pkg.VolumeTypeDevice:
-					log.V(4).Infof("got pvc %s/%s as device pvc", pvc.Namespace, pvc.Name)
+					log.V(4).Infof("got pvc %s as device pvc", utils.GetName(pvc.ObjectMeta))
 					devicePVCs = append(devicePVCs, pvc)
 				default:
-					log.Infof("not a open-local pvc %s/%s, should handled by other provisioner", pvc.Namespace, pvc.Name)
+					log.Infof("not a open-local pvc %s, should handled by other provisioner", utils.GetName(pvc.ObjectMeta))
 				}
 			}
 		}
@@ -140,7 +140,7 @@ func ExtractPVCKey(pv *corev1.PersistentVolume) (string, error) {
 	if pv.Spec.ClaimRef == nil {
 		return "", fmt.Errorf("nil ClaimRef for pv %s", pv.Name)
 	}
-	return fmt.Sprintf("%s/%s", pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name), nil
+	return utils.GetNameKey(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name), nil
 }
 
 /*

@@ -327,7 +327,7 @@ func (e *ExtenderServer) onPodAdd(obj interface{}) {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
 	}
-	podName := utils.PodName(pod)
+	podName := utils.GetName(pod.ObjectMeta)
 
 	containInlineVolumes, nodeName := utils.ContainInlineVolumes(pod)
 	if len(pvcs) <= 0 && !containInlineVolumes {
@@ -368,7 +368,7 @@ func (e *ExtenderServer) onPodDelete(obj interface{}) {
 		log.Errorf("cannot convert to *v1.Pod: %v", t)
 		return
 	}
-	podName := utils.PodName(pod)
+	podName := utils.GetName(pod.ObjectMeta)
 
 	pvcs, err := algorithm.GetAllPodPvcs(pod, e.Ctx)
 	if err != nil {
@@ -417,7 +417,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 		log.Errorf("failed to get pod pvcs: %s", err.Error())
 		return
 	}
-	podName := utils.PodName(pod)
+	podName := utils.GetName(pod.ObjectMeta)
 	containInlineVolumes, nodeName := utils.ContainInlineVolumes(pod)
 	if len(pvcs) <= 0 && !containInlineVolumes {
 		log.Infof("no open-local pvc found for %s", podName)
@@ -434,7 +434,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 			return
 		}
 	}
-	log.Infof("handing pod %s whose pvcs are all pending", utils.PodName(pod))
+	log.Infof("handing pod %s whose pvcs are all pending", podName)
 	// todo: PodPvcAllowReschedule 入参并不正确
 	// 应该是从 pod 的 LabelReschduleTimestamp 上获取 time
 	if utils.PodPvcAllowReschedule(pvcs, nil) && pod.Spec.NodeName == "" {
@@ -442,7 +442,7 @@ func (e *ExtenderServer) onPodUpdate(_, newObj interface{}) {
 			contains := utils.PvcContainsSelectedNode(pvc)
 			if contains {
 				if atomic.CompareAndSwapInt32(&e.currentWorkingRoutines, MaxConcurrentWorkingRoutines, e.currentWorkingRoutines) {
-					log.Warningf("max concurrent go routine reached: %d, wait for a later update for pod %s", MaxConcurrentWorkingRoutines, utils.PodName(pod))
+					log.Warningf("max concurrent go routine reached: %d, wait for a later update for pod %s", MaxConcurrentWorkingRoutines, podName)
 					return
 				}
 				v := atomic.AddInt32(&e.currentWorkingRoutines, 1)

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@ package cache
 
 import (
 	"fmt"
+
 	"github.com/alibaba/open-local/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -31,7 +32,7 @@ func (volumes *InlineVolumes) HaveLocalVolumes() bool {
 	return len(*volumes) > 0
 }
 
-//InlineVolume allocated details
+// InlineVolume allocated details
 type InlineVolumeAllocated struct {
 	VgName       string `json:"vgName,string"`
 	VolumeName   string `json:"volumeName,string"`
@@ -128,7 +129,7 @@ func (allocator *inlineVolumeAllocator) podAdd(pod *corev1.Pod) {
 		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 			vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
 			if vgName == "" {
-				klog.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+				klog.Errorf("no vgName found in inline volume of Pod %s", utils.GetName(pod.ObjectMeta))
 				return
 			}
 			allocateInfo := NewInlineVolumeAllocated(pod.Name, pod.Namespace, vgName, volume.Name, size)
@@ -187,7 +188,7 @@ func (allocator *inlineVolumeAllocator) prefilter(pod *corev1.Pod, podVolumeInfo
 		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 			vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
 			if vgName == "" {
-				return fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+				return fmt.Errorf("no vgName found in inline volume of Pod %s", utils.GetName(pod.ObjectMeta))
 			}
 
 			inlineVolumeAllocates = append(inlineVolumeAllocates, &InlineVolumeAllocated{

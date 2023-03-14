@@ -41,11 +41,11 @@ func (plugin *LocalPlugin) getPodLocalVolumeInfos(pod *corev1.Pod) (*cache.PodLo
 			name := v.PersistentVolumeClaim.ClaimName
 			pvc, err := plugin.coreV1Informers.PersistentVolumeClaims().Lister().PersistentVolumeClaims(ns).Get(name)
 			if err != nil {
-				klog.Errorf("failed to get pvc by name %s/%s: %s", ns, name, err.Error())
+				klog.Errorf("failed to get pvc by name %s: %s", utils.GetNameKey(ns, name), err.Error())
 				return volumeInfos, err
 			}
 			if pvc.Status.Phase == corev1.ClaimBound {
-				klog.Infof("skip scheduling bound pvc %s/%s", pvc.Namespace, pvc.Name)
+				klog.Infof("skip scheduling bound pvc %s", utils.GetName(pvc.ObjectMeta))
 				continue
 			}
 			scName := pvc.Spec.StorageClassName
@@ -77,7 +77,7 @@ func (plugin *LocalPlugin) getInlineVolumeAllocates(pod *corev1.Pod) ([]*cache.I
 		if volume.CSI != nil && utils.ContainsProvisioner(volume.CSI.Driver) {
 			vgName, size := utils.GetInlineVolumeInfoFromParam(volume.CSI.VolumeAttributes)
 			if vgName == "" {
-				return nil, fmt.Errorf("no vgName found in inline volume of Pod %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+				return nil, fmt.Errorf("no vgName found in inline volume of Pod %s", utils.GetName(pod.ObjectMeta))
 			}
 
 			inlineVolumeAllocates = append(inlineVolumeAllocates, &cache.InlineVolumeAllocated{

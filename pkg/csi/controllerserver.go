@@ -150,9 +150,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	nodeName, exist := pvc.Annotations[pkg.AnnoSelectedNode]
 	if !exist {
-		return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no annotation %s found in pvc %s/%s. Check if volumeBindingMode of storageclass is WaitForFirstConsumer, cause we only support WaitForFirstConsumer mode", pkg.AnnoSelectedNode, pvcNameSpace, pvcName)
+		return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no annotation %s found in pvc %s. Check if volumeBindingMode of storageclass is WaitForFirstConsumer, cause we only support WaitForFirstConsumer mode", pkg.AnnoSelectedNode, utils.GetNameKey(pvcNameSpace, pvcName))
 	}
-	log.Infof("CreateVolume: starting to Create %s volume %s with: PVC(%s/%s), nodeSelected(%s)", volumeType, volumeID, pvcNameSpace, pvcName, nodeName)
+	log.Infof("CreateVolume: starting to Create %s volume %s with: PVC(%s), nodeSelected(%s)", volumeType, volumeID, utils.GetNameKey(pvcNameSpace, pvcName), nodeName)
 
 	// 若特定 volumeID 已在执行中
 	// 则立即返回
@@ -174,7 +174,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// 将重要的属性更新在 paramMap
 	schedulerName := cs.pvcPodSchedulerMap.Get(pvcNameSpace, pvcName)
 	if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchExtender {
-		log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchExtender)
+		log.Infof("CreateVolume: scheduler arch of pvc(%s) is %s", utils.GetNameKey(pvcNameSpace, pvcName), SchedulerArchExtender)
 		switch volumeType {
 		case string(pkg.VolumeTypeLVM):
 			// 若为只读快照，则直接退出
@@ -213,9 +213,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 					log.Info("CreateVolume: volume %s not found, creating volume on node %s", volumeID, nodeName)
 					outstr, err := conn.CreateVolume(ctx, options)
 					if err != nil {
-						return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s/%s(options: %v): %s", vgName, volumeID, options, err.Error())
+						return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s(options: %v): %s", utils.GetNameKey(vgName, volumeID), options, err.Error())
 					}
-					log.Infof("CreateLvm: create lvm %s/%s in node %s with response %s successfully", vgName, volumeID, nodeName, outstr)
+					log.Infof("CreateLvm: create lvm %s in node %s with response %s successfully", utils.GetNameKey(vgName, volumeID), nodeName, outstr)
 				} else {
 					log.Infof("CreateVolume: lv %s already created at node %s", req.Name, nodeName)
 				}
@@ -246,9 +246,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.Unimplemented, "CreateVolume: no support volume type %s", volumeType)
 		}
 	} else if cs.schedulerArchMap.Get(schedulerName) == SchedulerArchFramework {
-		log.Infof("CreateVolume: scheduler arch of pvc(%s/%s) is %s", pvcNameSpace, pvcName, SchedulerArchFramework)
+		log.Infof("CreateVolume: scheduler arch of pvc(%s) is %s", utils.GetNameKey(pvcNameSpace, pvcName), SchedulerArchFramework)
 	} else {
-		return nil, status.Errorf(codes.Unknown, "CreateVolume: scheduler arch of pvc(%s/%s) is %s, plz check again", pvcNameSpace, pvcName, SchedulerArchUnknown)
+		return nil, status.Errorf(codes.Unknown, "CreateVolume: scheduler arch of pvc(%s) is %s, plz check again", utils.GetNameKey(pvcNameSpace, pvcName), SchedulerArchUnknown)
 	}
 
 	// 处理快照逻辑
@@ -283,7 +283,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			if utils.IsReadOnlySnapshotPVC2(pvc, cs.options.snapclient) {
 				// 只读快照需要特殊处理
 				// 必须依赖于 源PV
-				log.Infof("pvc %s/%s snapshot is ro", pvcNameSpace, pvcName)
+				log.Infof("pvc %s snapshot is ro", utils.GetNameKey(pvcNameSpace, pvcName))
 				// get node name and vg name from src volume
 				pv, err := cs.pvLister.Get(srcVolumeID)
 				if err != nil {
@@ -298,7 +298,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				paramMap[localtype.ParamReadonly] = "true"
 			} else {
 				// 读写快照需要获取 secret
-				log.Infof("pvc %s/%s snapshot is rw", pvcNameSpace, pvcName)
+				log.Infof("pvc %s snapshot is rw", utils.GetNameKey(pvcNameSpace, pvcName))
 			}
 			log.Infof("CreateVolume: get restic snapshot snapshot volume %s info", volumeID)
 		} else {
@@ -407,11 +407,11 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			}
 		} else {
 			if lvName != "" {
-				log.Infof("DeleteVolume: found lv %s/%s at node %s, now deleting", vgName, volumeID, nodeName)
+				log.Infof("DeleteVolume: found lv %s at node %s, now deleting", utils.GetNameKey(vgName, volumeID), nodeName)
 				if err := conn.DeleteVolume(ctx, vgName, volumeID); err != nil {
 					return nil, status.Errorf(codes.Internal, "DeleteVolume: fail to delete lv %s: %s", volumeID, err.Error())
 				}
-				log.Infof("DeleteVolume: delete lv %s/%s at node %s successfully", vgName, volumeID, nodeName)
+				log.Infof("DeleteVolume: delete lv %s at node %s successfully", utils.GetNameKey(vgName, volumeID), nodeName)
 			} else {
 				log.Warningf("DeleteVolume: empty lv name, skip deleting %s", volumeID)
 				return &csi.DeleteVolumeResponse{}, nil
@@ -515,7 +515,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Errorf(codes.Internal, "CreateSnapshot: get lvm snapshot %s failed: %s", snapshotName, err.Error())
 		}
 		if lvmName == "" {
-			log.Infof("CreateSnapshot: ro snapshot %s/%s not found, now creating with initialSize %d on node %s", vgName, snapshotName, initialSize, nodeName)
+			log.Infof("CreateSnapshot: ro snapshot %s not found, now creating with initialSize %d on node %s", utils.GetNameKey(vgName, snapshotName), snapshotName, initialSize, nodeName)
 			sizeBytes, err = conn.CreateSnapshot(ctx, vgName, snapshotName, srcVolumeID, true, int64(initialSize), nil)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "CreateSnapshot: create lvm snapshot %s failed: %s", snapshotName, err.Error())
@@ -674,10 +674,10 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 
 	// Step 4: expand volume
 	if err := conn.ExpandVolume(ctx, vgName, volumeID, uint64(volSizeBytes)); err != nil {
-		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to expand lv %s/%s: %s", vgName, volumeID, err.Error())
+		return nil, status.Errorf(codes.Internal, "ControllerExpandVolume: fail to expand lv %s: %s", utils.GetNameKey(vgName, volumeID), err.Error())
 	}
 
-	log.Infof("ControllerExpandVolume: expand lvm %s/%s in node %s successfully", vgName, volumeID, nodeName)
+	log.Infof("ControllerExpandVolume: expand lvm %s in node %s successfully", utils.GetNameKey(vgName, volumeID), nodeName)
 	return &csi.ControllerExpandVolumeResponse{CapacityBytes: volSizeBytes, NodeExpansionRequired: true}, nil
 }
 

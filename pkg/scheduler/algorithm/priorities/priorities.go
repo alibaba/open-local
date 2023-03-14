@@ -55,13 +55,13 @@ func (p Prioritize) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.HostP
 	}
 	hostPriorityList := InitHostPriorityList(nodeNames)
 	if len(p.Ctx.NodeAntiAffinityWeight.Items(false)) == 0 && utils.NeedSkip(args) {
-		log.Infof("priorities: skip pod %s/%s scheduling", pod.Namespace, pod.Name)
+		log.Infof("priorities: skip pod %s scheduling", utils.GetName(pod.ObjectMeta))
 		return &hostPriorityList, nil
 	}
 
 	for _, pri := range p.PrioritizeFuncs {
 		for i, nodeName := range nodeNames {
-			log.Infof("prioritizing pod %s/%s with node %s", pod.Namespace, pod.Name, nodeName)
+			log.Infof("prioritizing pod %s with node %s", utils.GetName(pod.ObjectMeta), nodeName)
 			node, err := p.Ctx.CoreV1Informers.Nodes().Lister().Get(nodeName)
 			if err != nil {
 				log.Errorf("unable to fetch node cache %s from informer: %s", nodeName, err.Error())
@@ -73,7 +73,7 @@ func (p Prioritize) Handler(args schedulerapi.ExtenderArgs) (*schedulerapi.HostP
 					err.Error())
 				continue
 			}
-			log.Infof("pod %s/%s on node %q , score=%d", pod.Name, pod.Namespace, node.Name, score)
+			log.Infof("pod %s on node %q , score=%d", utils.GetName(pod.ObjectMeta), node.Name, score)
 			hostPriorityList[i] = schedulerapi.HostPriority{
 				Host:  node.Name,
 				Score: int64(score) + hostPriorityList[i].Score,

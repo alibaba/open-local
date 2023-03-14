@@ -82,7 +82,7 @@ func (c *Controller) CleanUnusedResticRepo() {
 		}
 		secret, err := c.kubeclientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			klog.Warningf("CleanUnusedResticRepo: fail to get secret %s/%s, skip...: %s", secretNamespace, secretName, err.Error())
+			klog.Warningf("CleanUnusedResticRepo: fail to get secret %s, skip...: %s", utils.GetName(secret.ObjectMeta), err.Error())
 			continue
 		}
 		// 获取到 s3 secret 信息，通过 s3 sdk list 有哪些 repo

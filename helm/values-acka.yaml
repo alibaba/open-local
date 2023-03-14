@@ -5,7 +5,7 @@ customLabels: {}
 images:
   local:
     image: ecp_builder/open-local
-    tag: v0.6.0
+    tag: v0.7.0
   registrar:
     image: ecp_builder/csi-node-driver-registrar
     tag: v2.3.0

@@ -38,6 +38,8 @@ rules:
       - persistentvolumeclaims/status
       - persistentvolumes
       - persistentvolumes/status
+      - namespaces
+      - secrets
     verbs:
       - create
       - get

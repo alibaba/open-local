@@ -149,8 +149,8 @@ spec:
 {{- end }}
         resources:
           limits:
-            cpu: 500m
-            memory: 512Mi
+            cpu: 2
+            memory: 4Gi
           requests:
             cpu: 50m
             memory: 128Mi

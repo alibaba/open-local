@@ -564,7 +564,7 @@ func (c *NodeStorageAllocatedCache) getPodInlineVolumeDetails(nodeName, podUid s
 func (c *NodeStorageAllocatedCache) getRequestFromPVCInfos(pv *corev1.PersistentVolume) int64 {
 	pvcName, pvcNamespace := utils.PVCNameFromPV(pv)
 	if pvcName != "" {
-		pvcInfo := c.pvcInfosMap[utils.GetPVCKey(pvcNamespace, pvcName)]
+		pvcInfo := c.pvcInfosMap[utils.GetNameKey(pvcNamespace, pvcName)]
 		if pvcInfo != nil {
 			return pvcInfo.Requested
 		}
@@ -618,7 +618,7 @@ func (c *NodeStorageAllocatedCache) getAllocatorByPVC(scLister storagelisters.St
 		case pkg.VolumeTypeDevice:
 			return c.deviceAllocator
 		default:
-			klog.V(6).Infof("not a open-local pvc %s/%s, type %s, not add to cache", pvc.Namespace, pvc.Name, pvType)
+			klog.V(6).Infof("not a open-local pvc %s, type %s, not add to cache", utils.GetName(pvc.ObjectMeta), pvType)
 		}
 	}
 	return nil

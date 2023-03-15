@@ -141,7 +141,7 @@ const ProtectedTagName = "protected"
 
 // RemoveLV removes a volume
 func (lvm *LvmCommads) RemoveLV(ctx context.Context, vg string, name string) (string, error) {
-	lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
+	lvs, err := lvm.ListLV(utils.GetNameKey(vg, name))
 	if err != nil {
 		return "", fmt.Errorf("failed to list LVs: %v", err)
 	}
@@ -164,11 +164,11 @@ func (lvm *LvmCommads) RemoveLV(ctx context.Context, vg string, name string) (st
 		return out, err
 	} else {
 		if strings.Contains(out, name) {
-			return "", fmt.Errorf("logical volume %s/%s has snapshot, please remove snapshot first", vg, name)
+			return "", fmt.Errorf("logical volume %s has snapshot, please remove snapshot first", utils.GetNameKey(vg, name))
 		}
 	}
 
-	args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+	args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", utils.GetNameKey(vg, name)}
 	cmd = strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	return string(out), err
@@ -189,7 +189,7 @@ func (lvm *LvmCommads) CloneLV(ctx context.Context, src, dest string) (string, e
 func (lvm *LvmCommads) ExpandLV(ctx context.Context, vgName string, volumeId string, expectSize uint64) (string, error) {
 	// resize lvm volume
 	// lvextend -L3G /dev/vgtest/lvm-5db74864-ea6b-11e9-a442-00163e07fb69
-	resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s/%s", localtype.NsenterCmd, expectSize, vgName, volumeId)
+	resizeCmd := fmt.Sprintf("%s lvextend -L%dB %s", localtype.NsenterCmd, expectSize, utils.GetNameKey(vgName, volumeId))
 	out, err := utils.Run(resizeCmd)
 	if err != nil {
 		return "", err
@@ -249,7 +249,7 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 	var sizeBytes int64
 	if readonly {
 		// ro
-		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", roInitSize), fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
+		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", fmt.Sprintf("%db", roInitSize), utils.GetNameKey(vgName, srcVolumeName), "-y"}
 		cmd := strings.Join(args, " ")
 		_, err := utils.Run(cmd)
 		if err != nil {
@@ -260,7 +260,7 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 		// create temp snapshot
 		// todo: 这里一个问题是 当出现备份过程中删除 yoda-agent 再启动后volumesnapshot会报错（永远无法ready to use）
 		log.Infof("create temp snapshot %s for volume %s", snapshotName, srcVolumeName)
-		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", "4G", fmt.Sprintf("%s/%s", vgName, srcVolumeName), "-y"}
+		args := []string{localtype.NsenterCmd, "lvcreate", "-s", "-n", snapshotName, "-L", "4G", utils.GetNameKey(vgName, srcVolumeName), "-y"}
 		cmd := strings.Join(args, " ")
 		out, err := utils.Run(cmd)
 		if err != nil {
@@ -268,7 +268,7 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 		}
 
 		defer func() {
-			args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vgName, snapshotName)}
+			args = []string{localtype.NsenterCmd, "lvremove", "-v", "-f", utils.GetNameKey(vgName, snapshotName)}
 			cmd := strings.Join(args, " ")
 			if out, err = utils.Run(cmd); err != nil {
 				log.Errorf("fail to remove temp snapshot lv %s: %s, %s", snapshotName, err.Error(), out)
@@ -342,7 +342,7 @@ func (lvm *LvmCommads) CreateSnapshot(ctx context.Context, vgName string, snapsh
 // RemoveSnapshot removes a volume snapshot
 func (lvm *LvmCommads) RemoveSnapshot(ctx context.Context, vg string, name string, readonly bool) (string, error) {
 	if readonly {
-		lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
+		lvs, err := lvm.ListLV(utils.GetNameKey(vg, name))
 		if err != nil {
 			return "", fmt.Errorf("failed to list LVs: %v", err)
 		}
@@ -353,7 +353,7 @@ func (lvm *LvmCommads) RemoveSnapshot(ctx context.Context, vg string, name strin
 			return "", fmt.Errorf("expected 1 LV, got %d", len(lvs))
 		}
 
-		args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", fmt.Sprintf("%s/%s", vg, name)}
+		args := []string{localtype.NsenterCmd, "lvremove", "-v", "-f", utils.GetNameKey(vg, name)}
 		cmd := strings.Join(args, " ")
 		_, err = utils.Run(cmd)
 		if err != nil {
@@ -449,7 +449,7 @@ func (lvm *LvmCommads) CleanDevice(ctx context.Context, device string) (string, 
 // AddTagLV add tag
 func (lvm *LvmCommads) AddTagLV(ctx context.Context, vg string, name string, tags []string) (string, error) {
 
-	lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
+	lvs, err := lvm.ListLV(utils.GetNameKey(vg, name))
 	if err != nil {
 		return "", fmt.Errorf("failed to list LVs: %v", err)
 	}
@@ -464,7 +464,7 @@ func (lvm *LvmCommads) AddTagLV(ctx context.Context, vg string, name string, tag
 		args = append(args, "--addtag", tag)
 	}
 
-	args = append(args, fmt.Sprintf("%s/%s", vg, name))
+	args = append(args, utils.GetNameKey(vg, name))
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 
@@ -474,7 +474,7 @@ func (lvm *LvmCommads) AddTagLV(ctx context.Context, vg string, name string, tag
 // RemoveTagLV remove tag
 func (lvm *LvmCommads) RemoveTagLV(ctx context.Context, vg string, name string, tags []string) (string, error) {
 
-	lvs, err := lvm.ListLV(fmt.Sprintf("%s/%s", vg, name))
+	lvs, err := lvm.ListLV(utils.GetNameKey(vg, name))
 	if err != nil {
 		return "", fmt.Errorf("failed to list LVs: %v", err)
 	}
@@ -489,7 +489,7 @@ func (lvm *LvmCommads) RemoveTagLV(ctx context.Context, vg string, name string, 
 		args = append(args, "--deltag", tag)
 	}
 
-	args = append(args, fmt.Sprintf("%s/%s", vg, name))
+	args = append(args, utils.GetNameKey(vg, name))
 	cmd := strings.Join(args, " ")
 	out, err := utils.Run(cmd)
 	return string(out), err

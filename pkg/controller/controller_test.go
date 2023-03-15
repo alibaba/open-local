@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -80,7 +79,7 @@ func newFixture(t *testing.T) *fixture {
 func newPod(podNameSpace, podName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			UID:       types.UID(fmt.Sprintf("%s/%s", podNameSpace, podName)),
+			UID:       types.UID(utils.GetNameKey(podNameSpace, podName)),
 			Name:      podName,
 			Namespace: podNameSpace,
 		},
@@ -93,7 +92,7 @@ func newPod(podNameSpace, podName string) *corev1.Pod {
 	}
 	allocateInfos := &pkg.PodPVCAllocateInfo{
 		PvcAllocates: map[string]pkg.PVCAllocateInfo{
-			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+			utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithVG): {
 				PVCNameSpace: utils.LocalNameSpace,
 				PVCName:      utils.PVCWithVG,
 				PVAllocatedInfo: pkg.PVAllocatedInfo{
@@ -101,7 +100,7 @@ func newPod(podNameSpace, podName string) *corev1.Pod {
 					VolumeType: string(pkg.VolumeTypeLVM),
 				},
 			},
-			utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+			utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithDevice): {
 				PVCNameSpace: utils.LocalNameSpace,
 				PVCName:      utils.PVCWithDevice,
 				PVAllocatedInfo: pkg.PVAllocatedInfo{

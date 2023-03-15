@@ -377,7 +377,7 @@ func GetPVStorageSize(pv *corev1.PersistentVolume) int64 {
 func GetPVFromBoundPVC(pvc *corev1.PersistentVolumeClaim) (name string) {
 	name = pvc.Spec.VolumeName
 	if len(name) <= 0 {
-		log.Warningf("pv name is empty for pvc %s/%s", pvc.Namespace, pvc.Name)
+		log.Warningf("pv name is empty for pvc %s", GetName(pvc.ObjectMeta))
 	}
 	return
 }
@@ -385,7 +385,7 @@ func GetPVFromBoundPVC(pvc *corev1.PersistentVolumeClaim) (name string) {
 func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagelisters.StorageClassLister) (*storagev1.StorageClass, error) {
 	var scName string
 	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
-		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: scName is nil", scName, pvc.Namespace, pvc.Name)
+		err := fmt.Errorf("failed to fetch storage class %s with pvc %s: scName is nil", scName, GetName(pvc.ObjectMeta))
 		log.Errorf(err.Error())
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func GetStorageClassFromPVC(pvc *corev1.PersistentVolumeClaim, scLister storagel
 	sc, err := scLister.Get(scName)
 
 	if err != nil {
-		err := fmt.Errorf("failed to fetch storage class %s with pvc %s/%s: %s", scName, pvc.Namespace, pvc.Name, err.Error())
+		err := fmt.Errorf("failed to fetch storage class %s with pvc %s: %s", scName, GetName(pvc.ObjectMeta), err.Error())
 		log.Errorf(err.Error())
 		return nil, err
 	}
@@ -518,21 +518,17 @@ func PVCName(storageObj interface{}) string {
 	switch t := storageObj.(type) {
 	case *corev1.PersistentVolume:
 		ref := t.Spec.ClaimRef
-		return fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		return GetNameKey(ref.Namespace, ref.Name)
 	case corev1.PersistentVolume:
 		ref := t.Spec.ClaimRef
-		return fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		return GetNameKey(ref.Namespace, ref.Name)
 	case *corev1.PersistentVolumeClaim:
-		return fmt.Sprintf("%s/%s", t.Namespace, t.Name)
+		return GetName(t.ObjectMeta)
 	case corev1.PersistentVolumeClaim:
-		return fmt.Sprintf("%s/%s", t.Namespace, t.Name)
+		return GetName(t.ObjectMeta)
 	}
 	return ""
 
-}
-
-func GetPVCKey(pvcNameSpace, pvcName string) string {
-	return fmt.Sprintf("%s/%s", pvcNameSpace, pvcName)
 }
 
 func PVCNameFromPV(pv *corev1.PersistentVolume) (pvcName, pvcNamespace string) {
@@ -569,13 +565,6 @@ func PvcContainsSelectedNode(pvc *corev1.PersistentVolumeClaim) bool {
 		return len(v) > 0
 	}
 	return false
-}
-
-func PodName(pod *corev1.Pod) string {
-	if pod == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 }
 
 // PodPvcAllowReschedule returns true if any of pvcs has in pending status
@@ -739,7 +728,7 @@ func NeedSkip(args schedulerapi.ExtenderArgs) bool {
 	pod := args.Pod
 	// no volume, skipped
 	if len(pod.Spec.Volumes) <= 0 {
-		log.Infof("skip pod %s/%s scheduling, reason: no volume", pod.Namespace, pod.Name)
+		log.Infof("skip pod %s scheduling, reason: no volume", GetName(pod.ObjectMeta))
 		return true
 	}
 	// no volume contains PVC
@@ -748,7 +737,7 @@ func NeedSkip(args schedulerapi.ExtenderArgs) bool {
 			return false
 		}
 	}
-	log.Infof("skip pod %s/%s scheduling, reason: no pv", pod.Namespace, pod.Name)
+	log.Infof("skip pod %s scheduling, reason: no pv", GetName(pod.ObjectMeta))
 
 	return true
 }
@@ -841,7 +830,7 @@ func IsReadOnlySnapshotPVC(claim *corev1.PersistentVolumeClaim, snapInformer vol
 		snasphotNamespace := claim.Namespace
 		snapshot, err := snapInformer.VolumeSnapshots().Lister().VolumeSnapshots(snasphotNamespace).Get(snasphotName)
 		if err != nil {
-			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			log.Warningf("fail to get snapshot %s(may have been deleted): %s", GetNameKey(snasphotNamespace, snasphotName), err.Error())
 			return false
 		}
 		return IsSnapshotClassReadOnly(*snapshot.Spec.VolumeSnapshotClassName, snapInformer)
@@ -857,7 +846,7 @@ func IsReadOnlySnapshotPVC2(claim *corev1.PersistentVolumeClaim, snapClient snap
 		snasphotNamespace := claim.Namespace
 		snapshot, err := snapClient.SnapshotV1().VolumeSnapshots(snasphotNamespace).Get(context.TODO(), snasphotName, metav1.GetOptions{})
 		if err != nil {
-			log.Warningf("fail to get snapshot %s/%s(may have been deleted): %s", snasphotNamespace, snasphotName, err.Error())
+			log.Warningf("fail to get snapshot %s(may have been deleted): %s", GetNameKey(snasphotNamespace, snasphotName), err.Error())
 			return false
 		}
 		return IsSnapshotClassReadOnly2(*snapshot.Spec.VolumeSnapshotClassName, snapClient)
@@ -935,4 +924,12 @@ func GetVolumeSnapshotContent(snapclient snapshot.Interface, snapshotContentID s
 	}
 	// Step 2: get snapshot content api
 	return snapclient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), strings.Replace(snapshotContentID, prefix, "snapcontent", 1), metav1.GetOptions{})
+}
+
+func GetNameKey(nameSpace, name string) string {
+	return fmt.Sprintf("%s/%s", nameSpace, name)
+}
+
+func GetName(meta metav1.ObjectMeta) string {
+	return GetNameKey(meta.Namespace, meta.Name)
 }

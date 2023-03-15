@@ -134,7 +134,7 @@ func Test_PreFilter(t *testing.T) {
 						LVMPVCsROSnapshot: cache.LVMSnapshotPVCInfos{
 							{
 								Request: getSize(utils.GetTestPVCPVSnapshot().PVCPending.Size),
-								PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCSnapshot)],
+								PVC:     pvcsPending[utils.GetNameKey(utils.LocalNameSpace, utils.PVCSnapshot)],
 							},
 						},
 						LVMPVCsNotROSnapshot: &cache.LVMCommonPVCInfos{
@@ -142,13 +142,13 @@ func Test_PreFilter(t *testing.T) {
 								{
 									VGName:  utils.GetTestPVCPVWithVG().PVBounding.VgName,
 									Request: getSize(utils.GetTestPVCPVWithVG().PVCPending.Size),
-									PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG)],
+									PVC:     pvcsPending[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithVG)],
 								},
 							},
 							LVMPVCsWithoutVgNameNotAllocated: []*cache.LVMPVCInfo{
 								{
 									Request: getSize(utils.GetTestPVCPVWithoutVG().PVCPending.Size),
-									PVC:     pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
+									PVC:     pvcsPending[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
 								},
 							},
 						},
@@ -158,7 +158,7 @@ func Test_PreFilter(t *testing.T) {
 								{
 									MediaType: localtype.MediaTypeHDD,
 									Request:   getSize(utils.GetTestPVCPVDevice().PVCPending.Size),
-									PVC:       pvcsPending[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice)],
+									PVC:       pvcsPending[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithDevice)],
 								},
 							},
 						},

@@ -37,7 +37,7 @@ import (
 //  3. for pvc of type mount point/device:
 //     a. must contains more mount points than pvc count
 func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *corev1.Node) (bool, error) {
-	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityPredicate] %s/%s", pod.Namespace, pod.Name))
+	trace := utiltrace.New(fmt.Sprintf("Scheduling[CapacityPredicate] %s", utils.GetName(pod.ObjectMeta)))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
 	// 包含了快照卷
@@ -101,10 +101,10 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		return false, err
 	}
 	if !fits {
-		klog.Info("pod %s/%s not fit node %s readonly snapshot", pod.Namespace, pod.Name)
+		klog.Info("pod %s not fit node %s readonly snapshot", utils.GetName(pod.ObjectMeta))
 		return false, errors.NewSnapshotError(pkg.VolumeTypeLVM)
 	} else {
-		klog.Info("pod %s/%s fit node %s readonly snapshot!", pod.Namespace, pod.Name)
+		klog.Info("pod %s fit node %s readonly snapshot!", utils.GetName(pod.ObjectMeta))
 	}
 
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {

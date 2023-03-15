@@ -742,13 +742,13 @@ func Test_Reserve_LVMPVC_NotROSnapshot(t *testing.T) {
 				for _, unit := range tt.expectReserve.reserveState.Units.LVMPVCAllocateUnits {
 					var cacheAllocated int64
 					if tt.fields.pvcBoundBeforeReserve != nil && tt.fields.pvcBoundBeforeReserve.Name == unit.PVCName {
-						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s/%s) should not allocate", unit.PVCNamespace, unit.PVCName)
+						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s) should not allocate", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 						cacheAllocated = plugin.cache.GetPVAllocatedDetailCopy(tt.fields.pvBoundBeforeReserve.Name).GetBasePVAllocated().Allocated
 					} else {
-						assert.True(t, unit.Allocated > 0, "unBound pvc(%s/%s) should allocate > 0", unit.PVCNamespace, unit.PVCName)
+						assert.True(t, unit.Allocated > 0, "unBound pvc(%s) should allocate > 0", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 						cacheAllocated = plugin.cache.GetPVCAllocatedDetailCopy(unit.PVCNamespace, unit.PVCName).GetBasePVAllocated().Allocated
 					}
-					assert.Equal(t, unit.Requested, cacheAllocated, "lvm pvc(%s/%s)  cache should allocate", unit.PVCNamespace, unit.PVCName)
+					assert.Equal(t, unit.Requested, cacheAllocated, "lvm pvc(%s)  cache should allocate", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 				}
 			} else {
 				assert.Equal(t, tt.expectReserve.reserveState, gotReserveState)
@@ -1200,13 +1200,13 @@ func Test_Reserve_DevicePVC(t *testing.T) {
 				for _, unit := range tt.expectReserve.reserveState.Units.DevicePVCAllocateUnits {
 					var cacheAllocated int64
 					if tt.fields.pvcBoundBeforeReserve != nil && tt.fields.pvcBoundBeforeReserve.Name == unit.PVCName {
-						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s/%s) should not allocate", unit.PVCNamespace, unit.PVCName)
+						assert.True(t, unit.Allocated == 0, "bounding lvm pvc(%s) should not allocate", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 						cacheAllocated = plugin.cache.GetPVAllocatedDetailCopy(tt.fields.pvBoundBeforeReserve.Name).GetBasePVAllocated().Allocated
 					} else {
-						assert.True(t, unit.Allocated > 0, "unBound pvc(%s/%s) should allocate > 0", unit.PVCNamespace, unit.PVCName)
+						assert.True(t, unit.Allocated > 0, "unBound pvc(%s) should allocate > 0", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 						cacheAllocated = plugin.cache.GetPVCAllocatedDetailCopy(unit.PVCNamespace, unit.PVCName).GetBasePVAllocated().Allocated
 					}
-					assert.True(t, cacheAllocated > 0, "lvm pvc(%s/%s)  cache should allocate", unit.PVCNamespace, unit.PVCName)
+					assert.True(t, cacheAllocated > 0, "lvm pvc(%s)  cache should allocate", utils.GetNameKey(unit.PVCNamespace, unit.PVCName))
 				}
 			} else {
 				assert.Equal(t, tt.expectReserve.reserveState, gotReserveState)
@@ -1307,7 +1307,7 @@ func Test_Prebind(t *testing.T) {
 				status:              framework.NewStatus(framework.Success),
 				pvHaveAllocateInfos: map[string]localtype.PVAllocatedInfo{},
 				pvcInfos: map[string]localtype.PVCAllocateInfo{
-					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithVG): {
+					utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithVG): {
 						PVCName:      utils.PVCWithVG,
 						PVCNameSpace: utils.LocalNameSpace,
 						PVAllocatedInfo: localtype.PVAllocatedInfo{
@@ -1316,7 +1316,7 @@ func Test_Prebind(t *testing.T) {
 							VolumeType: string(localtype.VolumeTypeLVM),
 						},
 					},
-					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG): {
+					utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithoutVG): {
 						PVCName:      utils.PVCWithoutVG,
 						PVCNameSpace: utils.LocalNameSpace,
 						PVAllocatedInfo: localtype.PVAllocatedInfo{
@@ -1325,7 +1325,7 @@ func Test_Prebind(t *testing.T) {
 							VolumeType: string(localtype.VolumeTypeLVM),
 						},
 					},
-					utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice): {
+					utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithDevice): {
 						PVCName:      utils.PVCWithDevice,
 						PVCNameSpace: utils.LocalNameSpace,
 						PVAllocatedInfo: localtype.PVAllocatedInfo{
@@ -1562,7 +1562,7 @@ func Test_Unreserve(t *testing.T) {
 			},
 			fields: fields{
 				pvcs:                  pvcsPending,
-				pvcBoundBeforeReserve: pvcsBounding[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
+				pvcBoundBeforeReserve: pvcsBounding[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithoutVG)],
 				pvBoundBeforeReserve:  pvsBounding["pv-"+utils.PVCWithoutVG],
 			},
 			expect: expect{
@@ -1598,7 +1598,7 @@ func Test_Unreserve(t *testing.T) {
 			},
 			fields: fields{
 				pvcs:                  pvcsPending,
-				pvcBoundBeforeReserve: pvcsBounding[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice)],
+				pvcBoundBeforeReserve: pvcsBounding[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithDevice)],
 				pvBoundBeforeReserve:  pvsBounding["pv-"+utils.PVCWithDevice],
 			},
 			expect: expect{
@@ -1635,7 +1635,7 @@ func Test_Unreserve(t *testing.T) {
 			fields: fields{
 				pvcs:                  pvcsPending,
 				deviceIncludes:        []string{"/dev/sdb", "/dev/sdc"},
-				pvcBoundBeforeReserve: pvcsBounding[utils.GetPVCKey(utils.LocalNameSpace, utils.PVCWithDevice)],
+				pvcBoundBeforeReserve: pvcsBounding[utils.GetNameKey(utils.LocalNameSpace, utils.PVCWithDevice)],
 				pvBoundBeforeReserve:  pvsBounding["pv-"+utils.PVCWithDevice],
 			},
 			expect: expect{

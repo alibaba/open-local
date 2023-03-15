@@ -401,13 +401,13 @@ func (plugin *LocalPlugin) patchPVOrAddPVCInfo(ctx context.Context, pvc *corev1.
 	}
 
 	if pvc.Status.Phase != corev1.ClaimBound {
-		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
+		pvcInfos[utils.GetNameKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 		return
 	}
 
 	pv, _ := plugin.coreV1Informers.PersistentVolumes().Lister().Get(pvc.Spec.VolumeName)
 	if pv == nil {
-		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
+		pvcInfos[utils.GetNameKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 		return
 	}
 
@@ -418,7 +418,7 @@ func (plugin *LocalPlugin) patchPVOrAddPVCInfo(ctx context.Context, pvc *corev1.
 	err := utils.PatchAllocateInfoToPV(ctx, plugin.kubeClientSet, pv, &pvAllocateInfo.PVAllocatedInfo)
 	if err != nil {
 		klog.Errorf("PatchAllocateInfoToPV err and add info to pod: %s", err.Error())
-		pvcInfos[utils.GetPVCKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
+		pvcInfos[utils.GetNameKey(pvc.Namespace, pvc.Name)] = *pvAllocateInfo
 	}
 }
 

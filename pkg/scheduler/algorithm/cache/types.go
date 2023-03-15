@@ -17,7 +17,6 @@ limitations under the License.
 package cache
 
 import (
-	"fmt"
 	"sync"
 
 	localtype "github.com/alibaba/open-local/pkg"
@@ -67,7 +66,7 @@ func (nodeInfo *NodeInfo) IsPVAllocated(pv *corev1.PersistentVolume) bool {
 	if pv.Spec.ClaimRef == nil {
 		return false
 	}
-	pvcKey := fmt.Sprintf("%s/%s", pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
+	pvcKey := utils.GetNameKey(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
 	if _, ok := nodeInfo.PVCRecordsByExtend[pvcKey]; ok {
 		return true
 	}

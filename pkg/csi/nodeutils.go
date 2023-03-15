@@ -157,7 +157,7 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 				}
 				secret, err := ns.options.kubeclient.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 				if err != nil {
-					return status.Errorf(codes.Internal, fmt.Sprintf("fail to get secret %s/%s: %s", secretNamespace, secretName, err.Error()))
+					return status.Errorf(codes.Internal, fmt.Sprintf("fail to get secret %s: %s", utils.GetNameKey(secretNamespace, secretName), err.Error()))
 				}
 
 				if err := labelRestored(targetPath); err != nil {

@@ -25,6 +25,7 @@ import (
 
 	"github.com/alibaba/open-local/pkg/csi/lib"
 	"github.com/alibaba/open-local/pkg/csi/test"
+	"github.com/alibaba/open-local/pkg/utils"
 	"google.golang.org/grpc/test/bufconn"
 
 	"google.golang.org/grpc"
@@ -172,7 +173,7 @@ func (c *workerConnection) CreateSnapshot(ctx context.Context, vgName string, sn
 func (c *workerConnection) GetVolume(ctx context.Context, volGroup string, volumeID string) (string, error) {
 	client := lib.NewLVMClient(c.conn)
 	req := lib.ListLVRequest{
-		VolumeGroup: fmt.Sprintf("%s/%s", volGroup, volumeID),
+		VolumeGroup: utils.GetNameKey(volGroup, volumeID),
 	}
 
 	rsp, err := client.ListLV(ctx, &req)
@@ -188,7 +189,7 @@ func (c *workerConnection) GetVolume(ctx context.Context, volGroup string, volum
 		}
 	}
 
-	log.Warningf("Volume %s/%s is not exist", volGroup, volumeID)
+	log.Warningf("Volume %s is not exist", utils.GetNameKey(volGroup, volumeID))
 	return "", nil
 }
 

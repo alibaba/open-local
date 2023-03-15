@@ -32,11 +32,11 @@ func (controller *Controller) addVGInfoToPVsForPod(ctx context.Context, podNameS
 		if errors.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("get pod fail, pod(%s/%s), err: %s", pod.Namespace, pod.Name, err.Error())
+		return fmt.Errorf("get pod fail, pod(%s), err: %s", utils.GetName(pod.ObjectMeta), err.Error())
 	}
 	info, err := localtype.GetAllocateInfoFromPod(pod)
 	if err != nil {
-		return fmt.Errorf("addVGInfoToPV fail, can not get pv allocate info from pod(%s/%s), err: %s", pod.Namespace, pod.Name, err.Error())
+		return fmt.Errorf("addVGInfoToPV fail, can not get pv allocate info from pod(%s), err: %s", utils.GetName(pod.ObjectMeta), err.Error())
 	}
 
 	if info == nil || info.PvcAllocates == nil {
@@ -47,27 +47,27 @@ func (controller *Controller) addVGInfoToPVsForPod(ctx context.Context, podNameS
 	for _, pvcAllocated := range info.PvcAllocates {
 		pvc, err := controller.pvcLister.PersistentVolumeClaims(pvcAllocated.PVCNameSpace).Get(pvcAllocated.PVCName)
 		if err != nil {
-			errorList = append(errorList, fmt.Errorf("failed to get pvc %s/%s for pod(%s/%s), retry after", pvc.Namespace, pvc.Name, pod.Namespace, pod.Name))
+			errorList = append(errorList, fmt.Errorf("failed to get pvc %s for pod %s, retry after", utils.GetName(pvc.ObjectMeta), utils.GetName(pod.ObjectMeta)))
 			continue
 		}
 		if pvc.Status.Phase != corev1.ClaimBound {
-			errorList = append(errorList, fmt.Errorf("pv, pvc(%s/%s) not bound for pod(%s/%s), status: %s, retry after", pvc.Namespace, pvc.Name, pod.Namespace, pod.Name, pvc.Status.Phase))
+			errorList = append(errorList, fmt.Errorf("pv, pvc(%s) not bound for pod(%s), status: %s, retry after", utils.GetName(pvc.ObjectMeta), utils.GetName(pod.ObjectMeta), pvc.Status.Phase))
 			continue
 		}
 		name := utils.GetPVFromBoundPVC(pvc)
 		if len(name) == 0 {
-			errorList = append(errorList, fmt.Errorf("failed to get PVName for pvc %s/%s with pod(%s/%s) , retry after", pvc.Namespace, pvc.Name, pod.Namespace, pod.Name))
+			errorList = append(errorList, fmt.Errorf("failed to get PVName for pvc %s with pod %s , retry after", utils.GetName(pvc.ObjectMeta), utils.GetName(pod.ObjectMeta)))
 			continue
 		}
 		pv, err := controller.pvLister.Get(name)
 		if err != nil {
-			errorList = append(errorList, fmt.Errorf("failed to get PV(%s) for pvc %s/%s with pod(%s/%s) error: %s, retry after", name, pvc.Namespace, pvc.Name, pod.Namespace, pod.Name, err.Error()))
+			errorList = append(errorList, fmt.Errorf("failed to get PV %s for pvc %s with pod %s error: %s, retry after", name, utils.GetName(pvc.ObjectMeta), utils.GetName(pod.ObjectMeta), err.Error()))
 			continue
 		}
 
 		err = controller.patchAllocateInfoToPV(ctx, pv, &pvcAllocated.PVAllocatedInfo)
 		if err != nil {
-			errorList = append(errorList, fmt.Errorf("failed to patch allocateInfo(%#v) to PV(%s) for pod %s/%s error: %s, retry after", pvcAllocated, name, pod.Namespace, pod.Name, err.Error()))
+			errorList = append(errorList, fmt.Errorf("failed to patch allocateInfo(%#v) to PV(%s) for pod %s error: %s, retry after", pvcAllocated, name, utils.GetName(pod.ObjectMeta), err.Error()))
 		}
 
 	}

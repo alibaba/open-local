@@ -31,6 +31,7 @@ import (
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates"
 	"github.com/alibaba/open-local/pkg/scheduler/algorithm/priorities"
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/julienschmidt/httprouter"
 	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	volumesnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
@@ -248,7 +249,7 @@ func (e *ExtenderServer) TriggerPendingPodReschedule(stopCh <-chan struct{}) {
 				}
 			}
 			if needTrigger && len(pvcs) > 0 {
-				log.Infof("starting trigger pending pod %s/%s reschedule", pod.Namespace, pod.Name)
+				log.Infof("starting trigger pending pod %s reschedule", utils.GetName(pod.ObjectMeta))
 				now := strconv.FormatInt(metav1.Now().Unix(), 10)
 				patchData := map[string]interface{}{"metadata": map[string]map[string]string{"labels": {pkg.LabelReschduleTimestamp: now}}}
 				playLoadBytes, err := json.Marshal(patchData)
@@ -261,7 +262,7 @@ func (e *ExtenderServer) TriggerPendingPodReschedule(stopCh <-chan struct{}) {
 					log.Errorf("patch %+v label for pod %+v: %+v", pkg.LabelReschduleTimestamp, pod.Name, err)
 					continue
 				}
-				log.Infof("pathed label %+v=%+v to pod %s/%s", pkg.LabelReschduleTimestamp, now, pod.Namespace, pod.Name)
+				log.Infof("pathed label %+v=%+v to pod %s", pkg.LabelReschduleTimestamp, now, utils.GetName(pod.ObjectMeta))
 				count++
 				time.Sleep(time.Second * 1)
 			}

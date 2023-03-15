@@ -17,9 +17,9 @@ limitations under the License.
 package csi
 
 import (
-	"fmt"
 	"sync"
 
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 	log "k8s.io/klog/v2"
@@ -118,21 +118,21 @@ func (infoMap *PvcPodSchedulerMap) Add(pvcNamespace, pvcName, schedulerName stri
 	infoMap.mux.Lock()
 	defer infoMap.mux.Unlock()
 
-	infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)] = schedulerName
+	infoMap.info[utils.GetNameKey(pvcNamespace, pvcName)] = schedulerName
 }
 
 func (infoMap *PvcPodSchedulerMap) Get(pvcNamespace, pvcName string) string {
 	infoMap.mux.RLock()
 	defer infoMap.mux.RUnlock()
 
-	return infoMap.info[fmt.Sprintf("%s/%s", pvcNamespace, pvcName)]
+	return infoMap.info[utils.GetNameKey(pvcNamespace, pvcName)]
 }
 
 func (infoMap *PvcPodSchedulerMap) Remove(pvcNamespace, pvcName string) {
 	infoMap.mux.Lock()
 	defer infoMap.mux.Unlock()
 
-	delete(infoMap.info, fmt.Sprintf("%s/%s", pvcNamespace, pvcName))
+	delete(infoMap.info, utils.GetNameKey(pvcNamespace, pvcName))
 }
 
 type SchedulerArch string

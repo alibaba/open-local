@@ -103,7 +103,7 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 	}
 	pvName := utils.GetPVFromBoundPVC(pvc)
 	if len(pvName) == 0 {
-		klog.Errorf("failed to get PV for pvc %s/%s", pvc.Namespace, pvc.Name)
+		klog.Errorf("failed to get PV for pvc %s", utils.GetName(pvc.ObjectMeta))
 		return
 	}
 
@@ -114,7 +114,7 @@ func (plugin *LocalPlugin) OnPVCUpdate(oldObj, newObj interface{}) {
 
 	plugin.cache.AddOrUpdatePVC(pvc, nodeName, pvName)
 
-	klog.V(4).Infof("[OnPVCUpdate]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
+	klog.V(4).Infof("[OnPVCUpdate]pvc %s is handled", utils.GetName(pvc.ObjectMeta))
 }
 
 func (plugin *LocalPlugin) OnPVCDelete(obj interface{}) {
@@ -126,7 +126,7 @@ func (plugin *LocalPlugin) OnPVCDelete(obj interface{}) {
 	}
 
 	plugin.cache.DeletePVC(pvc)
-	klog.V(4).Infof("[OnPVCDelete]pvc %s/%s is handled", pvc.Namespace, pvc.Name)
+	klog.V(4).Infof("[OnPVCDelete]pvc %s is handled", utils.GetName(pvc.ObjectMeta))
 }
 
 func (plugin *LocalPlugin) OnPodAdd(obj interface{}) {
@@ -139,7 +139,7 @@ func (plugin *LocalPlugin) OnPodAdd(obj interface{}) {
 
 	plugin.cache.AddPod(pod)
 
-	klog.V(4).Infof("[OnPodAdd]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodAdd]pod %s is handled", utils.GetName(pod.ObjectMeta))
 }
 
 func (plugin *LocalPlugin) OnPodUpdate(oldObj, newObj interface{}) {
@@ -152,7 +152,7 @@ func (plugin *LocalPlugin) OnPodUpdate(oldObj, newObj interface{}) {
 
 	plugin.cache.UpdatePod(pod)
 
-	klog.V(4).Infof("[OnPodUpdate]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodUpdate]pod %s is handled", utils.GetName(pod.ObjectMeta))
 }
 
 func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
@@ -164,7 +164,7 @@ func (plugin *LocalPlugin) OnPodDelete(obj interface{}) {
 	}
 	plugin.cache.DeletePod(pod)
 
-	klog.V(4).Infof("[OnPodDelete]pod %s is handled", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	klog.V(4).Infof("[OnPodDelete]pod %s is handled", utils.GetName(pod.ObjectMeta))
 }
 
 func (plugin *LocalPlugin) updatePV(pv *corev1.PersistentVolume) {
@@ -206,19 +206,19 @@ func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(ctx context.Context, o
 	allocateInfo := localtype.PodPVCAllocateInfo{PvcAllocates: map[string]localtype.PVCAllocateInfo{}}
 
 	for _, pvcInfo := range pvcInfos {
-		allocateInfo.PvcAllocates[utils.GetPVCKey(pvcInfo.PVCNameSpace, pvcInfo.PVCName)] = pvcInfo
+		allocateInfo.PvcAllocates[utils.GetNameKey(pvcInfo.PVCNameSpace, pvcInfo.PVCName)] = pvcInfo
 	}
 
 	infoJsonBytes, err := json.Marshal(allocateInfo)
 	if err != nil {
-		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s/%s) fail, marshal allocate info error : %s", pvcInfos, newPod.Namespace, newPod.Name, err.Error())
+		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s) fail, marshal allocate info error : %s", pvcInfos, utils.GetName(newPod.ObjectMeta), err.Error())
 		return err
 	}
 	newPod.Annotations[localtype.AnnotationPodPVCAllocatedNeedMigrateKey] = string(infoJsonBytes)
 
 	patchBytes, err := utils.GeneratePodPatch(originPod, newPod)
 	if err != nil {
-		return fmt.Errorf("GeneratePVPatch fail: allocateInfo(%#+v) to pod(%s/%s) ! error: %s", allocateInfo, newPod.Namespace, newPod.Name, err.Error())
+		return fmt.Errorf("GeneratePVPatch fail: allocateInfo(%#+v) to pod(%s) ! error: %s", allocateInfo, utils.GetName(newPod.ObjectMeta), err.Error())
 	}
 	if string(patchBytes) == "{}" {
 		return nil
@@ -231,16 +231,16 @@ func (plugin *LocalPlugin) patchAllocatedNeedMigrateToPod(ctx context.Context, o
 			_, err := plugin.kubeClientSet.CoreV1().Pods(newPod.Namespace).
 				Patch(ctx, newPod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
-				klog.Error("Failed to patch Pod %s/%s, patch: %v, err: %v", newPod.Namespace, newPod.Name, string(patchBytes), err)
+				klog.Error("Failed to patch Pod %s, patch: %v, err: %v", utils.GetName(newPod.ObjectMeta), string(patchBytes), err)
 			}
 			return err
 		})
 
 	if err != nil {
-		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s/%s) fail after retry ,error : %s", pvcInfos, newPod.Namespace, newPod.Name, err.Error())
+		klog.Errorf("patch pvc allocateInfo(%#+v) to pod(%s) fail after retry ,error : %s", pvcInfos, utils.GetName(newPod.ObjectMeta), err.Error())
 		return err
 	}
 
-	klog.V(4).Infof("patch pvc allocateInfo(%#+v) to pod(%s/%s) success", pvcInfos, newPod.Namespace, newPod.Name)
+	klog.V(4).Infof("patch pvc allocateInfo(%#+v) to pod(%s) success", pvcInfos, utils.GetName(newPod.ObjectMeta))
 	return nil
 }

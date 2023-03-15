@@ -36,11 +36,11 @@ import (
 // reports error if failed to reserve storage for pvc
 func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolumeClaim, node *corev1.Node) (*pkg.BindingInfo, error) {
 	if node == nil {
-		log.Infof("scheduling pvc %s/%s without node", pvc.Namespace, pvc.Name)
+		log.Infof("scheduling pvc %s without node", utils.GetName(pvc.ObjectMeta))
 	} else {
-		log.Infof("scheduling pvc %s/%s on node %s", pvc.Namespace, pvc.Name, node.Name)
+		log.Infof("scheduling pvc %s on node %s", utils.GetName(pvc.ObjectMeta), node.Name)
 	}
-	trace := utiltrace.New(fmt.Sprintf("Scheduling[SchedulingPVC] %s/%s", pvc.Namespace, pvc.Name))
+	trace := utiltrace.New(fmt.Sprintf("Scheduling[SchedulingPVC] %s", utils.GetName(pvc.ObjectMeta)))
 	defer trace.LogIfLong(50 * time.Millisecond)
 
 	// serialize the api request from provisioner to keep cache consistency
@@ -78,7 +78,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	var allocatedUnits []cache.AllocatedUnit
 	trace.Step("Computing ScoreLVMVolume")
 	if _, lvmUnits, err := algo.ScoreLVMVolume(nil /*do we need pod here*/, lvmPVCs, node, ctx); err != nil {
-		err = fmt.Errorf("failed to allocate local storage for pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+		err = fmt.Errorf("failed to allocate local storage for pvc %s: %s", utils.GetName(pvc.ObjectMeta), err.Error())
 		log.Errorf(err.Error())
 		return nil, err
 	} else {
@@ -86,7 +86,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	}
 	trace.Step("Computing ScoreMountPointVolume")
 	if _, mpUnits, err := algo.ScoreMountPointVolume(nil /*do we need pod here*/, mpPVCs, node, ctx); err != nil {
-		err = fmt.Errorf("failed to allocate local storage for pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+		err = fmt.Errorf("failed to allocate local storage for pvc %s: %s", utils.GetName(pvc.ObjectMeta), err.Error())
 		log.Errorf(err.Error())
 		return nil, err
 	} else {
@@ -94,7 +94,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	}
 	trace.Step("Computing ScoreDeviceVolume")
 	if _, deviceUnits, err := algo.ScoreDeviceVolume(nil /*do we need pod here*/, devicePVCs, node, ctx); err != nil {
-		err = fmt.Errorf("failed to allocate local storage for pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+		err = fmt.Errorf("failed to allocate local storage for pvc %s: %s", utils.GetName(pvc.ObjectMeta), err.Error())
 		log.Errorf(err.Error())
 		return nil, err
 	} else {
@@ -110,7 +110,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 	err = ctx.ClusterNodeCache.Assume(allocatedUnits)
 
 	if err != nil {
-		err = fmt.Errorf("failed to assume local storage for pvc %s/%s: %s", pvc.Namespace, pvc.Name, err.Error())
+		err = fmt.Errorf("failed to assume local storage for pvc %s: %s", utils.GetName(pvc.ObjectMeta), err.Error())
 		log.Error(err.Error())
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func SchedulingPVC(ctx *algorithm.SchedulingContext, pvc *corev1.PersistentVolum
 		}
 	}
 	bindingInfo := unitsToBinding([]*corev1.PersistentVolumeClaim{pvc}, targetAllocateUnits)
-	log.Infof("successfully schedule pvc %s/%s", pvc.Namespace, pvc.Name)
+	log.Infof("successfully schedule pvc %s", utils.GetName(pvc.ObjectMeta))
 	return bindingInfo, nil
 }
 
@@ -142,6 +142,6 @@ func unitsToBinding(pvcs []*corev1.PersistentVolumeClaim, units []cache.Allocate
 		VgName:                unit0.VgName,
 		Device:                unit0.Device,
 		VolumeType:            string(unit0.VolumeType),
-		PersistentVolumeClaim: fmt.Sprintf("%s/%s", pvc0.Namespace, pvc0.Name),
+		PersistentVolumeClaim: utils.GetName(pvc0.ObjectMeta),
 	}
 }

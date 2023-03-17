@@ -1,23 +1,31 @@
-## open-local controller
+## open-local completion fish
 
-command for starting a controller
+Generate the autocompletion script for fish
+
+### Synopsis
+
+Generate the autocompletion script for the fish shell.
+
+To load completions in your current shell session:
+
+	open-local completion fish | source
+
+To load completions for every new session, execute once:
+
+	open-local completion fish > ~/.config/fish/completions/open-local.fish
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-open-local controller [flags]
+open-local completion fish [flags]
 ```
 
 ### Options
 
 ```
-      --feature-gates mapStringBool   A set of key=value pairs that describe feature gates for alpha/experimental features. Options are:
-                                      AllAlpha=true|false (ALPHA - default=false)
-                                      AllBeta=true|false (BETA - default=false)
-                                      OrphanedSnapshotContent=true|false (ALPHA - default=true)
-                                      UpdateNLS=true|false (ALPHA - default=true)
-  -h, --help                          help for controller
-      --initconfig string             initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage (default "open-local")
-      --kubeconfig string             Path to the kubeconfig file to use.
-      --master string                 URL/IP for master.
+  -h, --help              help for fish
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -41,5 +49,5 @@ open-local controller [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local completion](open-local_completion.md)	 - Generate the autocompletion script for the specified shell
 

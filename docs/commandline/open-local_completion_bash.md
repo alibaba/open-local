@@ -1,23 +1,40 @@
-## open-local controller
+## open-local completion bash
 
-command for starting a controller
+Generate the autocompletion script for bash
+
+### Synopsis
+
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+	source <(open-local completion bash)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	open-local completion bash > /etc/bash_completion.d/open-local
+
+#### macOS:
+
+	open-local completion bash > $(brew --prefix)/etc/bash_completion.d/open-local
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-open-local controller [flags]
+open-local completion bash
 ```
 
 ### Options
 
 ```
-      --feature-gates mapStringBool   A set of key=value pairs that describe feature gates for alpha/experimental features. Options are:
-                                      AllAlpha=true|false (ALPHA - default=false)
-                                      AllBeta=true|false (BETA - default=false)
-                                      OrphanedSnapshotContent=true|false (ALPHA - default=true)
-                                      UpdateNLS=true|false (ALPHA - default=true)
-  -h, --help                          help for controller
-      --initconfig string             initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage (default "open-local")
-      --kubeconfig string             Path to the kubeconfig file to use.
-      --master string                 URL/IP for master.
+  -h, --help              help for bash
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -41,5 +58,5 @@ open-local controller [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local completion](open-local_completion.md)	 - Generate the autocompletion script for the specified shell
 

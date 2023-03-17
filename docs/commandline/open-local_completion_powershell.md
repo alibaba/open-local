@@ -1,23 +1,28 @@
-## open-local controller
+## open-local completion powershell
 
-command for starting a controller
+Generate the autocompletion script for powershell
+
+### Synopsis
+
+Generate the autocompletion script for powershell.
+
+To load completions in your current shell session:
+
+	open-local completion powershell | Out-String | Invoke-Expression
+
+To load completions for every new session, add the output of the above command
+to your powershell profile.
+
 
 ```
-open-local controller [flags]
+open-local completion powershell [flags]
 ```
 
 ### Options
 
 ```
-      --feature-gates mapStringBool   A set of key=value pairs that describe feature gates for alpha/experimental features. Options are:
-                                      AllAlpha=true|false (ALPHA - default=false)
-                                      AllBeta=true|false (BETA - default=false)
-                                      OrphanedSnapshotContent=true|false (ALPHA - default=true)
-                                      UpdateNLS=true|false (ALPHA - default=true)
-  -h, --help                          help for controller
-      --initconfig string             initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage (default "open-local")
-      --kubeconfig string             Path to the kubeconfig file to use.
-      --master string                 URL/IP for master.
+  -h, --help              help for powershell
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -41,5 +46,5 @@ open-local controller [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local completion](open-local_completion.md)	 - Generate the autocompletion script for the specified shell
 

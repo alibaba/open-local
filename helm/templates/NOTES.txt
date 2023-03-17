@@ -2,4 +2,4 @@
 
 To check CSI NFS Driver pods status, please run:
 
-  kubectl get pods -n{{ .Release.Namespace }} -l app.kubernetes.io/name={{ .Values.Name }} --watch
+  kubectl get pods -nkube-system -l app.kubernetes.io/name=open-local --watch

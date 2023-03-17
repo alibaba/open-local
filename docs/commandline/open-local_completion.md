@@ -1,23 +1,17 @@
-## open-local controller
+## open-local completion
 
-command for starting a controller
+Generate the autocompletion script for the specified shell
 
-```
-open-local controller [flags]
-```
+### Synopsis
+
+Generate the autocompletion script for open-local for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
 
 ### Options
 
 ```
-      --feature-gates mapStringBool   A set of key=value pairs that describe feature gates for alpha/experimental features. Options are:
-                                      AllAlpha=true|false (ALPHA - default=false)
-                                      AllBeta=true|false (BETA - default=false)
-                                      OrphanedSnapshotContent=true|false (ALPHA - default=true)
-                                      UpdateNLS=true|false (ALPHA - default=true)
-  -h, --help                          help for controller
-      --initconfig string             initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage (default "open-local")
-      --kubeconfig string             Path to the kubeconfig file to use.
-      --master string                 URL/IP for master.
+  -h, --help   help for completion
 ```
 
 ### Options inherited from parent commands
@@ -42,4 +36,8 @@ open-local controller [flags]
 ### SEE ALSO
 
 * [open-local](open-local.md)	 - 
+* [open-local completion bash](open-local_completion_bash.md)	 - Generate the autocompletion script for bash
+* [open-local completion fish](open-local_completion_fish.md)	 - Generate the autocompletion script for fish
+* [open-local completion powershell](open-local_completion_powershell.md)	 - Generate the autocompletion script for powershell
+* [open-local completion zsh](open-local_completion_zsh.md)	 - Generate the autocompletion script for zsh
 

@@ -15,6 +15,9 @@ spec:
     listKind: VolumeSnapshotClassList
     plural: volumesnapshotclasses
     singular: volumesnapshotclass
+    shortNames:
+    - vsclass
+    - vsclasses
   scope: Cluster
   versions:
   - additionalPrinterColumns:

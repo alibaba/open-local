@@ -854,7 +854,7 @@ func ScoreDevice(units []cache.AllocatedUnit) (score int) {
 func ProcessSnapshotPVC(pvcs []*corev1.PersistentVolumeClaim, nodeName string, coreV1Informers corev1informers.Interface, snapshotInformers volumesnapshotinformers.Interface) (fits bool, err error) {
 	for _, pvc := range pvcs {
 		// step 0: check if is snapshot pvc
-		// pvc source 是只读快照，就 continue
+		// pvc source 不是只读快照，就 continue
 		if !utils.IsReadOnlySnapshotPVC(pvc, snapshotInformers) {
 			continue
 		}

@@ -1,23 +1,42 @@
-## open-local controller
+## open-local completion zsh
 
-command for starting a controller
+Generate the autocompletion script for zsh
+
+### Synopsis
+
+Generate the autocompletion script for the zsh shell.
+
+If shell completion is not already enabled in your environment you will need
+to enable it.  You can execute the following once:
+
+	echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+To load completions in your current shell session:
+
+	source <(open-local completion zsh); compdef _open-local open-local
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	open-local completion zsh > "${fpath[1]}/_open-local"
+
+#### macOS:
+
+	open-local completion zsh > $(brew --prefix)/share/zsh/site-functions/_open-local
+
+You will need to start a new shell for this setup to take effect.
+
 
 ```
-open-local controller [flags]
+open-local completion zsh [flags]
 ```
 
 ### Options
 
 ```
-      --feature-gates mapStringBool   A set of key=value pairs that describe feature gates for alpha/experimental features. Options are:
-                                      AllAlpha=true|false (ALPHA - default=false)
-                                      AllBeta=true|false (BETA - default=false)
-                                      OrphanedSnapshotContent=true|false (ALPHA - default=true)
-                                      UpdateNLS=true|false (ALPHA - default=true)
-  -h, --help                          help for controller
-      --initconfig string             initconfig is NodeLocalStorageInitConfig(CRD) for controller to create NodeLocalStorage (default "open-local")
-      --kubeconfig string             Path to the kubeconfig file to use.
-      --master string                 URL/IP for master.
+  -h, --help              help for zsh
+      --no-descriptions   disable completion descriptions
 ```
 
 ### Options inherited from parent commands
@@ -41,5 +60,5 @@ open-local controller [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local completion](open-local_completion.md)	 - Generate the autocompletion script for the specified shell
 

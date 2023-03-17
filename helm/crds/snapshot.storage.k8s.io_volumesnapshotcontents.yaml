@@ -15,6 +15,9 @@ spec:
     listKind: VolumeSnapshotContentList
     plural: volumesnapshotcontents
     singular: volumesnapshotcontent
+    shortNames:
+    - vsc
+    - vscs
   scope: Cluster
   versions:
   - additionalPrinterColumns:

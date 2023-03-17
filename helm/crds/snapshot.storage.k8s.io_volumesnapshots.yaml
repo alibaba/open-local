@@ -15,6 +15,8 @@ spec:
     listKind: VolumeSnapshotList
     plural: volumesnapshots
     singular: volumesnapshot
+    shortNames:
+    - vs
   scope: Namespaced
   versions:
   - additionalPrinterColumns:

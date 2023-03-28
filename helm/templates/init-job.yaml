@@ -1,3 +1,5 @@
+{{- $job_version := include "init.job.version" . }}
+
 {{- if .Values.extender.init_job }}
 kind: Job
 apiVersion: batch/v1
@@ -43,12 +45,47 @@ spec:
         - sh
         - "-c"
         - |
+ {{ if eq $job_version "new" }}
             set -ex
-
             sleep 4
 
-            echo "generating scheduler-policy-config.json..."
+            echo "generating kubeScheduler-config.yml..."
 
+            cat >/etc/kubernetes/kubeScheduler-config.yml  <<EOF
+            apiVersion: kubescheduler.config.k8s.io/v1
+            kind: KubeSchedulerConfiguration
+            clientConnection:
+              kubeconfig: /etc/kubernetes/scheduler.conf
+            extenders:
+              - urlPrefix: 'http://{{ .Values.extender.name }}.{{.Values.namespace}}:23000/scheduler'
+                filterVerb: predicates
+                prioritizeVerb: priorities
+                preemptVerb: ''
+                bindVerb: ''
+                weight: 10
+                enableHTTPS: false
+                nodeCacheCapable: true
+                ignorable: true
+            EOF
+
+            echo "modifying kube-scheduler.yaml..."
+
+            if ! grep "^\  dnsPolicy: ClusterFirstWithHostNet" /etc/kubernetes/manifests/kube-scheduler.yaml; then
+                sed -i "/  hostNetwork: true/a \  dnsPolicy: ClusterFirstWithHostNet" /etc/kubernetes/manifests/kube-scheduler.yaml
+            fi
+
+            if ! grep "^\    - --config=*" /etc/kubernetes/manifests/kube-scheduler.yaml; then
+                sed -i "/    - --kubeconfig=/a \    - --config=/etc/kubernetes/kubeScheduler-config.yml" /etc/kubernetes/manifests/kube-scheduler.yaml
+            fi
+
+            if ! grep "^\      name: scheduler-config" /etc/kubernetes/manifests/kube-scheduler.yaml; then
+                sed -i "/    volumeMounts:/a \    - mountPath: /etc/kubernetes/kubeScheduler-config.yml\n      name: scheduler-config\n      readOnly: true" /etc/kubernetes/manifests/kube-scheduler.yaml
+                sed -i "/  volumes:/a \  - hostPath:\n      path: /etc/kubernetes/kubeScheduler-config.yml\n      type: File\n    name: scheduler-config" /etc/kubernetes/manifests/kube-scheduler.yaml
+            fi
+{{- else }}
+            set -ex
+            sleep 4
+            echo "generating scheduler-policy-config.json..."
             cat >/etc/kubernetes/scheduler-policy-config.json <<EOF
             {
             "kind" : "Policy",
@@ -67,21 +104,18 @@ spec:
             "hardPodAffinitySymmetricWeight" : 10
             }
             EOF
-
             echo "modifying kube-scheduler.yaml..."
-
             if ! grep "^\  dnsPolicy: ClusterFirstWithHostNet" /etc/kubernetes/manifests/kube-scheduler.yaml; then
                 sed -i "/  hostNetwork: true/a \  dnsPolicy: ClusterFirstWithHostNet" /etc/kubernetes/manifests/kube-scheduler.yaml
             fi
-
             if ! grep "^\    - --policy-config-file=*" /etc/kubernetes/manifests/kube-scheduler.yaml; then
                 sed -i "/    - --kubeconfig=/a \    - --policy-config-file=/etc/kubernetes/scheduler-policy-config.json" /etc/kubernetes/manifests/kube-scheduler.yaml
             fi
-
             if ! grep "^\      name: scheduler-policy-config" /etc/kubernetes/manifests/kube-scheduler.yaml; then
                 sed -i "/    volumeMounts:/a \    - mountPath: /etc/kubernetes/scheduler-policy-config.json\n      name: scheduler-policy-config\n      readOnly: true" /etc/kubernetes/manifests/kube-scheduler.yaml
                 sed -i "/  volumes:/a \  - hostPath:\n      path: /etc/kubernetes/scheduler-policy-config.json\n      type: File\n    name: scheduler-policy-config" /etc/kubernetes/manifests/kube-scheduler.yaml
             fi
+{{- end }}
         volumeMounts:
         - name: kube-dir
           mountPath: /etc/kubernetes/

@@ -13,3 +13,18 @@ labels:
 {{ toYaml .Values.customLabels | indent 2 -}}
   {{- end }}
 {{- end -}}
+
+{{/* Allow KubeVersion to be overridden. */}}
+{{- define "kubeVersion" -}}
+  {{- default .Capabilities.KubeVersion.Version -}}
+{{- end -}}
+
+{{/* set k8s scheduler init job Version */}}
+{{/* see https://github.com/kubernetes/kubernetes/pull/105424 */}}
+{{- define "init.job.version" -}}
+  {{- if and (.Capabilities.APIVersions.Has "networking.k8s.io/v1") (semverCompare ">= 1.23-0" (include "kubeVersion" .)) -}}
+      {{- print "new" -}}
+  {{- else -}}
+    {{- print "old" -}}
+  {{- end -}}
+{{- end -}}

@@ -18,7 +18,6 @@ package csi
 
 import (
 	"fmt"
-	"github.com/alibaba/open-local/pkg/csi/server"
 	"net"
 	"strconv"
 	"strings"
@@ -28,6 +27,7 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/adapter"
 	"github.com/alibaba/open-local/pkg/csi/client"
+	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
 	"github.com/alibaba/open-local/pkg/utils"

@@ -18,6 +18,7 @@ package csi
 
 import (
 	"fmt"
+	"github.com/alibaba/open-local/pkg/csi/server"
 	"net"
 	"strconv"
 	"strings"
@@ -27,7 +28,6 @@ import (
 	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/adapter"
 	"github.com/alibaba/open-local/pkg/csi/client"
-	"github.com/alibaba/open-local/pkg/csi/server"
 	"github.com/alibaba/open-local/pkg/restic"
 	"github.com/alibaba/open-local/pkg/signals"
 	"github.com/alibaba/open-local/pkg/utils"
@@ -767,7 +767,13 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	if err != nil {
 		return nil, err
 	}
-	addr, err := getNodeAddr(node, nodeSelected)
+	var addr string
+	if cs.options.useNodeHostDNS {
+		addr = node.Name + ":" + server.GetLvmdPort()
+	} else {
+		addr, err = getNodeAddr(node, nodeSelected)
+	}
+
 	if err != nil {
 		log.Errorf("CreateVolume: Get node %s address with error: %s", nodeSelected, err.Error())
 		return nil, err

@@ -89,7 +89,7 @@ func Start(opt *csiOption) error {
 		csi.WithSnapshotClient(snapClient),
 		csi.WithLocalClient(localclient),
 		csi.WithDriverMode(opt.DriverMode),
-		csi.WithUseNodeHostnameDNS(opt.UseNodeHostnameDNS),
+		csi.WithUseNodeHostname(opt.UseNodeHostname),
 	)
 	if err := driver.Run(); err != nil {
 		return err

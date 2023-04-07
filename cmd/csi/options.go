@@ -32,7 +32,7 @@ type csiOption struct {
 	LVMDPort                string
 	CgroupDriver            string
 	DriverMode              string
-	UseNodeHostnameDNS      bool
+	UseNodeHostname         bool
 	ExtenderSchedulerNames  []string
 	FrameworkSchedulerNames []string
 }
@@ -48,7 +48,7 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.LVMDPort, "lvmdPort", "1736", "Port of lvm daemon")
 	fs.StringVar(&option.CgroupDriver, "cgroupDriver", "systemd", "the name of cgroup driver")
 	fs.StringVar(&option.DriverMode, "driver-mode", "all", "driver mode")
-	fs.BoolVar(&option.UseNodeHostnameDNS, "use-node-hostname-dns", false, "use node hostname dns for grpc connection")
+	fs.BoolVar(&option.UseNodeHostname, "use-node-hostname", false, "use node hostname dns for grpc connection")
 	fs.StringSliceVar(&option.ExtenderSchedulerNames, "extender-scheduler-names", []string{"default-scheduler"}, "extender scheduler names")
 	fs.StringSliceVar(&option.FrameworkSchedulerNames, "framework-scheduler-names", []string{}, "framework scheduler names")
 }

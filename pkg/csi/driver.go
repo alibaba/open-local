@@ -42,7 +42,7 @@ type driverOptions struct {
 	cgroupDriver            string
 	grpcConnectionTimeout   int
 	mode                    string
-	useNodeHostDNS          bool
+	useNodeHostname         bool
 	extenderSchedulerNames  []string
 	frameworkSchedulerNames []string
 
@@ -56,7 +56,7 @@ var defaultDriverOptions = driverOptions{
 	cgroupDriver:            "systemd",
 	grpcConnectionTimeout:   DefaultConnectTimeout,
 	mode:                    "all",
-	useNodeHostDNS:          false,
+	useNodeHostname:         false,
 	extenderSchedulerNames:  []string{"default-scheduler"},
 	frameworkSchedulerNames: []string{},
 }
@@ -164,9 +164,9 @@ func WithDriverMode(mode string) Option {
 	}
 }
 
-func WithUseNodeHostnameDNS(useNodeHostnameDNS bool) Option {
+func WithUseNodeHostname(useNodeHostname bool) Option {
 	return func(o *driverOptions) {
-		o.useNodeHostDNS = useNodeHostnameDNS
+		o.useNodeHostname = useNodeHostname
 	}
 }
 

@@ -767,7 +767,9 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	if err != nil {
 		return nil, err
 	}
-	addr, err := getNodeAddr(node, nodeSelected)
+
+	addr, err := getNodeAddr(node, nodeSelected, cs.options.useNodeHostname)
+
 	if err != nil {
 		log.Errorf("CreateVolume: Get node %s address with error: %s", nodeSelected, err.Error())
 		return nil, err
@@ -776,7 +778,10 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	return conn, err
 }
 
-func getNodeAddr(node *v1.Node, nodeID string) (string, error) {
+func getNodeAddr(node *v1.Node, nodeID string, useNodeHostname bool) (string, error) {
+	if useNodeHostname {
+		return node.Name + ":" + server.GetLvmdPort(), nil
+	}
 	ip, err := GetNodeIP(node, nodeID)
 	if err != nil {
 		return "", err

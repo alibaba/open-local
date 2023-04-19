@@ -23,14 +23,12 @@ import (
 	"os"
 
 	"github.com/alibaba/open-local/pkg"
+	localtype "github.com/alibaba/open-local/pkg"
 	"github.com/alibaba/open-local/pkg/csi/client"
 	log "k8s.io/klog/v2"
 )
 
 const (
-	EnvSchedulerExtenderServiceIP   = "EXTENDER_SVC_IP"
-	EnvSchedulerExtenderServicePort = "EXTENDER_SVC_PORT"
-
 	DefaultSchedulerExtenderServiceName = "open-local-scheduler-extender"
 	DefaultSchedulerExtenderPort        = "23000"
 )
@@ -50,8 +48,8 @@ func NewExtenderAdapter() Adapter {
 }
 
 // ScheduleVolume make request and get expect schedule topology
-func (adapter *ExtenderAdapter) ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*pkg.BindingInfo, error) {
-	bindingInfo := &pkg.BindingInfo{}
+func (adapter *ExtenderAdapter) ScheduleVolume(volumeType, pvcName, pvcNamespace, vgName, nodeID string) (*localtype.BindingInfo, error) {
+	bindingInfo := &localtype.BindingInfo{}
 
 	// make request url
 	path := fmt.Sprintf("/apis/scheduling/%s/persistentvolumeclaims/%s?nodeName=%s&volumeType=%s&vgName=%s", pvcNamespace, pvcName, nodeID, volumeType, vgName)
@@ -82,13 +80,13 @@ func (adapter *ExtenderAdapter) ScheduleVolume(volumeType, pvcName, pvcNamespace
 }
 
 func getExtenderURLHost() string {
-	extenderServicePort := os.Getenv(EnvSchedulerExtenderServicePort)
+	extenderServicePort := os.Getenv(localtype.EnvSchedulerExtenderServicePort)
 	if extenderServicePort == "" {
 		extenderServicePort = DefaultSchedulerExtenderPort
 	}
 
 	var URLHost string = fmt.Sprintf("http://%s:%s", DefaultSchedulerExtenderServiceName, extenderServicePort)
-	extenderServiceIP := os.Getenv(EnvSchedulerExtenderServiceIP)
+	extenderServiceIP := os.Getenv(localtype.EnvSchedulerExtenderServiceIP)
 	if extenderServiceIP != "" {
 		ip := net.ParseIP(extenderServiceIP)
 		if ip == nil {

@@ -38,19 +38,13 @@ const (
 	StrategyBinpack StrategyType = "binpack"
 	StrategySpread  StrategyType = "spread"
 
+	EnvSchedulerExtenderServiceIP   = "EXTENDER_SVC_IP"
+	EnvSchedulerExtenderServicePort = "EXTENDER_SVC_PORT"
+
 	AgentName           string = "open-local-agent"
 	ProvisionerNameYoda string = "yodaplugin.csi.alibabacloud.com"
 	ProvisionerName     string = "local.csi.aliyun.com"
 	SchedulerName       string = "open-local-scheduler"
-
-	EnvLogLevel = "LogLevel"
-	LogPanic    = "Panic"
-	LogFatal    = "Fatal"
-	LogError    = "Error"
-	LogWarn     = "Warn"
-	LogInfo     = "Info"
-	LogDebug    = "Debug"
-	LogTrace    = "Trace"
 
 	KubernetesNodeIdentityKey = "kubernetes.io/hostname"
 	VolumeTypeKey             = "volumeType"
@@ -108,6 +102,8 @@ const (
 	EnvSnapshotPrefix     = "SNAPSHOT_PREFIX"
 	EnvExpandSnapInterval = "Expand_Snapshot_Interval"
 	DefaultSnapshotPrefix = "snap"
+
+	EnvMNTDoubleCheck = "MNT_Double_Check"
 
 	Separator = "<:SEP:>"
 

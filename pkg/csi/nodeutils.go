@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/alibaba/open-local/pkg"
 	localtype "github.com/alibaba/open-local/pkg"
@@ -22,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 )
 
 func (ns *nodeServer) createLV(ctx context.Context, req *csi.NodePublishVolumeRequest) (string, string, error) {
@@ -180,6 +182,19 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 				log.Info("restore data to target path %s successfully", targetPath)
 			} else {
 				log.Info("target path %s has been restored", targetPath)
+			}
+		}
+
+		doubleCheck := os.Getenv(localtype.EnvMNTDoubleCheck)
+		if doubleCheck == "true" {
+			// Double check if the mounting was successful
+			time.Sleep(time.Second)
+			notMnt, err := mount.IsNotMountPoint(ns.k8smounter, targetPath)
+			if err != nil {
+				return fmt.Errorf("mountLVMFS: fail to check if %s is mountpoint: %s", targetPath, err.Error())
+			}
+			if notMnt {
+				return fmt.Errorf("%s is not mounted after mounting, retry", targetPath)
 			}
 		}
 

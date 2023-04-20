@@ -19,6 +19,7 @@ package csi
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -143,6 +144,13 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 		log.Infof("NodePublishVolume: add local volume %s to %s successfully", volumeID, targetPath)
 		return &csi.NodePublishVolumeResponse{}, nil
+	}
+
+	// check targetPath
+	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
+		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
+			return &csi.NodePublishVolumeResponse{}, fmt.Errorf("mountLvmFS: fail to mkdir target path %s: %s", targetPath, err.Error())
+		}
 	}
 
 	// Step 4: switch

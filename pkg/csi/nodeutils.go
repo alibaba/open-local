@@ -105,12 +105,6 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 		isSnapshotReadOnly = true
 	}
 
-	// check targetPath
-	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
-		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
-			return fmt.Errorf("mountLvmFS: fail to mkdir target path %s: %s", targetPath, err.Error())
-		}
-	}
 	// check if mounted
 	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
@@ -276,13 +270,7 @@ func (ns *nodeServer) mountMountPointVolume(ctx context.Context, req *csi.NodePu
 
 	notmounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
-				return fmt.Errorf("mountMountPointVolume: fail to mkdir %s: %s", targetPath, err.Error())
-			}
-		} else {
-			return fmt.Errorf("mountMountPointVolume: check if targetPath %s is mounted: %s", targetPath, err.Error())
-		}
+		return fmt.Errorf("mountMountPointVolume: check if targetPath %s is mounted: %s", targetPath, err.Error())
 	}
 	if !notmounted {
 		log.Infof("mountMountPointVolume: volume %s(%s) is already mounted", req.VolumeId, targetPath)
@@ -316,13 +304,6 @@ func (ns *nodeServer) mountDeviceVolumeFS(ctx context.Context, req *csi.NodePubl
 	sourceDevice := utils.GetDeviceNameFromCsiPV(pv)
 	if sourceDevice == "" {
 		return fmt.Errorf("mountDeviceVolumeFS: mount device %s with empty source path", req.VolumeId)
-	}
-
-	// Check targetPath
-	if _, err := ns.osTool.Stat(targetPath); os.IsNotExist(err) {
-		if err := ns.osTool.MkdirAll(targetPath, 0750); err != nil {
-			return fmt.Errorf("mountDeviceVolumeFS: fail to mkdir %s : %s", targetPath, err.Error())
-		}
 	}
 
 	notMounted, err := ns.k8smounter.IsLikelyNotMountPoint(targetPath)

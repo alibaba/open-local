@@ -7,6 +7,7 @@ Open-Local 调度算法因存储类型不同而不同。对于 LVM 这种按需�
 Open-Local 托管用户指定的 VG，用户通过 NodeLocalStorageInitConfig 资源指定 VG 白名单。扩展调度插件中保存了各个节点所有 VG 的详细信息，这些信息作为数据用于调度算法。
 
 LVM类型存储支持 指定VG名称 和 不指定VG名称两种：
+
 1. 指定VG名称：由 Open-Local 决定从哪个节点上的指定 VG 来创建 LV
 2. 不指定VG名称：由 Open-Local 决定从哪个节点上的哪个 VG 中来创建LV
 

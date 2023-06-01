@@ -30,7 +30,7 @@ spec:
   nodesConfig:      # 为 node label 满足表达式的特定节点进行初始化配置。该配置会覆盖默认配置globalConfig
   - selector:       # 筛选规则
       matchExpressions:
-      - key: node-role.kubernetes.io/master
+      - key: node-role.kubernetes.io/control-plane
         operator: In
         values:
         - ""

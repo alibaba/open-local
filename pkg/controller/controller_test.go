@@ -159,7 +159,7 @@ func newNLSC(name string) *localv1alpha1.NodeLocalStorageInitConfig {
 				{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							"node-role.kubernetes.io/master": "",
+							"node-role.kubernetes.io/control-plane": "",
 						},
 					},
 					ListConfig: localv1alpha1.ListConfig{
@@ -176,7 +176,7 @@ func newNLSC(name string) *localv1alpha1.NodeLocalStorageInitConfig {
 
 func newMasterNode(name string) *corev1.Node {
 	labels := map[string]string{
-		"node-role.kubernetes.io/master": "",
+		"node-role.kubernetes.io/control-plane": "",
 		"beta.kubernetes.io/os":          "linux",
 		"kubernetes.io/hostname":         name,
 	}

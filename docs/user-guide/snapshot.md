@@ -150,7 +150,7 @@ spec:
                     values: ["nginx-lvm"]
               topologyKey: kubernetes.io/hostname
       tolerations:
-        - key: node-role.kubernetes.io/master
+        - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
       containers:
@@ -272,7 +272,7 @@ spec:
                     values: ["nginx-lvm"]
               topologyKey: kubernetes.io/hostname
       tolerations:
-        - key: node-role.kubernetes.io/master
+        - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
       containers:

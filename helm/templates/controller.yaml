@@ -162,7 +162,7 @@ spec:
       serviceAccountName: {{ .Values.name }}
       tolerations:
       - effect: NoSchedule
-        key: node-role.kubernetes.io/master
+        key: node-role.kubernetes.io/control-plane
         operator: Exists
       volumes:
 {{- if eq .Values.agent.driverMode "node" }}

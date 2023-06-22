@@ -11,10 +11,9 @@
 `Open-Local`已广泛用于生产环境，目前使用的产品包括：
 
 - [ACK 发行版](https://github.com/AliyunContainerService/ackdistro)
-- 阿里云 ECP (企业级容器平台)
 - 阿里云 ADP (云原生应用交付平台)
 - [云原生 CNStack 产品](https://github.com/alibaba/CNStackCommunityEdition)
-- 蚂蚁 AntStack Plus 产品
+- [蚂蚁 AntStack Plus 产品](https://help.aliyun.com/document_detail/294414.html)
 
 ## 特性
 
@@ -27,6 +26,22 @@
 - 原生块设备
 - IO 限流
 - 临时卷
+
+## Open-Local版本能力矩阵
+
+| 特性                             | Open-Local版本 | K8S版本 |
+| ---------------------------------- | -------------- | --------- |
+| 节点磁盘池化(Node Disk pooling) | v0.1.0+        | 1.18-1.20 |
+| 卷动态供应(Dynamic Provisioning) | v0.1.0+        | 1.20-1.22 |
+| 卷原地扩容(Volume Expansion)  | v0.1.0+        | 1.20-1.22 |
+| 卷快照(Snapshot)                | v0.1.0+        | 1.20-1.22 |
+| LVM/块设备/本地路径         | v0.1.0+        | 1.18-1.20 |
+| 块设备挂载(volumeMode: Block) | v0.3.0+        | 1.20-1.22 |
+| IO限流(IO-Throttling)            | v0.4.0+        | 1.20-1.22 |
+| 本地临时盘(CSI ephemeral volumes) | v0.5.0+        | 1.20-1.22 |
+| IPv6支持                         | v0.5.3+        | 1.20-1.22 |
+| SPDK设备支持                   | v0.6.0+        | 1.20-1.22 |
+| 读写快照（read-write snapshot) | v0.7.0+        | 1.20-1.22 |
 
 ## 架构
 

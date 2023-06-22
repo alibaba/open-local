@@ -20,4 +20,9 @@ covprofile
 # vendor/
 
 *.tar
+
+# IDE excludes
+.vscode/
+.idea/
+
 *.tgz

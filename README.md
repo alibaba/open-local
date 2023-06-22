@@ -20,6 +20,22 @@ English | [简体中文](./README_zh_CN.md)
 - IO Throttling
 - Ephemeral inline volume
 
+## Open-Local Feature Matrix
+
+| Feature                             | Open-Local Version | K8S Version |
+| ----------------------------------- | ------------------ | ----------- |
+| Node Disk pooling                   | v0.1.0+            | 1.18-1.20   |
+| Dynamic Provisioning                | v0.1.0+            | 1.20-1.22   |
+| Volume Expansion                    | v0.1.0+            | 1.20-1.22   |
+| Volume Snapshot                     | v0.1.0+            | 1.20-1.22   |
+| LVM/Block Device/Mountpoints as fs  | v0.1.0+            | 1.18-1.20   |
+| Raw Block Device(volumeMode: Block) | v0.3.0+            | 1.20-1.22   |
+| IO-Throttling                       | v0.4.0+            | 1.20-1.22   |
+| CSI ephemeral volumes               | v0.5.0+            | 1.20-1.22   |
+| IPv6 Support                        | v0.5.3+            | 1.20-1.22   |
+| SPDK host device                    | v0.6.0+            | 1.20-1.22   |
+| Read-write snapshot                 | v0.7.0+            | 1.20-1.22   |
+
 ## Overall Architecture
 
 ```

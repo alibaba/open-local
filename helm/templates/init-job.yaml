@@ -57,7 +57,7 @@ spec:
             clientConnection:
               kubeconfig: /etc/kubernetes/scheduler.conf
             extenders:
-              - urlPrefix: 'http://{{ .Values.extender.name }}.{{.Values.namespace}}:23000/scheduler'
+              - urlPrefix: 'http://{{ .Values.extender.name }}.{{.Values.namespace}}:{{ .Values.extender.port }}/scheduler'
                 filterVerb: predicates
                 prioritizeVerb: priorities
                 preemptVerb: ''
@@ -91,7 +91,7 @@ spec:
             "kind" : "Policy",
             "apiVersion" : "v1",
             "extenders" : [{
-                "urlPrefix": "http://{{ .Values.extender.name }}.{{.Values.namespace}}:23000/scheduler",
+                "urlPrefix": "http://{{ .Values.extender.name }}.{{.Values.namespace}}:{{ .Values.extender.port }}/scheduler",
                 "filterVerb": "predicates",
                 "prioritizeVerb": "priorities",
                 "preemptVerb": "",

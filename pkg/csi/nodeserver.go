@@ -75,7 +75,9 @@ func newNodeServer(options *driverOptions) *nodeServer {
 		options:              options,
 	}
 
-	go ns.checkSPDKSupport()
+	if options.enableSpdk {
+		go ns.checkSPDKSupport()
+	}
 
 	return ns
 }

@@ -90,6 +90,7 @@ func Start(opt *csiOption) error {
 		csi.WithLocalClient(localclient),
 		csi.WithDriverMode(opt.DriverMode),
 		csi.WithUseNodeHostname(opt.UseNodeHostname),
+		csi.WithEnableSpdk(opt.EnableSpdk),
 	)
 	if err := driver.Run(); err != nil {
 		return err

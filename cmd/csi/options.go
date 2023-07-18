@@ -33,6 +33,7 @@ type csiOption struct {
 	CgroupDriver            string
 	DriverMode              string
 	UseNodeHostname         bool
+	EnableSpdk              bool
 	ExtenderSchedulerNames  []string
 	FrameworkSchedulerNames []string
 }
@@ -49,6 +50,7 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&option.CgroupDriver, "cgroupDriver", "systemd", "the name of cgroup driver")
 	fs.StringVar(&option.DriverMode, "driver-mode", "all", "driver mode")
 	fs.BoolVar(&option.UseNodeHostname, "use-node-hostname", false, "use node hostname dns for grpc connection")
+	fs.BoolVar(&option.EnableSpdk, "enable-spdk", true, "enable spdk or not")
 	fs.StringSliceVar(&option.ExtenderSchedulerNames, "extender-scheduler-names", []string{"default-scheduler"}, "extender scheduler names")
 	fs.StringSliceVar(&option.FrameworkSchedulerNames, "framework-scheduler-names", []string{}, "framework scheduler names")
 }

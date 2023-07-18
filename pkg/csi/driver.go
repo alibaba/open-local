@@ -43,6 +43,7 @@ type driverOptions struct {
 	grpcConnectionTimeout   int
 	mode                    string
 	useNodeHostname         bool
+	enableSpdk              bool
 	extenderSchedulerNames  []string
 	frameworkSchedulerNames []string
 
@@ -167,6 +168,12 @@ func WithDriverMode(mode string) Option {
 func WithUseNodeHostname(useNodeHostname bool) Option {
 	return func(o *driverOptions) {
 		o.useNodeHostname = useNodeHostname
+	}
+}
+
+func WithEnableSpdk(enableSpdk bool) Option {
+	return func(o *driverOptions) {
+		o.enableSpdk = enableSpdk
 	}
 }
 

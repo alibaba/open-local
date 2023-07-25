@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/alibaba/open-local/pkg"
@@ -550,4 +551,29 @@ func labelRestored(path string) error {
 	}
 
 	return nil
+}
+
+// requireThrottleIO returns true if any throttle value and related values
+// or else return false
+func requireThrottleIO(volumeContext map[string]string) (r bool, bpsValue int64, iopsValue int64, err error) {
+	bps, ok1 := volumeContext[localtype.VolumeBPS]
+	iops, ok2 := volumeContext[localtype.VolumeIOPS]
+	if !ok1 && !ok2 {
+		return false, 0, 0, nil
+	}
+	if ok1 {
+		bpsQuantity, err := resource.ParseQuantity(bps)
+		if err != nil {
+			return false, 0, 0, err
+		}
+		bpsValue = bpsQuantity.Value()
+	}
+	if ok2 {
+		iopstmp, err := strconv.ParseInt(iops, 10, 64)
+		if err != nil {
+			return false, 0, 0, err
+		}
+		iopsValue = iopstmp
+	}
+	return true, bpsValue, iopsValue, nil
 }

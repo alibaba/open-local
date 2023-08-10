@@ -17,7 +17,7 @@ English | [简体中文](./README_zh_CN.md)
 - Volume snapshot
 - Volume metrics
 - Raw block volume
-- IO Throttling
+- IO Throttling(direct-io only)
 - Ephemeral inline volume
 
 ## Open-Local Feature Matrix

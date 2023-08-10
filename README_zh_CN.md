@@ -13,7 +13,7 @@
 - [ACK 发行版](https://github.com/AliyunContainerService/ackdistro)
 - 阿里云 ADP (云原生应用交付平台)
 - [云原生 CNStack 产品](https://github.com/alibaba/CNStackCommunityEdition)
-- [蚂蚁 AntStack Plus 产品](https://help.aliyun.com/document_detail/294414.html)
+- 蚂蚁金融分布式架构 SOFAStack
 
 ## 特性
 
@@ -24,7 +24,7 @@
 - 存储卷快照
 - 存储卷监控
 - 原生块设备
-- IO 限流
+- IO 限流（仅支持direct-io）
 - 临时卷
 
 ## Open-Local版本能力矩阵

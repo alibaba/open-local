@@ -226,6 +226,7 @@ Events:
 ## IO 限流
 
 Open-Local 支持为 PV 设置 IO 限流:
+> 注意：默认的StorageClass `open-local-lvm-io-throttling` 不可用于生产环境，请按需调整parameters后再使用对应storageclass
 
 ```bash
 # kubectl apply -f ./example/lvm/sts-io-throttling.yaml

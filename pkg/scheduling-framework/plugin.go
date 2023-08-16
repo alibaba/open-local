@@ -219,14 +219,14 @@ func (plugin *LocalPlugin) Name() string {
 	return PluginName
 }
 
-func (plugin *LocalPlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (plugin *LocalPlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	podVolumeInfo, err := plugin.getPodLocalVolumeInfos(pod)
 	if err != nil {
 		klog.Errorf("preFilter", err.Error())
-		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
 	state.Write(stateKey, &stateData{podVolumeInfo: podVolumeInfo, allocateStateByNode: map[string]*cache.NodeAllocateState{}})
-	return framework.NewStatus(framework.Success)
+	return nil, framework.NewStatus(framework.Success)
 }
 
 func (plugin *LocalPlugin) PreFilterExtensions() framework.PreFilterExtensions {

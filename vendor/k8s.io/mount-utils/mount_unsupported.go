@@ -1,3 +1,4 @@
+//go:build !linux && !windows
 // +build !linux,!windows
 
 /*
@@ -53,6 +54,11 @@ func (mounter *Mounter) MountSensitiveWithoutSystemd(source string, target strin
 	return errUnsupported
 }
 
+// MountSensitiveWithoutSystemdWithMountFlags always returns an error on unsupported platforms
+func (mounter *Mounter) MountSensitiveWithoutSystemdWithMountFlags(source string, target string, fstype string, options []string, sensitiveOptions []string, mountFlags []string) error {
+	return errUnsupported
+}
+
 // Unmount always returns an error on unsupported platforms
 func (mounter *Mounter) Unmount(target string) error {
 	return errUnsupported
@@ -66,6 +72,11 @@ func (mounter *Mounter) List() ([]MountPoint, error) {
 // IsLikelyNotMountPoint always returns an error on unsupported platforms
 func (mounter *Mounter) IsLikelyNotMountPoint(file string) (bool, error) {
 	return true, errUnsupported
+}
+
+// canSafelySkipMountPointCheck always returns false on unsupported platforms
+func (mounter *Mounter) canSafelySkipMountPointCheck() bool {
+	return false
 }
 
 // GetMountRefs always returns an error on unsupported platforms

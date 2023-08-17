@@ -29,7 +29,6 @@ import (
 	clientset "github.com/alibaba/open-local/pkg/generated/clientset/versioned"
 	localinformerfactory "github.com/alibaba/open-local/pkg/generated/informers/externalversions"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	"k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -37,6 +36,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	log "k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 )
 
 const initResourceKey = "initResource"

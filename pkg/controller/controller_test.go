@@ -177,8 +177,8 @@ func newNLSC(name string) *localv1alpha1.NodeLocalStorageInitConfig {
 func newMasterNode(name string) *corev1.Node {
 	labels := map[string]string{
 		"node-role.kubernetes.io/control-plane": "",
-		"beta.kubernetes.io/os":          "linux",
-		"kubernetes.io/hostname":         name,
+		"beta.kubernetes.io/os":                 "linux",
+		"kubernetes.io/hostname":                name,
 	}
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{

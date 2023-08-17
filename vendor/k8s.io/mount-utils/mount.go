@@ -49,6 +49,8 @@ type Interface interface {
 	MountSensitive(source string, target string, fstype string, options []string, sensitiveOptions []string) error
 	// MountSensitiveWithoutSystemd is the same as MountSensitive() but this method disable using systemd mount.
 	MountSensitiveWithoutSystemd(source string, target string, fstype string, options []string, sensitiveOptions []string) error
+	// MountSensitiveWithoutSystemdWithMountFlags is the same as MountSensitiveWithoutSystemd() with additional mount flags
+	MountSensitiveWithoutSystemdWithMountFlags(source string, target string, fstype string, options []string, sensitiveOptions []string, mountFlags []string) error
 	// Unmount unmounts given target.
 	Unmount(target string) error
 	// List returns a list of all mounted filesystems.  This can be large.
@@ -64,6 +66,10 @@ type Interface interface {
 	// care about such situations, this is a faster alternative to calling List()
 	// and scanning that output.
 	IsLikelyNotMountPoint(file string) (bool, error)
+	// canSafelySkipMountPointCheck indicates whether this mounter returns errors on
+	// operations for targets that are not mount points. If this returns true, no such
+	// errors will be returned.
+	canSafelySkipMountPointCheck() bool
 	// GetMountRefs finds all mount references to pathname, returning a slice of
 	// paths. Pathname can be a mountpoint path or a normal	directory
 	// (for bind mount). On Linux, pathname is excluded from the slice.
@@ -267,7 +273,8 @@ func IsNotMountPoint(mounter Interface, file string) (bool, error) {
 // MakeBindOpts detects whether a bind mount is being requested and makes the remount options to
 // use in case of bind mount, due to the fact that bind mount doesn't respect mount options.
 // The list equals:
-//   options - 'bind' + 'remount' (no duplicate)
+//
+//	options - 'bind' + 'remount' (no duplicate)
 func MakeBindOpts(options []string) (bool, []string, []string) {
 	bind, bindOpts, bindRemountOpts, _ := MakeBindOptsSensitive(options, nil /* sensitiveOptions */)
 	return bind, bindOpts, bindRemountOpts

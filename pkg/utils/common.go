@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
@@ -932,4 +933,18 @@ func GetNameKey(nameSpace, name string) string {
 
 func GetName(meta metav1.ObjectMeta) string {
 	return GetNameKey(meta.Namespace, meta.Name)
+}
+
+// GetFuncName returns funcname in the form of 'github.com/alibaba/open-local/pkg/scheduler/algorithm/predicates.CapacityPredicate'
+// if `full=true`, otherwise 'predicates.CapacityPredicate'
+func GetFuncName(funcName interface{}, full bool) string {
+	origin := runtime.FuncForPC(reflect.ValueOf(funcName).Pointer()).Name()
+	if !full {
+		funcs := strings.Split(origin, "/")
+		if len(funcs) > 1 {
+			return funcs[len(funcs)-1]
+		}
+		return funcs[0]
+	}
+	return origin
 }

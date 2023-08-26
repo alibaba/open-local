@@ -525,7 +525,7 @@ func ProcessDevicePVC(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, nod
 
 func ScoreInlineLVMVolume(pod *corev1.Pod, node *corev1.Node, ctx *algorithm.SchedulingContext) (score int, units []cache.AllocatedUnit, err error) {
 	if pod != nil {
-		klog.Infof("allocating lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
+		klog.Infof("scoring lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	fits, units, err := HandleInlineLVMVolume(ctx, node, pod)
@@ -550,7 +550,7 @@ func ScoreLVMVolume(pod *corev1.Pod, pvcs []*corev1.PersistentVolumeClaim, node 
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating lvm volume for pod %s", utils.GetName(pod.ObjectMeta))
+		klog.Infof("scoring lvm volume for pod %s on node %s", utils.GetName(pod.ObjectMeta), node.Name)
 	}
 
 	fits, units, err := ProcessLVMPVCPriority(pod, pvcs, node, ctx)
@@ -782,7 +782,7 @@ func ScoreMountPointVolume(
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating mount point volume for pod %s", utils.GetName(pod.ObjectMeta))
+		klog.Infof("scoring mount point volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)
@@ -818,7 +818,7 @@ func ScoreDeviceVolume(
 		return
 	}
 	if pod != nil {
-		klog.Infof("allocating device volume for pod %s", utils.GetName(pod.ObjectMeta))
+		klog.Infof("scoring device volume for pod %s", utils.GetName(pod.ObjectMeta))
 	}
 
 	klog.V(6).Infof("pvcs: %#v, node: %#v", pvcs, node)

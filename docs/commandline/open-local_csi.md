@@ -22,6 +22,15 @@ open-local csi [flags]
       --master string                       URL/IP for master.
       --nodeID string                       the id of node
       --path.sysfs string                   Path of sysfs mountpoint (default "/host_sys")
+      --use-node-hostname                   use node hostname dns for grpc connection
+      --konnectivity-uds                    apiserver-network-proxy unix socket path
+      --konnectivity-proxy-host             apiserver-network-proxy server host
+      --konnectivity-proxy-port             apiserver-network-proxy server port
+      --konnectivity-proxy-mode             apiserver-network-proxy proxy mode, can be either 'grpc' or 'http-connect'
+      --konnectivity-client-cert            apiserver-network-proxy client cert
+      --konnectivity-client-key             apiserver-network-proxy client key
+      --konnectivity-ca-cert                apiserver-network-proxy CA cert
+
 ```
 
 ### Options inherited from parent commands

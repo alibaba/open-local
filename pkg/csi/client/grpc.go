@@ -73,8 +73,8 @@ func MustRunThisWhenTest() {
 }
 
 // NewGrpcConnection lvm connection
-func NewGrpcConnection(address string, timeout time.Duration) (Connection, error) {
-	conn, err := connect(address, timeout)
+func NewGrpcConnection(address string, timeout time.Duration, konnectivityOpts GrpcProxyClientOptions) (Connection, error) {
+	conn, err := connect(address, timeout, konnectivityOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +87,10 @@ func (c *workerConnection) Close() error {
 	return c.conn.Close()
 }
 
-func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
+func connect(address string, timeout time.Duration, proxyOpts GrpcProxyClientOptions) (*grpc.ClientConn, error) {
 	log.V(6).Infof("New Connecting to %s", address)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	// only for unit test
 	var bufDialerFunc func(context.Context, string) (net.Conn, error)
 	dialOptions := []grpc.DialOption{
@@ -100,6 +102,20 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 			return test.Lis.Dial()
 		}
 		dialOptions = append(dialOptions, grpc.WithContextDialer(bufDialerFunc))
+	}
+	// setup konnectivity proxy connection
+	if proxyOpts.ProxyHost != "" || proxyOpts.ProxyUDSName != "" {
+		var err error
+		var proxyDialer proxyFunc
+		if proxyOpts.ProxyUDSName == "" {
+			proxyDialer, err = getKonnectivityMTLSDialer(ctx, address, timeout, proxyOpts)
+		} else {
+			proxyDialer, err = getKonnectivityUDSDialer(ctx, address, timeout, proxyOpts)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup konnectivity dialer: %w", err)
+		}
+		dialOptions = append(dialOptions, grpc.WithContextDialer(proxyDialer))
 	}
 	// if strings.HasPrefix(address, "/") {
 	// 	dialOptions = append(dialOptions, grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
@@ -118,8 +134,6 @@ func connect(address string, timeout time.Duration) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	for {
 		if !conn.WaitForStateChange(ctx, conn.GetState()) {
 			log.Warningf("Connection to %s timed out", address)

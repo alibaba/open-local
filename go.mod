@@ -36,6 +36,7 @@ require (
 	k8s.io/kubernetes v1.24.15
 	k8s.io/mount-utils v0.24.15
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.4
 )
 
 require (

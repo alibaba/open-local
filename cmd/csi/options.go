@@ -36,6 +36,13 @@ type csiOption struct {
 	EnableSpdk              bool
 	ExtenderSchedulerNames  []string
 	FrameworkSchedulerNames []string
+	KonnectivityUDS         string
+	KonnectivityProxyHost   string
+	KonnectivityProxyPort   int
+	KonnectivityProxyMode   string
+	KonnectivityClientCert  string
+	KonnectivityClientKey   string
+	KonnectivityCACert      string
 }
 
 func (option *csiOption) addFlags(fs *pflag.FlagSet) {
@@ -53,4 +60,11 @@ func (option *csiOption) addFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&option.EnableSpdk, "enable-spdk", true, "enable spdk or not")
 	fs.StringSliceVar(&option.ExtenderSchedulerNames, "extender-scheduler-names", []string{"default-scheduler"}, "extender scheduler names")
 	fs.StringSliceVar(&option.FrameworkSchedulerNames, "framework-scheduler-names", []string{}, "framework scheduler names")
+	fs.StringVar(&option.KonnectivityUDS, "konnectivity-uds", "", "apiserver-network-proxy unix socket path")
+	fs.StringVar(&option.KonnectivityProxyHost, "konnectivity-proxy-host", "", "apiserver-network-proxy server host")
+	fs.IntVar(&option.KonnectivityProxyPort, "konnectivity-proxy-port", 0, "apiserver-network-proxy server port")
+	fs.StringVar(&option.KonnectivityProxyMode, "konnectivity-proxy-mode", "", "apiserver-network-proxy proxy mode, can be either 'grpc' or 'http-connect'")
+	fs.StringVar(&option.KonnectivityClientCert, "konnectivity-client-cert", "", "apiserver-network-proxy client cert")
+	fs.StringVar(&option.KonnectivityClientKey, "konnectivity-client-key", "", "apiserver-network-proxy client key")
+	fs.StringVar(&option.KonnectivityCACert, "konnectivity-ca-cert", "", "apiserver-network-proxy CA cert")
 }

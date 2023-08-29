@@ -91,6 +91,15 @@ func Start(opt *csiOption) error {
 		csi.WithDriverMode(opt.DriverMode),
 		csi.WithUseNodeHostname(opt.UseNodeHostname),
 		csi.WithEnableSpdk(opt.EnableSpdk),
+		csi.WithKonnectivity(
+			opt.KonnectivityUDS,
+			opt.KonnectivityProxyHost,
+			opt.KonnectivityProxyPort,
+			opt.KonnectivityProxyMode,
+			opt.KonnectivityClientCert,
+			opt.KonnectivityClientKey,
+			opt.KonnectivityCACert,
+		),
 	)
 	if err := driver.Run(); err != nil {
 		return err

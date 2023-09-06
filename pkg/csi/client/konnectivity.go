@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -47,7 +46,7 @@ type GrpcProxyClientOptions struct {
 
 type proxyFunc func(ctx context.Context, addr string) (net.Conn, error)
 
-func getKonnectivityUDSDialer(ctx context.Context, address string, timeout time.Duration, o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
+func getKonnectivityUDSDialer(ctx context.Context, address string,o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
 	log.Infof("using konnectivity UDS dialer")
 
 	var proxyConn net.Conn
@@ -57,15 +56,15 @@ func getKonnectivityUDSDialer(ctx context.Context, address string, timeout time.
 	switch o.Mode {
 	case "grpc":
 		dialOption := grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			c, err := net.DialTimeout("unix", o.ProxyUDSName, timeout)
+			c, err := net.Dial("unix", o.ProxyUDSName)
 			if err != nil {
 				log.ErrorS(err, "failed to create connection to uds", "name", o.ProxyUDSName)
 			}
 			return c, err
 		})
 		tunnel, err := client.CreateSingleUseGrpcTunnelWithContext(
-			context.TODO(),
-			ctx,
+			ctx,// create context should follow grpc timeout configuration
+			context.TODO(), // tunnel context use context.TODO()
 			o.ProxyUDSName,
 			dialOption,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -112,7 +111,7 @@ func getKonnectivityUDSDialer(ctx context.Context, address string, timeout time.
 	}, nil
 }
 
-func getKonnectivityMTLSDialer(ctx context.Context, address string, _ time.Duration, o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
+func getKonnectivityMTLSDialer(ctx context.Context, address string, o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
 	log.Infof("using konnectivity mTLS dialer")
 
 	tlsConfig, err := getClientTLSConfig(o.CACert, o.ClientCert, o.ClientKey, o.ProxyHost, nil)
@@ -126,7 +125,7 @@ func getKonnectivityMTLSDialer(ctx context.Context, address string, _ time.Durat
 		transportCreds := credentials.NewTLS(tlsConfig)
 		dialOption := grpc.WithTransportCredentials(transportCreds)
 		serverAddress := fmt.Sprintf("%s:%d", o.ProxyHost, o.ProxyPort)
-		tunnel, err := client.CreateSingleUseGrpcTunnelWithContext(context.TODO(), ctx, serverAddress, dialOption)
+		tunnel, err := client.CreateSingleUseGrpcTunnelWithContext(ctx, context.TODO(), serverAddress, dialOption)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tunnel %s, got %v", serverAddress, err)
 		}

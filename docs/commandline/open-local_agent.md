@@ -41,5 +41,5 @@ open-local agent [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local](./open-local.md)	 - 
 

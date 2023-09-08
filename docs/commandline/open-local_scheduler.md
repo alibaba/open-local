@@ -42,5 +42,5 @@ open-local scheduler [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local](./open-local.md)	 - 
 

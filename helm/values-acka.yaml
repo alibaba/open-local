@@ -42,7 +42,7 @@ storageclass:
   # lvm StorageClass
   lvm:
     enabled: true
-    name: open-local-lvm
+    name: yoda-lvm-default
     parameters:
       volumeType: "LVM"
       csi.storage.k8s.io/fstype: ext4
@@ -52,7 +52,7 @@ storageclass:
   # lvm_xfs StorageClass
   lvm_xfs:
     enabled: true
-    name: open-local-lvm-xfs
+    name: yoda-lvm-xfs
     parameters:
       volumeType: LVM
       csi.storage.k8s.io/fstype: xfs
@@ -61,8 +61,8 @@ storageclass:
     allowVolumeExpansion: true
   # lvm_throttle StorageClass
   lvm_throttle:
-    enabled: true
-    name: open-local-lvm-io-throttle
+    enabled: false
+    name: yoda-lvm-io-throttle
     parameters:
       volumeType: LVM
       # bps: "1048576"
@@ -73,7 +73,7 @@ storageclass:
   # device_ssd StorageClass
   device_ssd:
     enabled: true
-    name: open-local-device-ssd
+    name: yoda-device-ssd
     parameters:
       csi.storage.k8s.io/fstype: ext4
       volumeType: Device
@@ -84,7 +84,7 @@ storageclass:
   # device_hdd StorageClass
   device_hdd:
     enabled: true
-    name: open-local-device-hdd
+    name: yoda-device-hdd
     parameters:
       csi.storage.k8s.io/fstype: ext4
       volumeType: Device

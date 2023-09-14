@@ -9,7 +9,7 @@ the controller and node plugins to communicate with worker nodes. However, in
 some cases workers might be running at the edge, behind a NAT or other network
 constraints. There are platforms like OpenYurt and SuperEdge that offer proxy
 tunnels and various other edge solutions. With these, you might be interested in
-the [`--use-node-hostname`](/docs/commandline/open-local_csi.md) argument, which
+the [`--use-node-hostname`](../../docs/commandline/open-local_csi.md) argument, which
 will use the node host-name DNS, instead of its IP, for the gRPC connection.
 
 Konnectivity relies on an [`EgressSelectorConfiguration`](https://kubernetes.io/docs/reference/config-api/apiserver-config.v1alpha1/#apiserver-k8s-io-v1alpha1-EgressSelectorConfiguration)

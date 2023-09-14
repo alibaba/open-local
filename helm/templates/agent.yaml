@@ -134,7 +134,7 @@ spec:
               apiVersion: v1
               fieldPath: spec.nodeName
         - name: CSI_ENDPOINT
-          value: unix://var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: unix:/{{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         - name: ISSUE_ORPHANED_POD
@@ -174,7 +174,7 @@ spec:
           name: directvolume
 {{- end }}
         - name: pods-mount-dir
-          mountPath: /var/lib/kubelet
+          mountPath: {{ .Values.agent.kubelet_dir }}
           mountPropagation: "Bidirectional"
         - mountPath: /dev
           mountPropagation: "HostToContainer"

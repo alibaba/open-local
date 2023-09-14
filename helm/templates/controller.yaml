@@ -26,7 +26,7 @@ spec:
         - --timeout=10m
         env:
         - name: ADDRESS
-          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.provisioner.image }}:{{ .Values.images.provisioner.tag }}
@@ -39,14 +39,14 @@ spec:
             cpu: 50m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+        - mountPath: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
           name: socket-dir
       - name: csi-resizer
         args:
         - --csi-address=$(ADDRESS)
         env:
         - name: ADDRESS
-          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.resizer.image }}:{{ .Values.images.resizer.tag }}
@@ -59,7 +59,7 @@ spec:
             cpu: 50m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+        - mountPath: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
           name: socket-dir
       - name: csi-snapshotter
         args:
@@ -67,7 +67,7 @@ spec:
         - --snapshot-name-prefix=snap
         env:
         - name: ADDRESS
-          value: /var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.snapshotter.image }}:{{ .Values.images.snapshotter.tag }}
@@ -80,7 +80,7 @@ spec:
             cpu: 50m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+        - mountPath: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
           name: socket-dir
 {{- if eq .Values.agent.driverMode "node" }}
       - name: csi-plugin
@@ -100,7 +100,7 @@ spec:
               apiVersion: v1
               fieldPath: spec.nodeName
         - name: CSI_ENDPOINT
-          value: unix://var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: unix:/{{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         - name: ISSUE_ORPHANED_POD
@@ -123,7 +123,7 @@ spec:
             cpu: 50m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /var/lib/kubelet/plugins/{{ .Values.driver }}
+        - mountPath: {{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}
           name: socket-dir
 {{- end }}
       - name: controller

@@ -56,7 +56,7 @@ spec:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         resources:
           limits:
             cpu: 200m
@@ -81,7 +81,7 @@ spec:
           mountPropagation: "Bidirectional"
       - name: driver-registrar
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         args:
         - "--v=5"
         - "--csi-address=/csi/csi.sock"
@@ -113,7 +113,7 @@ spec:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         args:
         - csi
         - "--endpoint=$(CSI_ENDPOINT)"

@@ -5,7 +5,7 @@ customLabels: {}
 images:
   local:
     image: ecp_builder/open-local
-    tag: v0.7.1
+    tag: v0.7.2
   registrar:
     image: ecp_builder/csi-node-driver-registrar
     tag: v2.3.0
@@ -49,7 +49,7 @@ storageclass:
   lvm_xfs:
     name: open-local-lvm-xfs
   lvm_throttle:
-    name: open-local-lvm-io-throttle
+    name: open-local-lvm-io-throttling
   device_ssd:
     name: open-local-device-ssd
   device_hdd:

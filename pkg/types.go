@@ -60,6 +60,8 @@ const (
 	BPSWriteFile  = "blkio.throttle.write_bps_device"
 	IOPSReadFile  = "blkio.throttle.read_iops_device"
 	IOPSWriteFile = "blkio.throttle.write_iops_device"
+	V2_IOFILE     = "io.max"
+
 
 	PVName       = "csi.storage.k8s.io/pv/name"
 	PVCName      = "csi.storage.k8s.io/pvc/name"

@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"bufio"
 	"syscall"
 	"time"
 
@@ -641,7 +642,94 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 	}
 	// pod qosClass and blkioPath
 	qosClass := pod.Status.QOSClass
-	blkioPath := fmt.Sprintf("%s/fs/cgroup/blkio/%s%s%s", ns.options.sysPath, utils.CgroupPathFormatter.ParentDir, utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
+
+	// get cgroup version
+	getCgroupVersion := func() string {
+		var fsPath string = "/proc/filesystems"
+		// by default, return "v1"
+		var cgroupVersion string = "v1"
+
+		fs, err := os.Open(fsPath)
+		if err != nil {
+			log.Errorf("get cgroup version from %s failed: %s", fsPath, err.Error())
+			return cgroupVersion
+		}
+		defer fs.Close()
+
+		fsScanner := bufio.NewScanner(fs)
+		fsScanner.Split(bufio.ScanLines)
+
+		cgroup2 := "cgroup2"
+
+		for fsScanner.Scan() {
+			if strings.Contains(fsScanner.Text(), cgroup2) {
+				cgroupVersion = "v2"
+				break
+			}
+		}
+	
+		if err := fsScanner.Err(); err != nil {
+			log.Errorf("scan for cgroup version from %s err:%s", fsPath, err.Error())
+		}
+
+		return cgroupVersion
+	}
+
+	getBlkioPath := func(cgroupVersion string) string {
+		var blkioPath string
+		if cgroupVersion == "v1" { // for cgroup v1
+			blkioPath = fmt.Sprintf("%s/fs/cgroup/blkio/%s%s%s", ns.options.sysPath, utils.CgroupPathFormatter.ParentDir, utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
+		} else { // for higher cgroup version, current version = v2
+			blkioPath = fmt.Sprintf("%s/fs/cgroup/%s%s%s", ns.options.sysPath, utils.CgroupPathFormatter.ParentDir, utils.CgroupPathFormatter.QOSDirFn(qosClass), utils.CgroupPathFormatter.PodDirFn(qosClass, podUID))
+		}
+		return blkioPath
+	}
+
+	makeBlkioCmdstr := func(cgroupVersion string, blkioPath string, maj uint64, min uint64, iops int64, bps int64) []string {
+		var cmdArray []string
+		var cmdstr string
+
+		if cgroupVersion == "v1" {
+			if iops > 0 {
+				cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
+				cmdArray = append(cmdArray, cmdstr)
+				cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, iops), fmt.Sprintf("%s%s", blkioPath, localtype.IOPSWriteFile))
+				cmdArray = append(cmdArray, cmdstr)
+			}
+
+			if bps > 0 {
+				cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSReadFile))
+				cmdArray = append(cmdArray, cmdstr)
+				cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSWriteFile))
+				cmdArray = append(cmdArray, cmdstr)
+			}
+		} else {
+			var iopsstr string
+			var bpsstr string
+			if iops > 0 {
+				iopsstr = fmt.Sprintf("riops=%d wiops=%d", iops, iops)
+			} else {
+				iopsstr = "riops=max wiops=max"
+			}
+
+			if bps > 0 {
+				bpsstr = fmt.Sprintf("rbps=%d wbps=%d", bps, bps)
+			} else {
+				bpsstr = "rbps=max wbps=max"
+			}
+
+			if iops > 0 || bps > 0 {
+				cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %s %s", maj, min, iopsstr, bpsstr), fmt.Sprintf("%s/%s", blkioPath, localtype.V2_IOFILE))
+				cmdArray = append(cmdArray, cmdstr)
+			}
+		}
+
+		return cmdArray
+	}
+
+	cgroupVersion := getCgroupVersion()
+	blkioPath := getBlkioPath(cgroupVersion)
+
 	log.Infof("pod(volume id %s) qosClass: %s", volumeID, qosClass)
 	log.Infof("pod(volume id %s) blkio path: %s", volumeID, blkioPath)
 	// get lv lvpath
@@ -656,34 +744,20 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 	min := uint64(stat.Rdev % 256)
 	log.Infof("volume %s maj:min: %d:%d", volumeID, maj, min)
 	log.Infof("volume %s path: %s", volumeID, lvpath)
-	if iops > 0 {
-		log.Infof("volume %s iops: %d", volumeID, iops)
-		cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, iops), fmt.Sprintf("%s/%s", blkioPath, localtype.IOPSReadFile))
-		_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.IOPSReadFile), err.Error())
-		}
-		cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, iops), fmt.Sprintf("%s%s", blkioPath, localtype.IOPSWriteFile))
-		_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.IOPSWriteFile), err.Error())
+	if iops > 0 || bps > 0 {
+		log.Infof("volume %s iops: %d bps: %d", volumeID, iops, bps)
+		cmdArray := makeBlkioCmdstr(cgroupVersion, blkioPath, maj, min, iops, bps)
+		for _, cmd := range cmdArray {
+			_, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to write blkio file cmd:%s error:%s", cmd, err.Error())
+			}
 		}
 	}
-	if bps > 0 {
-		log.Infof("volume %s bps: %d", volumeID, bps)
-		cmdstr := fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSReadFile))
-		_, err := exec.Command("sh", "-c", cmdstr).CombinedOutput()
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.BPSReadFile), err.Error())
-		}
-		cmdstr = fmt.Sprintf("echo %s > %s", fmt.Sprintf("%d:%d %d", maj, min, bps), fmt.Sprintf("%s%s", blkioPath, localtype.BPSWriteFile))
-		_, err = exec.Command("sh", "-c", cmdstr).CombinedOutput()
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to write blkio file %s: %s", fmt.Sprintf("%s%s", blkioPath, localtype.BPSWriteFile), err.Error())
-		}
-	}
+	
 	return nil
 }
+
 func (ns *nodeServer) checkSPDKSupport() {
 	for {
 		nls, err := ns.options.localclient.CsiV1alpha1().NodeLocalStorages().Get(context.Background(), ns.options.nodeID, metav1.GetOptions{})

@@ -729,6 +729,11 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	}, nil
 }
 
+func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	log.V(4).Infof("ControllerGetVolume: called with args %+v", *req)
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
 func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	log.V(4).Infof("ControllerGetCapabilities: called with args %+v", *req)
 	var caps []*csi.ControllerServiceCapability
@@ -774,7 +779,21 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 		log.Errorf("CreateVolume: Get node %s address with error: %s", nodeSelected, err.Error())
 		return nil, err
 	}
-	conn, err := client.NewGrpcConnection(addr, time.Duration(cs.options.grpcConnectionTimeout*int(time.Second)))
+
+	var proxyOpts client.GrpcProxyClientOptions
+	if cs.options.konnectivityProxyHost != "" || cs.options.konnectivityUDS != "" {
+		proxyOpts = client.GrpcProxyClientOptions{
+			Mode: cs.options.konnectivityProxyMode,
+			ProxyHost: cs.options.konnectivityProxyHost,
+			ProxyPort: cs.options.konnectivityProxyPort,
+			ProxyUDSName: cs.options.konnectivityUDS,
+			ClientCert: cs.options.konnectivityClientCert,
+			ClientKey: cs.options.konnectivityClientKey,
+			CACert: cs.options.konnectivityCACert,
+		}
+	}
+
+	conn, err := client.NewGrpcConnection(addr, time.Duration(cs.options.grpcConnectionTimeout*int(time.Second)), proxyOpts)
 	return conn, err
 }
 

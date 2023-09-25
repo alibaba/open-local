@@ -56,7 +56,7 @@ spec:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         resources:
           limits:
             cpu: 200m
@@ -81,7 +81,7 @@ spec:
           mountPropagation: "Bidirectional"
       - name: driver-registrar
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.registrar.image }}:{{ .Values.images.registrar.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         args:
         - "--v=5"
         - "--csi-address=/csi/csi.sock"
@@ -113,7 +113,7 @@ spec:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         args:
         - csi
         - "--endpoint=$(CSI_ENDPOINT)"
@@ -134,7 +134,7 @@ spec:
               apiVersion: v1
               fieldPath: spec.nodeName
         - name: CSI_ENDPOINT
-          value: unix://var/lib/kubelet/plugins/{{ .Values.driver }}/csi.sock
+          value: unix:/{{ .Values.agent.kubelet_dir }}/plugins/{{ .Values.driver }}/csi.sock
         - name: TZ
           value: Asia/Shanghai
         - name: ISSUE_ORPHANED_POD
@@ -174,7 +174,7 @@ spec:
           name: directvolume
 {{- end }}
         - name: pods-mount-dir
-          mountPath: /var/lib/kubelet
+          mountPath: {{ .Values.agent.kubelet_dir }}
           mountPropagation: "Bidirectional"
         - mountPath: /dev
           mountPropagation: "HostToContainer"

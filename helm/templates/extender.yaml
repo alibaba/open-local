@@ -43,7 +43,7 @@ spec:
         - --port={{ .Values.extender.port }}
         - --scheduler-strategy={{ .Values.extender.strategy }}
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         name: {{ .Values.name }}-scheduler-extender
         resources:
           limits:

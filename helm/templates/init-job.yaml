@@ -41,6 +41,7 @@ spec:
       containers:
       - name: init
         image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         command:
         - sh
         - "-c"

@@ -69,7 +69,7 @@ func init() {
 
 	pflag.CommandLine.SetNormalizeFunc(utils.WordSepNormalizeFunc)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-
+	logs.AddFlags(pflag.CommandLine)
 	_ = flag.CommandLine.Parse([]string{})
 	logs.InitLogs()
 }

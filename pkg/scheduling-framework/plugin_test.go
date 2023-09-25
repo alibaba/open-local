@@ -141,7 +141,7 @@ func prepare(plugin *LocalPlugin) []*framework.NodeInfo {
 
 		plugin.OnNodeLocalStorageAdd(nls)
 		nodeInfo := &framework.NodeInfo{}
-		_ = nodeInfo.SetNode(&corev1.Node{
+		nodeInfo.SetNode(&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: nls.Name,
 			},
@@ -1814,7 +1814,7 @@ func Test_Reservation(t *testing.T) {
 	cycleState := framework.NewCycleState()
 
 	//schedule reservationPod
-	gotStatus := plugin.PreFilter(context.Background(), cycleState, reservationPod)
+	_, gotStatus := plugin.PreFilter(context.Background(), cycleState, reservationPod)
 	assert.Equal(t, framework.Success, gotStatus.Code(), "reservationPod should prefilter success!")
 	gotStatus = plugin.Reserve(context.Background(), cycleState, reservationPod, nodeName)
 	assert.Equal(t, framework.Success, gotStatus.Code(), "reservationPod should reserve success!")
@@ -1847,7 +1847,7 @@ func Test_Reservation(t *testing.T) {
 
 	//schedule pod which use reservation
 	cycleState = framework.NewCycleState()
-	gotStatus = plugin.PreFilter(context.Background(), cycleState, complexPod)
+	_, gotStatus = plugin.PreFilter(context.Background(), cycleState, complexPod)
 	assert.Equal(t, framework.Success, gotStatus.Code(), "pod should prefilter success!")
 	gotStatus = plugin.ReserveReservation(context.Background(), cycleState, complexPod, reservationPod, nodeName)
 	assert.Equal(t, framework.Success, gotStatus.Code(), "pod should reserve success!")

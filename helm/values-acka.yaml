@@ -56,3 +56,4 @@ global:
   YodaSchedulerSvcIP: 10.96.0.4
   RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
   NumOfMasters: 3
+  ImagePullPolicy: Always

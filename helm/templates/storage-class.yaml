@@ -52,6 +52,20 @@ reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false
 ---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageclass.lvm_throttle.name }}
+{{ include "local.labels" . | indent 2 }}
+provisioner: local.csi.aliyun.com
+parameters:
+  volumeType: "LVM"
+  bps: "1048576"
+  iops: "1024"
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:

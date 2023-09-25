@@ -238,7 +238,7 @@ func Test_PreFilter(t *testing.T) {
 
 			cycleState := framework.NewCycleState()
 
-			gotStatus := plugin.PreFilter(context.Background(), cycleState, tt.args.pod)
+			_, gotStatus := plugin.PreFilter(context.Background(), cycleState, tt.args.pod)
 
 			gotDataState, err := plugin.getState(cycleState)
 			if tt.expectPreFilter.stateData != nil {

@@ -1,4 +1,4 @@
-FROM golang:1.15.6@sha256:a3c6ad248e08e28868dac893ed96fec00e5b110d005238fdae177772486947b0 AS builder
+FROM --platform=linux/arm64 golang:1.18 AS builder
 
 WORKDIR /go/src/github.com/alibaba/open-local
 COPY . .

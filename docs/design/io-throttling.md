@@ -14,8 +14,8 @@ metadata:
 provisioner: local.csi.aliyun.com
 parameters:
   volumeType: "LVM"
-  bps: 1048576
-  iops: 1024
+  bps: "1048576" # same as 1Mi
+  iops: "1024"
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

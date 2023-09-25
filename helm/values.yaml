@@ -48,6 +48,8 @@ storageclass:
     name: open-local-lvm
   lvm_xfs:
     name: open-local-lvm-xfs
+  lvm_throttle:
+    name: open-local-lvm-io-throttle
   device_ssd:
     name: open-local-device-ssd
   device_hdd:
@@ -59,3 +61,4 @@ monitor:
   namespace: monitoring
 global:
   RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
+  ImagePullPolicy: Always

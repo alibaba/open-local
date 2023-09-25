@@ -44,16 +44,59 @@ extender:
 controller:
   update_nls: "true"
 storageclass:
+  # lvm StorageClass
   lvm:
+    enabled: true
     name: open-local-lvm
+    parameters:
+      volumeType: "LVM"
+      csi.storage.k8s.io/fstype: ext4
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+  # lvm_xfs StorageClass
   lvm_xfs:
+    enabled: true
     name: open-local-lvm-xfs
+    parameters:
+      volumeType: LVM
+      csi.storage.k8s.io/fstype: xfs
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+  # lvm_throttle StorageClass
   lvm_throttle:
+    enabled: true
     name: open-local-lvm-io-throttle
+    parameters:
+      volumeType: LVM
+      # bps: "1048576"
+      # iops: "1024"
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+  # device_ssd StorageClass
   device_ssd:
+    enabled: true
     name: open-local-device-ssd
+    parameters:
+      csi.storage.k8s.io/fstype: ext4
+      volumeType: Device
+      mediaType: ssd
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: false
+  # device_hdd StorageClass
   device_hdd:
+    enabled: true
     name: open-local-device-hdd
+    parameters:
+      csi.storage.k8s.io/fstype: ext4
+      volumeType: Device
+      mediaType: hdd
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: false
 monitor:
   # install grafana dashboard
   enabled: false

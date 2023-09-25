@@ -58,5 +58,5 @@ open-local completion bash
 
 ### SEE ALSO
 
-* [open-local completion](open-local_completion.md)	 - Generate the autocompletion script for the specified shell
+* [open-local completion](./open-local_completion.md)	 - Generate the autocompletion script for the specified shell
 

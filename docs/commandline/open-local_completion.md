@@ -35,9 +35,9 @@ See each sub-command's help for details on how to use the generated script.
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
-* [open-local completion bash](open-local_completion_bash.md)	 - Generate the autocompletion script for bash
-* [open-local completion fish](open-local_completion_fish.md)	 - Generate the autocompletion script for fish
-* [open-local completion powershell](open-local_completion_powershell.md)	 - Generate the autocompletion script for powershell
-* [open-local completion zsh](open-local_completion_zsh.md)	 - Generate the autocompletion script for zsh
+* [open-local](./open-local.md)	 - 
+* [open-local completion bash](./open-local_completion_bash.md)	 - Generate the autocompletion script for bash
+* [open-local completion fish](./open-local_completion_fish.md)	 - Generate the autocompletion script for fish
+* [open-local completion powershell](./open-local_completion_powershell.md)	 - Generate the autocompletion script for powershell
+* [open-local completion zsh](./open-local_completion_zsh.md)	 - Generate the autocompletion script for zsh
 

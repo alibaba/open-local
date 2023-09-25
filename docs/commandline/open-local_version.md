@@ -34,5 +34,5 @@ open-local version [flags]
 
 ### SEE ALSO
 
-* [open-local](open-local.md)	 - 
+* [open-local](./open-local.md)	 - 
 

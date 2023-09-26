@@ -101,10 +101,10 @@ func CapacityPredicate(ctx *algorithm.SchedulingContext, pod *corev1.Pod, node *
 		return false, err
 	}
 	if !fits {
-		klog.Info("pod %s not fit node %s readonly snapshot", utils.GetName(pod.ObjectMeta))
+		klog.Infof("pod %s not fit node %s readonly snapshot", utils.GetName(pod.ObjectMeta), node.Name)
 		return false, errors.NewSnapshotError(pkg.VolumeTypeLVM)
 	} else {
-		klog.Info("pod %s fit node %s readonly snapshot!", utils.GetName(pod.ObjectMeta))
+		klog.Infof("pod %s fit node %s readonly snapshot!", utils.GetName(pod.ObjectMeta), node.Name)
 	}
 
 	if len(lvmPVCs) <= 0 && len(mpPVCs) <= 0 && len(devicePVCs) <= 0 && !containInlineVolume {

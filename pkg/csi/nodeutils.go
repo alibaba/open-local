@@ -476,7 +476,7 @@ func (ns *nodeServer) createLvm(vgName, volumeID, lvmType, unit string, pvSize i
 			log.Errorf("createVolume:: lvcreate command %s error: %v", cmd, err)
 			return err
 		}
-		log.Infof("Successful Create Striping LVM volume: %s, with command: %s", volumeID, cmd)
+		log.Infof("Successfully Create Striping LVM volume: %s, with command: %s", volumeID, cmd)
 	} else if lvmType == LinearType {
 		cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s -Wy -y %s", localtype.NsenterCmd, volumeID, pvSize, unit, vgName)
 		_, err := ns.osTool.RunCommand(cmd)
@@ -484,7 +484,7 @@ func (ns *nodeServer) createLvm(vgName, volumeID, lvmType, unit string, pvSize i
 			log.Errorf("createVolume:: lvcreate linear command %s error: %v", cmd, err)
 			return err
 		}
-		log.Infof("Successful Create Linear LVM volume: %s, with command: %s", volumeID, cmd)
+		log.Infof("Successfully Create Linear LVM volume: %s, with command: %s", volumeID, cmd)
 	}
 	return nil
 }

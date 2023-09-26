@@ -210,7 +210,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				return nil, status.Errorf(codes.Internal, "CreateVolume: fail to get lv %s from node %s: %s", req.Name, nodeName, err.Error())
 			} else {
 				if lvName == "" {
-					log.Info("CreateVolume: volume %s not found, creating volume on node %s", volumeID, nodeName)
+					log.Infof("CreateVolume: volume %s is not found, creating volume on node %s", volumeID, nodeName)
 					outstr, err := conn.CreateVolume(ctx, options)
 					if err != nil {
 						return nil, status.Errorf(codes.Internal, "CreateVolume: fail to create lv %s(options: %v): %s", utils.GetNameKey(vgName, volumeID), options, err.Error())
@@ -767,6 +767,7 @@ func (cs *controllerServer) newCreateSnapshotResponse(snapshotId, sourceVolumeId
 	}, nil
 }
 
+// getNodeConn creates a new connection to the lvmd for the `nodeSelected` node
 func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection, error) {
 	node, err := cs.nodeLister.Get(nodeSelected)
 	if err != nil {

@@ -87,10 +87,14 @@ func (c *workerConnection) Close() error {
 	return c.conn.Close()
 }
 
-func connect(address string, timeout time.Duration, proxyOpts GrpcProxyClientOptions) (*grpc.ClientConn, error) {
-	log.V(6).Infof("New Connecting to %s", address)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+// connect create new connection to the `address`
+// if proxyOpts.ProxyUDSName or proxyOpts.ProxyHost is not empty, a proxied connection returned
+// currently, the proxy server can only be konnnectivity
+func connect(address string, timeout time.Duration, proxyOpts GrpcProxyClientOptions) (conn *grpc.ClientConn, err error) {
+	log.V(6).Infof("New Connecting to remote address %s ...", address)
+	connectCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
 	// only for unit test
 	var bufDialerFunc func(context.Context, string) (net.Conn, error)
 	dialOptions := []grpc.DialOption{
@@ -103,18 +107,22 @@ func connect(address string, timeout time.Duration, proxyOpts GrpcProxyClientOpt
 		}
 		dialOptions = append(dialOptions, grpc.WithContextDialer(bufDialerFunc))
 	}
+	// end for unit test
 	// setup konnectivity proxy connection
+	var proxyAddress string
 	if proxyOpts.ProxyHost != "" || proxyOpts.ProxyUDSName != "" {
-		var err error
 		var proxyDialer proxyFunc
 		if proxyOpts.ProxyUDSName == "" {
-			proxyDialer, err = getKonnectivityMTLSDialer(ctx, address, timeout, proxyOpts)
+			proxyAddress = proxyOpts.ProxyHost
+			proxyDialer, err = getKonnectivityMTLSDialer(connectCtx, address, proxyOpts)
 		} else {
-			proxyDialer, err = getKonnectivityUDSDialer(ctx, address, timeout, proxyOpts)
+			proxyAddress = proxyOpts.ProxyUDSName
+			proxyDialer, err = getKonnectivityUDSDialer(connectCtx, address, proxyOpts)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to setup konnectivity dialer: %w", err)
+			return nil, fmt.Errorf("failed to setup konnectivity dialer（%q）: %w", address, err)
 		}
+		log.Infof("connected to proxy server %q.", proxyAddress)
 		dialOptions = append(dialOptions, grpc.WithContextDialer(proxyDialer))
 	}
 	// if strings.HasPrefix(address, "/") {
@@ -129,14 +137,14 @@ func connect(address string, timeout time.Duration, proxyOpts GrpcProxyClientOpt
 				return net.DialTimeout("unix", addr, timeout)
 			}))
 	}
-	conn, err := grpc.Dial(address, dialOptions...)
+	conn, err = grpc.Dial(address, dialOptions...)
 
 	if err != nil {
 		return nil, err
 	}
 	for {
-		if !conn.WaitForStateChange(ctx, conn.GetState()) {
-			log.Warningf("Connection to %s timed out", address)
+		if !conn.WaitForStateChange(connectCtx, conn.GetState()) {
+			log.Warningf("Connection to %s timed out, subsequent calls might fail due to this.", address)
 			return conn, nil // return nil, subsequent GetPluginInfo will show the real connection error
 		}
 		if conn.GetState() == connectivity.Ready {

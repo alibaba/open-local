@@ -4,7 +4,7 @@ driver: local.csi.aliyun.com
 customLabels: {}
 images:
   local:
-    image: ecp_builder/open-local
+    image: apecloud/open-local
     tag: v0.7.2
   registrar:
     image: ecp_builder/csi-node-driver-registrar
@@ -61,4 +61,5 @@ monitor:
   namespace: monitoring
 global:
   RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
+  DockerRegistryURL: docker.io
   ImagePullPolicy: Always

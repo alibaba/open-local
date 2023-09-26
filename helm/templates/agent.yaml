@@ -55,7 +55,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.global.DockerRegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         resources:
           limits:
@@ -112,7 +112,7 @@ spec:
           capabilities:
             add: ["SYS_ADMIN"]
           allowPrivilegeEscalation: true
-        image: {{ .Values.global.RegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
+        image: {{ .Values.global.DockerRegistryURL }}/{{ .Values.images.local.image }}:{{ .Values.images.local.tag }}
         imagePullPolicy: {{ .Values.global.ImagePullPolicy }}
         args:
         - csi

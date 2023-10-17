@@ -17,6 +17,7 @@ limitations under the License.
 package csi
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"bufio"
 	"syscall"
 	"time"
 
@@ -667,7 +667,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 				break
 			}
 		}
-	
+
 		if err := fsScanner.Err(); err != nil {
 			log.Errorf("scan for cgroup version from %s err:%s", fsPath, err.Error())
 		}
@@ -754,7 +754,7 @@ func (ns *nodeServer) setIOThrottling(ctx context.Context, req *csi.NodePublishV
 			}
 		}
 	}
-	
+
 	return nil
 }
 

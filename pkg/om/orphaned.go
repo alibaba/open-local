@@ -1,7 +1,6 @@
 package om
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +43,7 @@ func FixOrphanedPodIssue(line string) bool {
 
 	// check kubernetes csi volumes
 	csiPodPath := filepath.Join("/var/lib/kubelet/pods", orphanUID, "volumes/kubernetes.io~csi")
-	volumes, err := ioutil.ReadDir(csiPodPath)
+	volumes, err := os.ReadDir(csiPodPath)
 	if err != nil {
 		log.Warningf("OrphanPod: List Volumes with error: %s, line: %s", err.Error(), line)
 		return false

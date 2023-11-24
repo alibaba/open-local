@@ -18,7 +18,7 @@ package discovery
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	localv1alpha1 "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
@@ -34,7 +34,7 @@ func (d *Discoverer) discoverMountPoints(newStatus *localv1alpha1.NodeLocalStora
 		return fmt.Errorf("List mountpoint error: %s", err.Error())
 	}
 
-	files, err := ioutil.ReadDir(d.MountPath)
+	files, err := os.ReadDir(d.MountPath)
 	if err != nil {
 		return fmt.Errorf("Read mount path error: %s", err.Error())
 	}

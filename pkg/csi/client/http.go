@@ -3,7 +3,7 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
@@ -25,7 +25,7 @@ func DoRequest(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	//
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

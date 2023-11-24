@@ -18,7 +18,7 @@ package device
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -83,7 +83,7 @@ func GetPartitionsInfo(sysPath, blockName string) ([]Device, error) {
 	var devices []Device
 
 	blockPath := filepath.Join(sysPath, "/block", blockName)
-	dirs, err := ioutil.ReadDir(blockPath)
+	dirs, err := os.ReadDir(blockPath)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func GetPartitionsInfo(sysPath, blockName string) ([]Device, error) {
 }
 
 func getFileContext(filePath string) (string, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("read file %s error: %s", filePath, err.Error())
 	}

@@ -2,7 +2,6 @@ package csi
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -546,7 +545,7 @@ func checkIfRestored(path string) bool {
 }
 
 func labelRestored(path string) error {
-	if err := ioutil.WriteFile(filepath.Join(path, RestoreFileName), nil, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(path, RestoreFileName), nil, 0644); err != nil {
 		return fmt.Errorf("error writing restored file: %s", err.Error())
 	}
 

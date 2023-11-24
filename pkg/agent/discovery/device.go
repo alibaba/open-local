@@ -17,7 +17,7 @@ limitations under the License.
 package discovery
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -28,7 +28,7 @@ import (
 func (d *Discoverer) discoverDevices(newStatus *localv1alpha1.NodeLocalStorageStatus) error {
 	sysBlockPath := filepath.Join(d.SysPath, "/block")
 	blockRegExp := regexp.MustCompile(d.RegExp)
-	blockDirs, err := ioutil.ReadDir(sysBlockPath)
+	blockDirs, err := os.ReadDir(sysBlockPath)
 	if err != nil {
 		return err
 	}

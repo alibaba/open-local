@@ -27,6 +27,7 @@ agent:
   volume_name_prefix: yoda
   spdk: false
   driverMode: node
+  max_volumes_pre_node: 256
 extender:
   name: yoda-scheduler-extender
   # scheduling strategy: binpack/spread

@@ -56,7 +56,7 @@ const (
 	DirectTag = "direct"
 	// StripingType striping type
 	StripingType = "striping"
-	// MaxVolumesPerNode define max ebs one node
+	// MaxVolumesPerNode define max volumes one node
 	MaxVolumesPerNode = 64
 )
 

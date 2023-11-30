@@ -56,8 +56,10 @@ const (
 	DirectTag = "direct"
 	// StripingType striping type
 	StripingType = "striping"
-	// MaxVolumesPerNode define max volumes one node
-	MaxVolumesPerNode = 64
+	// DefaultMaxVolumesPerNode define default max volumes one node
+	DefaultMaxVolumesPerNode = 64
+	// MaxVolumesPerNodeLimited define limit max volumes one node
+	MaxVolumesPerNodeLimited = 1024
 )
 
 type CSIPlugin struct {

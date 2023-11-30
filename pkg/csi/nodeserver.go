@@ -59,15 +59,15 @@ type nodeServer struct {
 }
 
 func newNodeServer(options *driverOptions) *nodeServer {
-	var maxVolumesNum int64 = MaxVolumesPerNode
+	var maxVolumesNum int64 = DefaultMaxVolumesPerNode
 	volumeNum := os.Getenv("MAX_VOLUMES_PERNODE")
 	if volumeNum != "" {
 		num, err := strconv.ParseInt(volumeNum, 10, 64)
 		if err != nil {
 			log.Fatalf("NewNodeServer: MAX_VOLUMES_PERNODE must be int64, but get: %s", volumeNum)
 		} else {
-			if num < 0 || num > maxVolumesNum {
-				log.Errorf("NewNodeServer: MAX_VOLUMES_PERNODE must between 0-%d, but get: %s", maxVolumesNum, volumeNum)
+			if num < 0 || num > int64(MaxVolumesPerNodeLimited) {
+				log.Errorf("NewNodeServer: MAX_VOLUMES_PERNODE must between 0-%d, but get: %s", int64(MaxVolumesPerNodeLimited), volumeNum)
 			} else {
 				maxVolumesNum = num
 				log.Infof("NewNodeServer: MAX_VOLUMES_PERNODE is set to(not default): %d", maxVolumesNum)

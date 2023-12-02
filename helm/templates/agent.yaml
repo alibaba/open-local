@@ -144,7 +144,7 @@ spec:
         - name: ISSUE_MESSAGE_FILE
           value: "true"
         - name: MAX_VOLUMES_PERNODE
-          value: "{{ .Values.agent.max_volumes_pre_node }}"
+          value: "{{ .Values.agent.max_volumes_per_node }}"
 {{- if .Values.global.YodaSchedulerSvcIP }}
         - name: EXTENDER_SVC_IP
           value: "{{ .Values.global.YodaSchedulerSvcIP }}"

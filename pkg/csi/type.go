@@ -56,9 +56,9 @@ const (
 	DirectTag = "direct"
 	// StripingType striping type
 	StripingType = "striping"
-	// DefaultMaxVolumesPerNode define default max volumes one node
+	// DefaultMaxVolumesPerNode define default max volumes per node
 	DefaultMaxVolumesPerNode = 64
-	// MaxVolumesPerNodeLimited define limit max volumes one node
+	// MaxVolumesPerNodeLimited define limit max volumes per node
 	MaxVolumesPerNodeLimited = 1024
 )
 

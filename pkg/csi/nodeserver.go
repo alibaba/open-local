@@ -64,7 +64,7 @@ func newNodeServer(options *driverOptions) *nodeServer {
 	if volumeNum != "" {
 		num, err := strconv.ParseInt(volumeNum, 10, 64)
 		if err != nil {
-			log.Fatalf("NewNodeServer: MAX_VOLUMES_PERNODE must be int64, but get: %s", volumeNum)
+			log.Fatalf("NewNodeServer: MAX_VOLUMES_PERNODE must be integer, but get: %s", volumeNum)
 		} else {
 			if num < 0 || num > int64(MaxVolumesPerNodeLimited) {
 				log.Errorf("NewNodeServer: MAX_VOLUMES_PERNODE must between 0-%d, but get: %s", int64(MaxVolumesPerNodeLimited), volumeNum)

@@ -33,6 +33,7 @@ agent:
   # all: agent will start as csi controller and csi node
   # node: agent will start as csi node
   driverMode: node
+  max_volumes_per_node: 256
 extender:
   name: open-local-scheduler-extender
   # scheduling strategy: binpack/spread

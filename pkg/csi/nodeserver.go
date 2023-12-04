@@ -53,11 +53,28 @@ type nodeServer struct {
 	spdkSupported        bool
 	spdkclient           *spdk.SpdkClient
 	osTool               OSTool
+	maxVolumesPerNode    int64
 
 	options *driverOptions
 }
 
 func newNodeServer(options *driverOptions) *nodeServer {
+	var maxVolumesNum int64 = DefaultMaxVolumesPerNode
+	volumeNum := os.Getenv("MAX_VOLUMES_PERNODE")
+	if volumeNum != "" {
+		num, err := strconv.ParseInt(volumeNum, 10, 64)
+		if err != nil {
+			log.Fatalf("NewNodeServer: MAX_VOLUMES_PERNODE must be integer, but get: %s", volumeNum)
+		} else {
+			if num < 0 || num > int64(MaxVolumesPerNodeLimited) {
+				log.Errorf("NewNodeServer: MAX_VOLUMES_PERNODE must between 0-%d, but get: %s", int64(MaxVolumesPerNodeLimited), volumeNum)
+			} else {
+				maxVolumesNum = num
+				log.Infof("NewNodeServer: MAX_VOLUMES_PERNODE is set to(not default): %d", maxVolumesNum)
+			}
+		}
+	}
+
 	store, err := NewVolumeStore(DefaultEphemeralVolumeDataFilePath)
 	if err != nil {
 		log.Fatalf("fail to initialize ephemeral volume store: %s", err.Error())
@@ -73,6 +90,7 @@ func newNodeServer(options *driverOptions) *nodeServer {
 		spdkSupported:        false,
 		osTool:               NewOSTool(),
 		options:              options,
+		maxVolumesPerNode:    maxVolumesNum,
 	}
 
 	if options.enableSpdk {
@@ -306,6 +324,7 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 				pkg.KubernetesNodeIdentityKey: ns.options.nodeID,
 			},
 		},
+		MaxVolumesPerNode: ns.maxVolumesPerNode,
 	}, nil
 }
 

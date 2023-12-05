@@ -106,6 +106,10 @@
 
 ![](docs/imgs/open-local-dashboard.png)
 
+## 用户案例收集
+在生产环境中采用open-local之前，k8s用户通常想知道open-local的用户案例。
+请将这些信息通过PR更新在[用户案例](docs/use-cases.md) 中，包括`公司`、`用例`和`采用时间`，以帮助open-local在更多的场景下落地并更加成熟。
+
 ## 用户手册
 
 详见[文档](docs/user-guide/user-guide_zh_CN.md)

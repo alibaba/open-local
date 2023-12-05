@@ -113,6 +113,10 @@ English | [简体中文](./README_zh_CN.md)
 
 More details [here](docs/user-guide/user-guide.md)
 
+## Collecting User Cases
+Before adopting open-local in production, k8s users usually want to know use cases for open-local.
+Please send us PR to update [Use Cases](docs/use-cases.md) with `company`, `use case` and `since` for wider adoption.
+
 ## Contact
 
 Join us from DingTalk: Group No.34118035

@@ -46,7 +46,7 @@ type GrpcProxyClientOptions struct {
 
 type proxyFunc func(ctx context.Context, addr string) (net.Conn, error)
 
-func getKonnectivityUDSDialer(ctx context.Context, address string,o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
+func getKonnectivityUDSDialer(ctx context.Context, address string, o GrpcProxyClientOptions) (func(ctx context.Context, addr string) (net.Conn, error), error) {
 	log.Infof("using konnectivity UDS dialer")
 
 	var proxyConn net.Conn
@@ -63,7 +63,7 @@ func getKonnectivityUDSDialer(ctx context.Context, address string,o GrpcProxyCli
 			return c, err
 		})
 		tunnel, err := client.CreateSingleUseGrpcTunnelWithContext(
-			ctx,// create context should follow grpc timeout configuration
+			ctx,            // create context should follow grpc timeout configuration
 			context.TODO(), // tunnel context use context.TODO()
 			o.ProxyUDSName,
 			dialOption,

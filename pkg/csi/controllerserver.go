@@ -784,13 +784,13 @@ func (cs *controllerServer) getNodeConn(nodeSelected string) (client.Connection,
 	var proxyOpts client.GrpcProxyClientOptions
 	if cs.options.konnectivityProxyHost != "" || cs.options.konnectivityUDS != "" {
 		proxyOpts = client.GrpcProxyClientOptions{
-			Mode: cs.options.konnectivityProxyMode,
-			ProxyHost: cs.options.konnectivityProxyHost,
-			ProxyPort: cs.options.konnectivityProxyPort,
+			Mode:         cs.options.konnectivityProxyMode,
+			ProxyHost:    cs.options.konnectivityProxyHost,
+			ProxyPort:    cs.options.konnectivityProxyPort,
 			ProxyUDSName: cs.options.konnectivityUDS,
-			ClientCert: cs.options.konnectivityClientCert,
-			ClientKey: cs.options.konnectivityClientKey,
-			CACert: cs.options.konnectivityCACert,
+			ClientCert:   cs.options.konnectivityClientCert,
+			ClientKey:    cs.options.konnectivityClientKey,
+			CACert:       cs.options.konnectivityCACert,
 		}
 	}
 

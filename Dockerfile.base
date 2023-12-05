@@ -1,0 +1,5 @@
+FROM alpine:3.14
+LABEL open-local-base="v0.1.0"
+LABEL maintainers="Alibaba Cloud Authors"
+LABEL description="open-local is a local disk management system"
+RUN apk update && apk upgrade && apk add util-linux coreutils e2fsprogs e2fsprogs-extra xfsprogs xfsprogs-extra blkid file open-iscsi jq

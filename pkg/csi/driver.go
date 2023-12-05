@@ -72,7 +72,7 @@ var defaultDriverOptions = driverOptions{
 	konnectivityProxyHost:   "",
 	konnectivityProxyPort:   0,
 	konnectivityProxyMode:   "",
-	konnectivityClientCert:   "",
+	konnectivityClientCert:  "",
 	konnectivityClientKey:   "",
 	konnectivityCACert:      "",
 }

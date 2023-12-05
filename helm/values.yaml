@@ -4,22 +4,22 @@ driver: local.csi.aliyun.com
 customLabels: {}
 images:
   local:
-    image: ecp_builder/open-local
-    tag: v0.7.1
+    image: openlocal/open-local
+    tag: v0.8.0-alpha
   registrar:
-    image: ecp_builder/csi-node-driver-registrar
+    image: openlocal/csi-node-driver-registrar
     tag: v2.3.0
   provisioner:
-    image: ecp_builder/csi-provisioner
+    image: openlocal/csi-provisioner
     tag: v2.2.2
   resizer:
-    image: ecp_builder/csi-resizer
+    image: openlocal/csi-resizer
     tag: v1.3.0
   snapshotter:
-    image: ecp_builder/csi-snapshotter
+    image: openlocal/csi-snapshotter
     tag: v4.2.1
   snapshot_controller:
-    image: ecp_builder/snapshot-controller
+    image: openlocal/snapshot-controller
     tag: v4.2.1
 agent:
   name: open-local-agent
@@ -104,5 +104,5 @@ monitor:
   # grafana namespace
   namespace: monitoring
 global:
-  RegistryURL: ack-agility-registry.cn-shanghai.cr.aliyuncs.com
+  RegistryURL: docker.io
   ImagePullPolicy: Always

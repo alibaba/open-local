@@ -1,0 +1,73 @@
+name: build and release package
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash -Eeuo pipefail -x {0}'
+
+env:
+ REGISTRY: ghcr.io
+
+jobs:
+  generate-jobs:
+    name: open-local
+    runs-on: ubuntu-latest
+    strategy: 
+      fail-fast: false
+      matrix:
+        include:
+          -
+            name: open-local
+            image: alibaba/open-local
+            file: ./Dockerfile.muti
+            platforms: linux/amd64,linux/arm64
+
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v2 
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - 
+        name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ matrix.image}} 
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{raw}}
+
+      -
+        name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          file: ${{ matrix.file }}
+          platforms: ${{ matrix.platforms }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.image }}:latest
+            ${{ steps.meta.outputs.tags }}
+      - name: Test ${{ matrix.name }}
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ matrix.image }}:latest
+          docker image inspect ${{ env.REGISTRY }}/${{ matrix.image}}:latest

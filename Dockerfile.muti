@@ -1,0 +1,42 @@
+FROM golang:1.18 AS builder
+
+WORKDIR /go/src/github.com/alibaba/open-local
+COPY . .
+RUN make build && chmod +x bin/open-local
+
+FROM openlocal/open-local-base:latest
+LABEL maintainers="Alibaba Cloud Authors"
+LABEL description="open-local is a local disk management system"
+COPY --from=builder /go/src/github.com/alibaba/open-local/bin/open-local /bin/open-local
+RUN set -eux; \
+        arch="$(apk --print-arch)"; \
+        case "$arch" in \
+		'x86_64') \
+			wget https://github.com/restic/restic/releases/download/v0.12.1/restic_0.12.1_linux_amd64.bz2 \
+			bunzip2 restic_0.12.1_linux_amd64.bz2 && mv restic_0.12.0_linux_amd64 /usr/local/bin/restic && chmod +x /usr/local/bin/restic \
+			rm -rf restic_0.12.1_linux_amd64.bz2 \
+			;; \
+		'aarch64') \
+			wget https://github.com/restic/restic/releases/download/v0.12.1/restic_0.12.1_linux_arm64.bz2 \
+		    bunzip2 restic_0.12.1_linux_arm64.bz2 && mv restic_0.12.0_linux_arm64 /usr/local/bin/restic && chmod +x /usr/local/bin/restic \
+			rm -rf restic_0.12.1_linux_arm64.bz2 \
+			;; \
+		'x86') \
+			wget https://github.com/restic/restic/releases/download/v0.12.1/restic_0.12.1_linux_386.bz2 \
+		 	bunzip2 restic_0.12.1_linux_386.bz2 && mv restic_0.12.0_linux_386 /usr/local/bin/restic && chmod +x /usr/local/bin/restic \
+			rm -rf restic_0.12.1_linux_386.bz2 \
+			;; \
+		'ppc64le') \
+			wget https://github.com/restic/restic/releases/download/v0.12.1/restic_0.12.1_linux_ppc64le.bz2 \
+			bunzip2 restic_0.12.1_linux_ppc64le.bz2 && mv restic_0.12.0_linux_ppc64le /usr/local/bin/restic && chmod +x /usr/local/bin/restic \
+			rm -rf restic_0.12.1_linux_ppc64le.bz2 \
+			;; \
+		's390x') \
+			wget https://github.com/restic/restic/releases/download/v0.12.1/restic_0.12.1_linux_s390x.bz2 \
+			bunzip2 restic_0.12.1_linux_s390x.bz2 && mv restic_0.12.0_linux_s390x /usr/local/bin/restic && chmod +x /usr/local/bin/restic \
+			rm -rf restic_0.12.1_linux_s390x.bz2 \
+			;; \
+		*) echo >&2 "error: unsupported architecture '$arch' (likely packaging update needed)"; exit 1 ;; \
+	esac; \
+	
+ENTRYPOINT ["open-local"]

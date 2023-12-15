@@ -13,27 +13,25 @@ on:
 jobs:
 
   build:
-    name: ubuntu - Go v1.18
+    name: ubuntu - Go v1.19
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Set up Go
-        uses: actions/setup-go@v2
+      - name: Setup Go
+        uses: actions/setup-go@v4
         with:
-          go-version: '1.18'
-        id: go
+          go-version: '1.19'
+          cache: false
 
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # This action uses its own setup-go, which always seems to use the latest
+      # stable version of Go. We could run 'make lint' to ensure our desired Go
+      # version, but we prefer this action because it leaves 'annotations' (i.e.
+      # it comments on PRs to point out linter violations).
+      - name: Lint
+        uses: golangci/golangci-lint-action@v3
         with:
-          ref: ${{ github.ref }}
-          path: src/github.com/alibaba/open-local
-
-      - name: Install go ci lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.47.3
-
-      - name: Run Linter
-        run: golangci-lint run -v --timeout=10m
-        working-directory: src/github.com/alibaba/open-local
-
+          version: 'v1.49'
+          args: --timeout=10m

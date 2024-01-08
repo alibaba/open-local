@@ -131,7 +131,17 @@ func testInsertAgent(ctx context.Context) func(t *testing.T) {
 				Annotations: map[string]string{},
 			},
 			Spec: appsv1.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"name": "test-agent",
+					},
+				},
 				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"name": "test-agent",
+						},
+					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{
@@ -139,7 +149,6 @@ func testInsertAgent(ctx context.Context) func(t *testing.T) {
 								Image: testframework.Image,
 							},
 						},
-						RestartPolicy: corev1.RestartPolicyOnFailure,
 					},
 				},
 			},

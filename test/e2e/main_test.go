@@ -24,13 +24,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/alibaba/open-local/pkg/apis/storage"
 	"github.com/alibaba/open-local/test/framework"
 	"github.com/blang/semver/v4"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var (
@@ -89,73 +84,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestE2E(t *testing.T) {
+	t.Run("TestInstallCRD", testInsertCRD(context.Background()))
 	testCtx := testframework.NewTestCtx(t)
 	defer testCtx.Cleanup(t)
-
-	t.Run("TestInstallCRD", testInsertCRD(context.Background()))
 	t.Run("TestInsertAgent", testInsertAgent(context.Background()))
-}
-
-func testInsertCRD(ctx context.Context) func(t *testing.T) {
-	return func(t *testing.T) {
-		err := testframework.CreateOrUpdateCRDAndWaitUntilReady(ctx, storage.NodeLocalStorageInitConfigName, func(opts metav1.ListOptions) (runtime.Object, error) {
-			return testframework.NodeLocalStorageClientV1alpha1.CsiV1alpha1().NodeLocalStorageInitConfigs().List(ctx, opts)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = testframework.CreateOrUpdateCRDAndWaitUntilReady(ctx, storage.NodeLocalStorageListName, func(opts metav1.ListOptions) (runtime.Object, error) {
-			return testframework.NodeLocalStorageClientV1alpha1.CsiV1alpha1().NodeLocalStorages().List(ctx, opts)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func testInsertAgent(ctx context.Context) func(t *testing.T) {
-	return func(t *testing.T) {
-		testCtx := testframework.NewTestCtx(t)
-		defer testCtx.Cleanup(t)
-
-		testNS := testframework.CreateNamespace(context.Background(), t, testCtx)
-
-		err := testframework.CreateOrUpdateDaemonSetAndWaitUntilReady(context.Background(), testNS, &appsv1.DaemonSet{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "DaemonSet",
-				APIVersion: "apps/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "test-agent",
-				Namespace:   testNS,
-				Annotations: map[string]string{},
-			},
-			Spec: appsv1.DaemonSetSpec{
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"name": "test-agent",
-					},
-				},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"name": "test-agent",
-						},
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name:  "agent",
-								Image: testframework.Image,
-							},
-						},
-					},
-				},
-			},
-		})
-
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 }

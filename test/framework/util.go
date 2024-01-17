@@ -17,13 +17,21 @@ limitations under the License.
 package framework
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/alibaba/open-local/pkg"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func MakeLVMPVC(name, ns string, sc *storagev1.StorageClass) *corev1.PersistentVolumeClaim {
@@ -300,4 +308,50 @@ func GenVolumeNodeAffinity(nodeName string) *corev1.VolumeNodeAffinity {
 			}},
 		}},
 	}
+}
+
+func SourceToIOReader(source string) (io.Reader, error) {
+	if strings.HasPrefix(source, "http") {
+		return URLToIOReader(source)
+	} else {
+		return PathToOSFile(source)
+	}
+}
+
+func PathToOSFile(relativePath string) (*os.File, error) {
+	path, err := filepath.Abs(relativePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed generate absolute file path of %s: %w", relativePath, err)
+	}
+
+	manifest, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", path, err)
+	}
+
+	return manifest, nil
+}
+
+func URLToIOReader(url string) (io.Reader, error) {
+	var resp *http.Response
+
+	err := wait.PollUntilWithContext(context.Background(), time.Second, func(ctx context.Context) (bool, error) {
+		var err error
+		resp, err = http.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			return true, nil
+		}
+		return false, nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"waiting for %v to return a successful status code timed out. Last response from server was: %v: %w",
+			url,
+			resp,
+			err,
+		)
+	}
+
+	return resp.Body, nil
 }

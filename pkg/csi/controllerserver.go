@@ -817,8 +817,8 @@ func getNodeAddr(node *v1.Node, nodeID string, useNodeHostname bool) (string, er
 func GetNodeIP(node *v1.Node, nodeID string) (net.IP, error) {
 	addresses := node.Status.Addresses
 	addressMap := make(map[v1.NodeAddressType][]v1.NodeAddress)
-	for i := range addresses {
-		addressMap[addresses[i].Type] = append(addressMap[addresses[i].Type], addresses[i])
+	for _, v := range addresses {
+		addressMap[v.Type] = append(addressMap[v.Type], v)
 	}
 	if addresses, ok := addressMap[v1.NodeInternalIP]; ok {
 		return net.ParseIP(addresses[0].Address), nil

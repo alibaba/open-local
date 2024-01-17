@@ -1,0 +1,71 @@
+name: e2e
+on:
+  pull_request:
+  push:
+    branches:
+      - 'release-*'
+      - 'master'
+      - 'main'
+    tags:
+      - 'v*'
+jobs:
+  e2e-tests:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Import environment variables from file
+      run: cat ".github/env" >> $GITHUB_ENV
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '${{ env.golang-version }}'
+        check-latest: true
+    - name: Build images
+      run: |
+        export SHELL=/bin/bash
+        make build image
+    - name: Start kind cluster
+      uses: helm/kind-action@v1.8.0
+      with:
+        version: ${{ env.kind-version }}
+        node_image: ${{ env.kind-image }}
+        wait: 300s
+        config: ./test/e2e/kind-conf.yaml
+        cluster_name: e2e
+    - name: Wait for cluster to finish bootstraping
+      run: |
+        kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=300s
+        kubectl cluster-info
+        kubectl get pods -A
+    - name: Load images
+      run: |
+        kind load docker-image -n e2e openlocal/open-local:$(cat VERSION)
+        docker pull openlocal/csi-node-driver-registrar:v2.3.0
+        kind load docker-image -n e2e openlocal/csi-node-driver-registrar:v2.3.0
+        docker pull openlocal/csi-provisioner:v2.2.2
+        kind load docker-image -n e2e openlocal/csi-provisioner:v2.2.2
+        docker pull openlocal/csi-resizer:v1.3.0
+        kind load docker-image -n e2e openlocal/csi-resizer:v1.3.0
+        docker pull  openlocal/csi-snapshotter:v4.2.1
+        kind load docker-image -n e2e openlocal/csi-snapshotter:v4.2.1
+        docker pull openlocal/snapshot-controller:v4.2.1
+        kind load docker-image -n e2e openlocal/snapshot-controller:v4.2.1
+        kubectl apply -f .github/kind-rbac.yaml
+    - name: Run tests
+      run: >
+        make test-e2e
+
+  e2e-tests-result:
+    name: End-to-End Test Results
+    if: always()
+    needs:
+      - e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark the job as a success
+        if: needs.e2e-tests.result == 'success'
+        run: exit 0
+      - name: Mark the job as a failure
+        if: needs.e2e-tests.result != 'success'
+        run: exit 1

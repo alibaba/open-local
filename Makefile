@@ -12,7 +12,7 @@ IMAGE_NAME_FOR_ACR=openlocal/${NAME}
 MAIN_FILE=./cmd/main.go
 LD_FLAGS=-ldflags "-X '${GO_PACKAGE}/pkg/version.GitCommit=$(GIT_COMMIT)' -X '${GO_PACKAGE}/pkg/version.Version=$(VERSION)' -X 'main.VERSION=$(VERSION)' -X 'main.COMMITID=$(GIT_COMMIT)'"
 GIT_COMMIT=$(shell git rev-parse HEAD)
-VERSION=v0.8.0-alpha
+VERSION=$(shell cat VERSION | tr -d " \t\n\r")
 
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 CRD_VERSION=v1alpha1
@@ -54,6 +54,10 @@ manifests: controller-gen
 	./hack/update-codegen.sh
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role crd paths="./pkg/apis/storage/$(CRD_VERSION)/..." output:crd:artifacts:config=helm/crds/
 
+.PHONY: image-tools
+test-e2e: KUBECONFIG?=$(HOME)/.kube/config
+test-e2e: controller-gen
+	go test -mod=readonly -timeout 120m -v ./test/e2e/  --kubeconfig=$(KUBECONFIG) --test-image=${IMAGE_NAME_FOR_ACR}:${VERSION} -count=1
 .PHONY: fmt
 fmt:
 	go fmt ./...

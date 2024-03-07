@@ -30,14 +30,14 @@ import (
 
 func NewNodeCache(nodeName string) *NodeCache {
 	return &NodeCache{
-		rwLock: sync.RWMutex{},
+		rwLock: sync.RWMutex{}, // 初始化读写锁
 		NodeInfo: NodeInfo{
 			NodeName:     nodeName,
 			SupportSPDK:  false,
 			VGs:          make(map[ResourceName]SharedResource),
 			MountPoints:  make(map[ResourceName]ExclusiveResource),
 			Devices:      make(map[ResourceName]ExclusiveResource),
-			AllocatedNum: 0,
+			AllocatedNum: 0, // 已分配数量
 			// TODO(yuzhi.wx) using pv name may conflict, use pv uid later
 			LocalPVs:            make(map[string]corev1.PersistentVolume),
 			PVCRecordsByExtend:  make(map[string]AllocatedUnit),

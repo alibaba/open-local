@@ -723,6 +723,6 @@ func (ns *nodeServer) checkSPDKSupport() {
 			}
 		}
 
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Second * 5)
 	}
 }

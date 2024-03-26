@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -149,14 +150,33 @@ func (d *Discoverer) Discover() {
 			d.createSpdkBdevs(&nlsCopy.Status.FilteredStorageInfo.Devices)
 		}
 
-		// only update status
-		log.Infof("update nls %s", nlsCopy.Name)
-		_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
-		if err != nil {
-			log.Errorf("local storage CRD updateStatus error: %s", err.Error())
-			return
+		// only update when NodeLocalStorage status changed, reduce pressure to apiserver in large cluster
+		oldStatus := &nls.Status
+		newStatusCopy := nlsCopy.Status.DeepCopy()
+		if isNlsStatusChanged(oldStatus, newStatusCopy) {
+			// only update status
+			log.Infof("update nls %s", nlsCopy.Name)
+			_, err = d.localclientset.CsiV1alpha1().NodeLocalStorages().UpdateStatus(context.Background(), nlsCopy, metav1.UpdateOptions{})
+			if err != nil {
+				log.Errorf("local storage CRD updateStatus error: %s", err.Error())
+				return
+			}
+		} else {
+			log.Infof("nls %s status not changed", nlsCopy.Name)
 		}
 	}
+}
+
+func isNlsStatusChanged(oldStatus, newStatus *localv1alpha1.NodeLocalStorageStatus) bool {
+	// Remove time-related fields and then compare
+	oldStatus.NodeStorageInfo.State.LastHeartbeatTime = nil
+	oldStatus.NodeStorageInfo.State.LastTransitionTime = nil
+	oldStatus.FilteredStorageInfo.UpdateStatus.LastUpdateTime = nil
+	newStatus.NodeStorageInfo.State.LastHeartbeatTime = nil
+	newStatus.NodeStorageInfo.State.LastTransitionTime = nil
+	newStatus.FilteredStorageInfo.UpdateStatus.LastUpdateTime = nil
+
+	return !reflect.DeepEqual(oldStatus, newStatus)
 }
 
 // Create AIO bdevs

@@ -150,12 +150,12 @@ func (mounter *Mounter) MountSensitive(source string, target string, fstype stri
 		mklinkSource = mklinkSource + "\\"
 	}
 
-	output, err := exec.Command("cmd", "/c", "mklink", "/D", target, mklinkSource).CombinedOutput()
+	err := os.Symlink(mklinkSource, target)
 	if err != nil {
-		klog.Errorf("mklink failed: %v, source(%q) target(%q) output: %q", err, mklinkSource, target, string(output))
+		klog.Errorf("symlink failed: %v, source(%q) target(%q)", err, mklinkSource, target)
 		return err
 	}
-	klog.V(2).Infof("mklink source(%q) on target(%q) successfully, output: %q", mklinkSource, target, string(output))
+	klog.V(2).Infof("symlink source(%q) on target(%q) successfully", mklinkSource, target)
 
 	return nil
 }
@@ -219,8 +219,9 @@ func removeSMBMapping(remotepath string) (string, error) {
 func (mounter *Mounter) Unmount(target string) error {
 	klog.V(4).Infof("Unmount target (%q)", target)
 	target = NormalizeWindowsPath(target)
-	if output, err := exec.Command("cmd", "/c", "rmdir", target).CombinedOutput(); err != nil {
-		klog.Errorf("rmdir failed: %v, output: %q", err, string(output))
+
+	if err := os.Remove(target); err != nil {
+		klog.Errorf("removing directory %s failed: %v", target, err)
 		return err
 	}
 	return nil
@@ -249,6 +250,15 @@ func (mounter *Mounter) canSafelySkipMountPointCheck() bool {
 	return false
 }
 
+// IsMountPoint: determines if a directory is a mountpoint.
+func (mounter *Mounter) IsMountPoint(file string) (bool, error) {
+	isNotMnt, err := mounter.IsLikelyNotMountPoint(file)
+	if err != nil {
+		return false, err
+	}
+	return !isNotMnt, nil
+}
+
 // GetMountRefs : empty implementation here since there is no place to query all mount points on Windows
 func (mounter *Mounter) GetMountRefs(pathname string) ([]string, error) {
 	windowsPath := NormalizeWindowsPath(pathname)
@@ -264,7 +274,7 @@ func (mounter *Mounter) GetMountRefs(pathname string) ([]string, error) {
 	return []string{pathname}, nil
 }
 
-func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target string, fstype string, options []string, sensitiveOptions []string) error {
+func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target string, fstype string, options []string, sensitiveOptions []string, formatOptions []string) error {
 	// Try to mount the disk
 	klog.V(4).Infof("Attempting to formatAndMount disk: %s %s %s", fstype, source, target)
 
@@ -276,6 +286,10 @@ func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target
 	if len(fstype) == 0 {
 		// Use 'NTFS' as the default
 		fstype = "NTFS"
+	}
+
+	if len(formatOptions) > 0 {
+		return fmt.Errorf("diskMount: formatOptions are not supported on Windows")
 	}
 
 	cmdString := "Get-Disk -Number $env:source | Where partitionstyle -eq 'raw' | Initialize-Disk -PartitionStyle GPT -PassThru" +

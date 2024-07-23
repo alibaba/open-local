@@ -5,22 +5,22 @@ customLabels: {}
 images:
   local:
     image: openlocal/open-local
-    tag: v0.8.0-alpha
+    tag: v0.8.0
   registrar:
-    image: openlocal/csi-node-driver-registrar
-    tag: v2.3.0
+    image: registry.k8s.io/sig-storage/csi-node-driver-registrar
+    tag: v2.9.0
   provisioner:
-    image: openlocal/csi-provisioner
-    tag: v2.2.2
+    image: registry.k8s.io/sig-storage/csi-provisioner
+    tag: v3.5.0
   resizer:
-    image: openlocal/csi-resizer
-    tag: v1.3.0
+    image: registry.k8s.io/sig-storage/csi-resizer
+    tag: v1.9.0
   snapshotter:
-    image: openlocal/csi-snapshotter
-    tag: v4.2.1
+    image: registry.k8s.io/sig-storage/csi-snapshotter
+    tag: v6.3.0
   snapshot_controller:
-    image: openlocal/snapshot-controller
-    tag: v4.2.1
+    image: registry.k8s.io/sig-storage/snapshot-controller
+    tag: v6.3.0
 agent:
   name: open-local-agent
   # This block device will be used to create as a Volume Group in every node

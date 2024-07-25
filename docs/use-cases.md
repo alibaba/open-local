@@ -3,3 +3,4 @@
 | 阿里云       | CNStack,ADP/私有化输出          | 2020.9 | peter-wangxu   |   生产环境    |
 | 蚂蚁集团-数字科技 | SOFAStack云原生平台，mPaaS/私有化输出 | 2020.9 | peter-wangxu   |   生产环境   |
 | 移动云 | 容器引擎  | 2023.9 | dongjiang1989   |   生产环境   |
+| 深信服 | XaaSOS底座  | 2023.6 | Amber-976   |   生产环境   |

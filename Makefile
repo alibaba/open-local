@@ -22,7 +22,7 @@ all: test fmt vet build
 
 .PHONY: test
 test:
-	$(GO_TEST) -coverprofile=covprofile ./... 
+	$(GO_TEST) -coverprofile=covprofile `go list ./... | grep -v /vendor/ | grep -v e2e`
 	$(GO_CMD) tool cover -html=covprofile -o coverage.html
 
 .PHONY: build

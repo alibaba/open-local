@@ -32,7 +32,6 @@ import (
 	"github.com/alibaba/open-local/pkg/signals"
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/docker/go-units"
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -937,7 +936,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 
 	// Step 1: get snapshot initial size
 	if str, exist := param[localtype.ParamSnapshotInitialSize]; exist {
-		size, err := units.RAMInBytes(str)
+		size, err := utils.ParseUnits(str)
 		if err != nil {
 			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get initialSize from snapshot annotation failed: %s", err.Error())
 		}
@@ -954,7 +953,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 	}
 	// Step 3: get snapshot increase size
 	if str, exist := param[localtype.ParamSnapshotExpansionSize]; exist {
-		size, err := units.RAMInBytes(str)
+		size, err := utils.ParseUnits(str)
 		if err != nil {
 			return 0, 0, 0, status.Errorf(codes.Internal, "getSnapshotInitialInfo: get increase size from snapshot annotation failed: %s", err.Error())
 		}

@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	localtype "github.com/alibaba/open-local/pkg"
+	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
-	units "github.com/docker/go-units"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	log "k8s.io/klog/v2"
 )
@@ -85,7 +85,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 
 	// Step 1: get snapshot initial size
 	if str, exist := param[localtype.ParamSnapshotInitialSize]; exist {
-		size, err := units.RAMInBytes(str)
+		size, err := utils.ParseUnits(str)
 		if err != nil {
 			log.Error("[getSnapshotInitialInfo]get initialSize from snapshot annotation failed")
 		}
@@ -102,7 +102,7 @@ func getSnapshotInitialInfo(param map[string]string) (initialSize uint64, thresh
 	}
 	// Step 3: get snapshot increase size
 	if str, exist := param[localtype.ParamSnapshotExpansionSize]; exist {
-		size, err := units.RAMInBytes(str)
+		size, err := utils.ParseUnits(str)
 		if err != nil {
 			log.Error("[getSnapshotInitialInfo]get increase size from snapshot annotation failed")
 		}

@@ -33,7 +33,6 @@ import (
 	"github.com/alibaba/open-local/pkg/utils"
 	"github.com/alibaba/open-local/pkg/utils/lvm"
 	"github.com/alibaba/open-local/pkg/utils/spdk"
-	units "github.com/docker/go-units"
 	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -327,7 +326,7 @@ func getReservedVGInfo(reservedAnno string) (infos map[string]ReservedVGInfo, er
 			}
 		} else {
 			// reservedSize
-			size, err = units.RAMInBytes(v)
+			size, err = utils.ParseUnits(v)
 			if err != nil {
 				return nil, fmt.Errorf("[getReservedVGInfo]get reserved size failed")
 			}

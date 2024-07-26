@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/aws/aws-sdk-go v1.45.25
 	github.com/container-storage-interface/spec v1.7.0
-	github.com/docker/go-units v0.5.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/credstore v0.0.0-20181218150457-e184c60ef875
 	github.com/google/uuid v1.4.0

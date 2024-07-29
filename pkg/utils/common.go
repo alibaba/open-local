@@ -948,3 +948,13 @@ func GetFuncName(funcName interface{}, full bool) string {
 	}
 	return origin
 }
+
+func ParseUnits(value string) (int64, error) {
+	ret, err := resource.ParseQuantity(value)
+	if err != nil {
+		return 0, err
+	}
+	val := ret.Value()
+	return val, nil
+
+}

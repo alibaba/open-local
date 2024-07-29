@@ -7,9 +7,9 @@ docker buildx build --platform=linux/arm64/v8,linux/amd64 --builder mybuilder --
 docker buildx build --platform=linux/arm64/v8,linux/amd64 --builder mybuilder --push  --tag openlocal/open-local-tools:latest  -f Dockerfile.tools .
 
 # open-local main image
-
+# update the VERSION file before running commands
 make image && make image-arm64
-# tag=v0.8.0-alpha
+export tag=v0.8.0
 docker tag openlocal/open-local:$tag openlocal/open-local:$tag-amd
 docker push openlocal/open-local:$tag-amd
 docker tag openlocal/open-local:$tag-arm64 openlocal/open-local:$tag-arm64

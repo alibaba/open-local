@@ -157,8 +157,13 @@ func (c *ClusterNodeCache) assumeLVMAllocatedUnit(unit AllocatedUnit, nodeCache 
 		// vg is not found
 		return nil, fmt.Errorf("vg %s/%s is not found in cache, please retry later", nodeCache.NodeName, unit.VgName)
 	}
-	nodeCache.AllocatedNum += 1
-	nodeCache.PVCRecordsByExtend[unit.PVCName] = unit
+	if _, exist := nodeCache.PVCRecordsByExtend[unit.PVCName]; !exist {
+		nodeCache.AllocatedNum += 1
+		nodeCache.PVCRecordsByExtend[unit.PVCName] = unit
+	} else {
+		log.V(6).Infof("pvc: %s is already existed on nodeCache node: %s, not update node cache", unit.PVCName, nodeCache.NodeName)
+		return nodeCache, nil
+	}
 	nodeCache.VGs[ResourceName(vg.Name)] = SharedResource{
 		Name:      vg.Name,
 		Capacity:  vg.Capacity,

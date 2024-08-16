@@ -91,7 +91,8 @@ func collectMountOptions(fsType string, mntFlags []string) []string {
 }
 
 // include normal lvm & aep lvm type
-func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) error {
+func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolumeRequest) (retErr error) {
+	ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 	// target path
 	targetPath := req.TargetPath
 	// device path
@@ -99,6 +100,14 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if retErr == nil || !ephemeralVolume {
+			return
+		}
+		if err = ns.removeLVMByDevicePath(devicePath); err != nil {
+			log.Errorf("mountLvmFS: fail to rollback volume create: %s", err.Error())
+		}
+	}()
 
 	isSnapshotReadOnly := false
 	if value, exist := req.VolumeContext[localtype.ParamReadonly]; exist && value == "true" {
@@ -196,7 +205,6 @@ func (ns *nodeServer) mountLvmFS(ctx context.Context, req *csi.NodePublishVolume
 	}
 
 	// Step 4: record
-	ephemeralVolume := req.GetVolumeContext()[pkg.Ephemeral] == "true"
 	if ephemeralVolume {
 		if err := ns.ephemeralVolumeStore.AddVolume(req.VolumeId, devicePath); err != nil {
 			log.Errorf("mountLvmFS: fail to add volume: %s", err.Error())

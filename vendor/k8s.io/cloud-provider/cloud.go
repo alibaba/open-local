@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
@@ -131,11 +131,11 @@ func GetInstanceProviderID(ctx context.Context, cloud Interface, nodeName types.
 // irrespective of the ImplementedElsewhere error. Additional finalizers for
 // LB services must be managed in the alternate implementation.
 type LoadBalancer interface {
-	// TODO: Break this up into different interfaces (LB, etc) when we have more than one type of service
 	// GetLoadBalancer returns whether the specified load balancer exists, and
 	// if so, what its status is.
 	// Implementations must treat the *v1.Service parameter as read-only and not modify it.
-	// Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
+	// Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager.
+	// TODO: Break this up into different interfaces (LB, etc) when we have more than one type of service
 	GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error)
 	// GetLoadBalancerName returns the name of the load balancer. Implementations must treat the
 	// *v1.Service parameter as read-only and not modify it.
@@ -143,7 +143,13 @@ type LoadBalancer interface {
 	// EnsureLoadBalancer creates a new load balancer 'name', or updates the existing one. Returns the status of the balancer
 	// Implementations must treat the *v1.Service and *v1.Node
 	// parameters as read-only and not modify them.
-	// Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
+	// Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager.
+	//
+	// Implementations may return a (possibly wrapped) api.RetryError to enforce
+	// backing off at a fixed duration. This can be used for cases like when the
+	// load balancer is not ready yet (e.g., it is still being provisioned) and
+	// polling at a fixed rate is preferred over backing off exponentially in
+	// order to minimize latency.
 	EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error)
 	// UpdateLoadBalancer updates hosts under the specified load balancer.
 	// Implementations must treat the *v1.Service and *v1.Node
@@ -218,6 +224,11 @@ type Route struct {
 	Name string
 	// TargetNode is the NodeName of the target instance.
 	TargetNode types.NodeName
+	// EnableNodeAddresses is a feature gate for TargetNodeAddresses. If false, ignore TargetNodeAddresses.
+	// Without this, if users haven't updated their cloud-provider, reconcile() will delete and create same route every time.
+	EnableNodeAddresses bool
+	// TargetNodeAddresses are the Node IPs of the target Node.
+	TargetNodeAddresses []v1.NodeAddress
 	// DestinationCIDR is the CIDR format IP range that this routing rule
 	// applies to.
 	DestinationCIDR string
@@ -281,7 +292,7 @@ type PVLabeler interface {
 // InstanceMetadata contains metadata about a specific instance.
 // Values returned in InstanceMetadata are translated into specific fields and labels for Node.
 type InstanceMetadata struct {
-	// ProviderID is a unique ID used to idenfitify an instance on the cloud provider.
+	// ProviderID is a unique ID used to identify an instance on the cloud provider.
 	// The ProviderID set here will be set on the node's spec.providerID field.
 	// The provider ID format can be set by the cloud provider but providers should
 	// ensure the format does not change in any incompatible way.

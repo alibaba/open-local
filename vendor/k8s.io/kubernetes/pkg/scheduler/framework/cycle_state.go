@@ -19,11 +19,13 @@ package framework
 import (
 	"errors"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const (
-	// NotFound is the not found error message.
-	NotFound = "not found"
+var (
+	// ErrNotFound is the not found error message.
+	ErrNotFound = errors.New("not found")
 )
 
 // StateData is a generic type for arbitrary data stored in CycleState.
@@ -41,21 +43,25 @@ type StateKey string
 // StateData stored by one plugin can be read, altered, or deleted by another plugin.
 // CycleState does not provide any data protection, as all plugins are assumed to be
 // trusted.
+// Note: CycleState uses a sync.Map to back the storage, because it is thread safe. It's aimed to optimize for the "write once and read many times" scenarios.
+// It is the recommended pattern used in all in-tree plugins - plugin-specific state is written once in PreFilter/PreScore and afterward read many times in Filter/Score.
 type CycleState struct {
-	mx      sync.RWMutex
-	storage map[StateKey]StateData
-	// if recordPluginMetrics is true, PluginExecutionDuration will be recorded for this cycle.
+	// storage is keyed with StateKey, and valued with StateData.
+	storage sync.Map
+	// if recordPluginMetrics is true, metrics.PluginExecutionDuration will be recorded for this cycle.
 	recordPluginMetrics bool
+	// SkipFilterPlugins are plugins that will be skipped in the Filter extension point.
+	SkipFilterPlugins sets.Set[string]
+	// SkipScorePlugins are plugins that will be skipped in the Score extension point.
+	SkipScorePlugins sets.Set[string]
 }
 
 // NewCycleState initializes a new CycleState and returns its pointer.
 func NewCycleState() *CycleState {
-	return &CycleState{
-		storage: make(map[StateKey]StateData),
-	}
+	return &CycleState{}
 }
 
-// ShouldRecordPluginMetrics returns whether PluginExecutionDuration metrics should be recorded.
+// ShouldRecordPluginMetrics returns whether metrics.PluginExecutionDuration metrics should be recorded.
 func (c *CycleState) ShouldRecordPluginMetrics() bool {
 	if c == nil {
 		return false
@@ -78,53 +84,40 @@ func (c *CycleState) Clone() *CycleState {
 		return nil
 	}
 	copy := NewCycleState()
-	for k, v := range c.storage {
-		copy.Write(k, v.Clone())
-	}
+	// Safe copy storage in case of overwriting.
+	c.storage.Range(func(k, v interface{}) bool {
+		copy.storage.Store(k, v.(StateData).Clone())
+		return true
+	})
+	// The below are not mutated, so we don't have to safe copy.
+	copy.recordPluginMetrics = c.recordPluginMetrics
+	copy.SkipFilterPlugins = c.SkipFilterPlugins
+	copy.SkipScorePlugins = c.SkipScorePlugins
+
 	return copy
 }
 
 // Read retrieves data with the given "key" from CycleState. If the key is not
-// present an error is returned.
-// This function is not thread safe. In multi-threaded code, lock should be
-// acquired first.
+// present, ErrNotFound is returned.
+//
+// See CycleState for notes on concurrency.
 func (c *CycleState) Read(key StateKey) (StateData, error) {
-	if v, ok := c.storage[key]; ok {
-		return v, nil
+	if v, ok := c.storage.Load(key); ok {
+		return v.(StateData), nil
 	}
-	return nil, errors.New(NotFound)
+	return nil, ErrNotFound
 }
 
 // Write stores the given "val" in CycleState with the given "key".
-// This function is not thread safe. In multi-threaded code, lock should be
-// acquired first.
+//
+// See CycleState for notes on concurrency.
 func (c *CycleState) Write(key StateKey, val StateData) {
-	c.storage[key] = val
+	c.storage.Store(key, val)
 }
 
 // Delete deletes data with the given key from CycleState.
-// This function is not thread safe. In multi-threaded code, lock should be
-// acquired first.
+//
+// See CycleState for notes on concurrency.
 func (c *CycleState) Delete(key StateKey) {
-	delete(c.storage, key)
-}
-
-// Lock acquires CycleState lock.
-func (c *CycleState) Lock() {
-	c.mx.Lock()
-}
-
-// Unlock releases CycleState lock.
-func (c *CycleState) Unlock() {
-	c.mx.Unlock()
-}
-
-// RLock acquires CycleState read lock.
-func (c *CycleState) RLock() {
-	c.mx.RLock()
-}
-
-// RUnlock releases CycleState read lock.
-func (c *CycleState) RUnlock() {
-	c.mx.RUnlock()
+	c.storage.Delete(key)
 }

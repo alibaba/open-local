@@ -18,6 +18,7 @@ package fake
 
 import (
 	"io"
+	gopath "path"
 	"path/filepath"
 	"strings"
 
@@ -26,19 +27,19 @@ import (
 	"k8s.io/gengo/types"
 
 	"k8s.io/code-generator/cmd/client-gen/generators/util"
-	"k8s.io/code-generator/cmd/client-gen/path"
 )
 
 // genFakeForType produces a file for each top-level type.
 type genFakeForType struct {
 	generator.DefaultGen
-	outputPackage string
-	group         string
-	version       string
-	groupGoName   string
-	inputPackage  string
-	typeToMatch   *types.Type
-	imports       namer.ImportTracker
+	outputPackage             string
+	group                     string
+	version                   string
+	groupGoName               string
+	inputPackage              string
+	typeToMatch               *types.Type
+	imports                   namer.ImportTracker
+	applyConfigurationPackage string
 }
 
 var _ generator.Generator = &genFakeForType{}
@@ -91,55 +92,42 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 	if err != nil {
 		return err
 	}
-	canonicalGroup := g.group
-	if canonicalGroup == "core" {
-		canonicalGroup = ""
-	}
-
-	groupName := g.group
-	if g.group == "core" {
-		groupName = ""
-	}
-
-	// allow user to define a group name that's different from the one parsed from the directory.
-	p := c.Universe.Package(path.Vendorless(g.inputPackage))
-	if override := types.ExtractCommentTags("+", p.Comments)["groupName"]; override != nil {
-		groupName = override[0]
-	}
 
 	const pkgClientGoTesting = "k8s.io/client-go/testing"
 	m := map[string]interface{}{
-		"type":                 t,
-		"inputType":            t,
-		"resultType":           t,
-		"subresourcePath":      "",
-		"package":              pkg,
-		"Package":              namer.IC(pkg),
-		"namespaced":           !tags.NonNamespaced,
-		"Group":                namer.IC(g.group),
-		"GroupGoName":          g.groupGoName,
-		"Version":              namer.IC(g.version),
-		"group":                canonicalGroup,
-		"groupName":            groupName,
-		"version":              g.version,
-		"CreateOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "CreateOptions"}),
-		"DeleteOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "DeleteOptions"}),
-		"GetOptions":           c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GetOptions"}),
-		"ListOptions":          c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ListOptions"}),
-		"PatchOptions":         c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "PatchOptions"}),
-		"UpdateOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "UpdateOptions"}),
-		"Everything":           c.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/labels", Name: "Everything"}),
-		"GroupVersionResource": c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersionResource"}),
-		"GroupVersionKind":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersionKind"}),
-		"PatchType":            c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "PatchType"}),
-		"watchInterface":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}),
+		"type":               t,
+		"inputType":          t,
+		"resultType":         t,
+		"subresourcePath":    "",
+		"package":            pkg,
+		"Package":            namer.IC(pkg),
+		"namespaced":         !tags.NonNamespaced,
+		"Group":              namer.IC(g.group),
+		"GroupGoName":        g.groupGoName,
+		"Version":            namer.IC(g.version),
+		"version":            g.version,
+		"SchemeGroupVersion": c.Universe.Type(types.Name{Package: t.Name.Package, Name: "SchemeGroupVersion"}),
+		"CreateOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "CreateOptions"}),
+		"DeleteOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "DeleteOptions"}),
+		"GetOptions":         c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GetOptions"}),
+		"ListOptions":        c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ListOptions"}),
+		"PatchOptions":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "PatchOptions"}),
+		"ApplyOptions":       c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ApplyOptions"}),
+		"UpdateOptions":      c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "UpdateOptions"}),
+		"Everything":         c.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/labels", Name: "Everything"}),
+		"PatchType":          c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "PatchType"}),
+		"ApplyPatchType":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "ApplyPatchType"}),
+		"watchInterface":     c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}),
+		"jsonMarshal":        c.Universe.Type(types.Name{Package: "encoding/json", Name: "Marshal"}),
 
 		"NewRootListAction":              c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootListAction"}),
 		"NewListAction":                  c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewListAction"}),
 		"NewRootGetAction":               c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootGetAction"}),
 		"NewGetAction":                   c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewGetAction"}),
 		"NewRootDeleteAction":            c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootDeleteAction"}),
+		"NewRootDeleteActionWithOptions": c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootDeleteActionWithOptions"}),
 		"NewDeleteAction":                c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewDeleteAction"}),
+		"NewDeleteActionWithOptions":     c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewDeleteActionWithOptions"}),
 		"NewRootDeleteCollectionAction":  c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootDeleteCollectionAction"}),
 		"NewDeleteCollectionAction":      c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewDeleteCollectionAction"}),
 		"NewRootUpdateAction":            c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootUpdateAction"}),
@@ -159,6 +147,13 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 		"NewRootPatchSubresourceAction":  c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewRootPatchSubresourceAction"}),
 		"NewPatchSubresourceAction":      c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "NewPatchSubresourceAction"}),
 		"ExtractFromListOptions":         c.Universe.Function(types.Name{Package: pkgClientGoTesting, Name: "ExtractFromListOptions"}),
+	}
+
+	generateApply := len(g.applyConfigurationPackage) > 0
+	if generateApply {
+		// Generated apply builder type references required for generated Apply function
+		_, gvString := util.ParsePathGroupVersion(g.inputPackage)
+		m["inputApplyConfig"] = types.Ref(gopath.Join(g.applyConfigurationPackage, gvString), t.Name.Name+"ApplyConfiguration")
 	}
 
 	if tags.NonNamespaced {
@@ -205,13 +200,25 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 	if tags.HasVerb("patch") {
 		sw.Do(patchTemplate, m)
 	}
+	if tags.HasVerb("apply") && generateApply {
+		sw.Do(applyTemplate, m)
+	}
+	if tags.HasVerb("applyStatus") && generateApply && genStatus(t) {
+		sw.Do(applyStatusTemplate, m)
+	}
+	_, typeGVString := util.ParsePathGroupVersion(g.inputPackage)
 
 	// generate extended client methods
 	for _, e := range tags.Extensions {
+		if e.HasVerb("apply") && !generateApply {
+			continue
+		}
 		inputType := *t
 		resultType := *t
+		inputGVString := typeGVString
 		if len(e.InputTypeOverride) > 0 {
 			if name, pkg := e.Input(); len(pkg) > 0 {
+				_, inputGVString = util.ParsePathGroupVersion(pkg)
 				newType := c.Universe.Type(types.Name{Package: pkg, Name: name})
 				inputType = *newType
 			} else {
@@ -229,6 +236,9 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 		m["inputType"] = &inputType
 		m["resultType"] = &resultType
 		m["subresourcePath"] = e.SubResourcePath
+		if e.HasVerb("apply") {
+			m["inputApplyConfig"] = types.Ref(gopath.Join(g.applyConfigurationPackage, inputGVString), inputType.Name.Name+"ApplyConfiguration")
+		}
 
 		if e.HasVerb("get") {
 			if e.IsSubresource() {
@@ -273,6 +283,14 @@ func (g *genFakeForType) GenerateType(c *generator.Context, t *types.Type, w io.
 		if e.HasVerb("patch") {
 			sw.Do(adjustTemplate(e.VerbName, e.VerbType, patchTemplate), m)
 		}
+
+		if e.HasVerb("apply") && generateApply {
+			if e.IsSubresource() {
+				sw.Do(adjustTemplate(e.VerbName, e.VerbType, applySubresourceTemplate), m)
+			} else {
+				sw.Do(adjustTemplate(e.VerbName, e.VerbType, applyTemplate), m)
+			}
+		}
 	}
 
 	return sw.Error()
@@ -303,11 +321,11 @@ type Fake$.type|publicPlural$ struct {
 `
 
 var resource = `
-var $.type|allLowercasePlural$Resource = $.GroupVersionResource|raw${Group: "$.groupName$", Version: "$.version$", Resource: "$.type|resource$"}
+var $.type|allLowercasePlural$Resource = $.SchemeGroupVersion|raw$.WithResource("$.type|resource$")
 `
 
 var kind = `
-var $.type|allLowercasePlural$Kind = $.GroupVersionKind|raw${Group: "$.groupName$", Version: "$.version$", Kind: "$.type|singularKind$"}
+var $.type|allLowercasePlural$Kind = $.SchemeGroupVersion|raw$.WithKind("$.type|singularKind$")
 `
 
 var listTemplate = `
@@ -377,8 +395,8 @@ var deleteTemplate = `
 // Delete takes name of the $.type|private$ and deletes it. Returns an error if one occurs.
 func (c *Fake$.type|publicPlural$) Delete(ctx context.Context, name string, opts $.DeleteOptions|raw$) error {
 	_, err := c.Fake.
-		$if .namespaced$Invokes($.NewDeleteAction|raw$($.type|allLowercasePlural$Resource, c.ns, name), &$.type|raw${})
-		$else$Invokes($.NewRootDeleteAction|raw$($.type|allLowercasePlural$Resource, name), &$.type|raw${})$end$
+		$if .namespaced$Invokes($.NewDeleteActionWithOptions|raw$($.type|allLowercasePlural$Resource, c.ns, name, opts), &$.type|raw${})
+		$else$Invokes($.NewRootDeleteActionWithOptions|raw$($.type|allLowercasePlural$Resource, name, opts), &$.type|raw${})$end$
 	return err
 }
 `
@@ -474,6 +492,76 @@ func (c *Fake$.type|publicPlural$) Patch(ctx context.Context, name string, pt $.
 	obj, err := c.Fake.
 		$if .namespaced$Invokes($.NewPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, c.ns, name, pt, data, subresources... ), &$.resultType|raw${})
 		$else$Invokes($.NewRootPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, name, pt, data, subresources...), &$.resultType|raw${})$end$
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*$.resultType|raw$), err
+}
+`
+
+var applyTemplate = `
+// Apply takes the given apply declarative configuration, applies it and returns the applied $.resultType|private$.
+func (c *Fake$.type|publicPlural$) Apply(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error) {
+	if $.inputType|private$ == nil {
+		return nil, fmt.Errorf("$.inputType|private$ provided to Apply must not be nil")
+	}
+	data, err := $.jsonMarshal|raw$($.inputType|private$)
+	if err != nil {
+		return nil, err
+	}
+    name := $.inputType|private$.Name
+	if name == nil {
+		return nil, fmt.Errorf("$.inputType|private$.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		$if .namespaced$Invokes($.NewPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, c.ns, *name, $.ApplyPatchType|raw$, data), &$.resultType|raw${})
+		$else$Invokes($.NewRootPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, *name, $.ApplyPatchType|raw$, data), &$.resultType|raw${})$end$
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*$.resultType|raw$), err
+}
+`
+
+var applyStatusTemplate = `
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *Fake$.type|publicPlural$) ApplyStatus(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error) {
+	if $.inputType|private$ == nil {
+		return nil, fmt.Errorf("$.inputType|private$ provided to Apply must not be nil")
+	}
+	data, err := $.jsonMarshal|raw$($.inputType|private$)
+	if err != nil {
+		return nil, err
+	}
+    name := $.inputType|private$.Name
+	if name == nil {
+		return nil, fmt.Errorf("$.inputType|private$.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		$if .namespaced$Invokes($.NewPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, c.ns, *name, $.ApplyPatchType|raw$, data, "status"), &$.resultType|raw${})
+		$else$Invokes($.NewRootPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, *name, $.ApplyPatchType|raw$, data, "status"), &$.resultType|raw${})$end$
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*$.resultType|raw$), err
+}
+`
+
+var applySubresourceTemplate = `
+// Apply takes top resource name and the apply declarative configuration for $.subresourcePath$,
+// applies it and returns the applied $.resultType|private$, and an error, if there is any.
+func (c *Fake$.type|publicPlural$) Apply(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error) {
+	if $.inputType|private$ == nil {
+		return nil, fmt.Errorf("$.inputType|private$ provided to Apply must not be nil")
+	}
+	data, err := $.jsonMarshal|raw$($.inputType|private$)
+	if err != nil {
+		return nil, err
+	}
+	obj, err := c.Fake.
+		$if .namespaced$Invokes($.NewPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, c.ns, $.type|private$Name, $.ApplyPatchType|raw$, data, "status"), &$.resultType|raw${})
+		$else$Invokes($.NewRootPatchSubresourceAction|raw$($.type|allLowercasePlural$Resource, $.type|private$Name, $.ApplyPatchType|raw$, data, "status"), &$.resultType|raw${})$end$
 	if obj == nil {
 		return nil, err
 	}

@@ -19,11 +19,16 @@
 // Package attributes defines a generic key/value store used in various gRPC
 // components.
 //
-// Experimental
+// # Experimental
 //
 // Notice: This package is EXPERIMENTAL and may be changed or removed in a
 // later release.
 package attributes
+
+import (
+	"fmt"
+	"strings"
+)
 
 // Attributes is an immutable struct for storing and retrieving generic
 // key/value pairs.  Keys must be hashable, and users should define their own
@@ -69,7 +74,9 @@ func (a *Attributes) Value(key interface{}) interface{} {
 // bool' is implemented for a value in the attributes, it is called to
 // determine if the value matches the one stored in the other attributes.  If
 // Equal is not implemented, standard equality is used to determine if the two
-// values are equal.
+// values are equal. Note that some types (e.g. maps) aren't comparable by
+// default, so they must be wrapped in a struct, or in an alias type, with Equal
+// defined.
 func (a *Attributes) Equal(o *Attributes) bool {
 	if a == nil && o == nil {
 		return true
@@ -96,4 +103,28 @@ func (a *Attributes) Equal(o *Attributes) bool {
 		}
 	}
 	return true
+}
+
+// String prints the attribute map. If any key or values throughout the map
+// implement fmt.Stringer, it calls that method and appends.
+func (a *Attributes) String() string {
+	var sb strings.Builder
+	sb.WriteString("{")
+	first := true
+	for k, v := range a.m {
+		var key, val string
+		if str, ok := k.(interface{ String() string }); ok {
+			key = str.String()
+		}
+		if str, ok := v.(interface{ String() string }); ok {
+			val = str.String()
+		}
+		if !first {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("%q: %q, ", key, val))
+		first = false
+	}
+	sb.WriteString("}")
+	return sb.String()
 }

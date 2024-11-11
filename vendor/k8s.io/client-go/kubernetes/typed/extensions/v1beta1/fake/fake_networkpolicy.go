@@ -20,13 +20,15 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1beta1 "k8s.io/api/extensions/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
+	extensionsv1beta1 "k8s.io/client-go/applyconfigurations/extensions/v1beta1"
 	testing "k8s.io/client-go/testing"
 )
 
@@ -36,9 +38,9 @@ type FakeNetworkPolicies struct {
 	ns   string
 }
 
-var networkpoliciesResource = schema.GroupVersionResource{Group: "extensions", Version: "v1beta1", Resource: "networkpolicies"}
+var networkpoliciesResource = v1beta1.SchemeGroupVersion.WithResource("networkpolicies")
 
-var networkpoliciesKind = schema.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "NetworkPolicy"}
+var networkpoliciesKind = v1beta1.SchemeGroupVersion.WithKind("NetworkPolicy")
 
 // Get takes name of the networkPolicy, and returns the corresponding networkPolicy object, and an error if there is any.
 func (c *FakeNetworkPolicies) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.NetworkPolicy, err error) {
@@ -105,7 +107,7 @@ func (c *FakeNetworkPolicies) Update(ctx context.Context, networkPolicy *v1beta1
 // Delete takes name of the networkPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(networkpoliciesResource, c.ns, name), &v1beta1.NetworkPolicy{})
+		Invokes(testing.NewDeleteActionWithOptions(networkpoliciesResource, c.ns, name, opts), &v1beta1.NetworkPolicy{})
 
 	return err
 }
@@ -122,6 +124,28 @@ func (c *FakeNetworkPolicies) DeleteCollection(ctx context.Context, opts v1.Dele
 func (c *FakeNetworkPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.NetworkPolicy, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(networkpoliciesResource, c.ns, name, pt, data, subresources...), &v1beta1.NetworkPolicy{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.NetworkPolicy), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied networkPolicy.
+func (c *FakeNetworkPolicies) Apply(ctx context.Context, networkPolicy *extensionsv1beta1.NetworkPolicyApplyConfiguration, opts v1.ApplyOptions) (result *v1beta1.NetworkPolicy, err error) {
+	if networkPolicy == nil {
+		return nil, fmt.Errorf("networkPolicy provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(networkPolicy)
+	if err != nil {
+		return nil, err
+	}
+	name := networkPolicy.Name
+	if name == nil {
+		return nil, fmt.Errorf("networkPolicy.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(networkpoliciesResource, c.ns, *name, types.ApplyPatchType, data), &v1beta1.NetworkPolicy{})
 
 	if obj == nil {
 		return nil, err

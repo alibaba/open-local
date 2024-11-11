@@ -128,15 +128,13 @@ func DefaultNameSystem() string {
 	return "public"
 }
 
-func packageForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clientsetPackage string, groupPackageName string, groupGoName string, apiPath string, srcTreePath string, inputPackage string, boilerplate []byte) generator.Package {
+func packageForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, clientsetPackage string, groupPackageName string, groupGoName string, apiPath string, srcTreePath string, inputPackage string, applyBuilderPackage string, boilerplate []byte) generator.Package {
 	groupVersionClientPackage := filepath.Join(clientsetPackage, "typed", strings.ToLower(groupPackageName), strings.ToLower(gv.Version.NonEmpty()))
 	return &generator.DefaultPackage{
-		PackageName: strings.ToLower(gv.Version.NonEmpty()),
-		PackagePath: groupVersionClientPackage,
-		HeaderText:  boilerplate,
-		PackageDocumentation: []byte(
-			`// This package has the automatically generated typed clients.
-`),
+		PackageName:          strings.ToLower(gv.Version.NonEmpty()),
+		PackagePath:          groupVersionClientPackage,
+		HeaderText:           boilerplate,
+		PackageDocumentation: []byte("// This package has the automatically generated typed clients.\n"),
 		// GeneratorFunc returns a list of generators. Each generator makes a
 		// single file.
 		GeneratorFunc: func(c *generator.Context) (generators []generator.Generator) {
@@ -151,13 +149,15 @@ func packageForGroup(gv clientgentypes.GroupVersion, typeList []*types.Type, cli
 					DefaultGen: generator.DefaultGen{
 						OptionalName: strings.ToLower(c.Namers["private"].Name(t)),
 					},
-					outputPackage:    groupVersionClientPackage,
-					clientsetPackage: clientsetPackage,
-					group:            gv.Group.NonEmpty(),
-					version:          gv.Version.String(),
-					groupGoName:      groupGoName,
-					typeToMatch:      t,
-					imports:          generator.NewImportTracker(),
+					outputPackage:             groupVersionClientPackage,
+					inputPackage:              inputPackage,
+					clientsetPackage:          clientsetPackage,
+					applyConfigurationPackage: applyBuilderPackage,
+					group:                     gv.Group.NonEmpty(),
+					version:                   gv.Version.String(),
+					groupGoName:               groupGoName,
+					typeToMatch:               t,
+					imports:                   generator.NewImportTracker(),
 				})
 			}
 
@@ -198,16 +198,10 @@ func packageForClientset(customArgs *clientgenargs.CustomArgs, clientsetPackage 
 		PackageName: customArgs.ClientsetName,
 		PackagePath: clientsetPackage,
 		HeaderText:  boilerplate,
-		PackageDocumentation: []byte(
-			`// This package has the automatically generated clientset.
-`),
 		// GeneratorFunc returns a list of generators. Each generator generates a
 		// single file.
 		GeneratorFunc: func(c *generator.Context) (generators []generator.Generator) {
 			generators = []generator.Generator{
-				// Always generate a "doc.go" file.
-				generator.DefaultGen{OptionalName: "doc"},
-
 				&genClientset{
 					DefaultGen: generator.DefaultGen{
 						OptionalName: "clientset",
@@ -240,12 +234,10 @@ NextGroup:
 	}
 
 	return &generator.DefaultPackage{
-		PackageName: "scheme",
-		PackagePath: schemePackage,
-		HeaderText:  boilerplate,
-		PackageDocumentation: []byte(
-			`// This package contains the scheme of the automatically generated clientset.
-`),
+		PackageName:          "scheme",
+		PackagePath:          schemePackage,
+		HeaderText:           boilerplate,
+		PackageDocumentation: []byte("// This package contains the scheme of the automatically generated clientset.\n"),
 		// GeneratorFunc returns a list of generators. Each generator generates a
 		// single file.
 		GeneratorFunc: func(c *generator.Context) (generators []generator.Generator) {
@@ -357,7 +349,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 				}
 			} else {
 				// User has not specified any override for this group version.
-				// filter out types which dont have genclient.
+				// filter out types which don't have genclient.
 				if tags := util.MustParseClientGenTags(append(t.SecondClosestCommentLines, t.CommentLines...)); !tags.GenerateClient {
 					continue
 				}
@@ -390,9 +382,9 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 			gv := clientgentypes.GroupVersion{Group: group.Group, Version: version.Version}
 			types := gvToTypes[gv]
 			inputPath := gvPackages[gv]
-			packageList = append(packageList, packageForGroup(gv, orderer.OrderTypes(types), clientsetPackage, group.PackageName, groupGoNames[gv], customArgs.ClientsetAPIPath, arguments.OutputBase, inputPath, boilerplate))
+			packageList = append(packageList, packageForGroup(gv, orderer.OrderTypes(types), clientsetPackage, group.PackageName, groupGoNames[gv], customArgs.ClientsetAPIPath, arguments.OutputBase, inputPath, customArgs.ApplyConfigurationPackage, boilerplate))
 			if customArgs.FakeClient {
-				packageList = append(packageList, fake.PackageForGroup(gv, orderer.OrderTypes(types), clientsetPackage, group.PackageName, groupGoNames[gv], inputPath, boilerplate))
+				packageList = append(packageList, fake.PackageForGroup(gv, orderer.OrderTypes(types), clientsetPackage, group.PackageName, groupGoNames[gv], inputPath, customArgs.ApplyConfigurationPackage, boilerplate))
 			}
 		}
 	}

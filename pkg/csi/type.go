@@ -17,6 +17,7 @@ limitations under the License.
 package csi
 
 import (
+	"context"
 	"sync"
 
 	"github.com/alibaba/open-local/pkg/utils"
@@ -63,6 +64,10 @@ type CSIPlugin struct {
 	*controllerServer
 	srv     *grpc.Server
 	options *driverOptions
+}
+
+func (is *CSIPlugin) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	return nil, nil
 }
 
 var (

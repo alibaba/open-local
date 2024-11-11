@@ -47,18 +47,28 @@ const (
 	// returned by NodeGetInfo to ensure that a given volume is
 	// accessible from a given node when scheduling workloads.
 	PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS PluginCapability_Service_Type = 2
+	// GROUP_CONTROLLER_SERVICE indicates that the Plugin provides
+	// RPCs for operating on groups of volumes. Plugins MAY provide
+	// this capability.
+	// The presence of this capability determines whether the CO will
+	// attempt to invoke the REQUIRED GroupController service RPCs, as
+	// well as specific RPCs as indicated by
+	// GroupControllerGetCapabilities.
+	PluginCapability_Service_GROUP_CONTROLLER_SERVICE PluginCapability_Service_Type = 3
 )
 
 var PluginCapability_Service_Type_name = map[int32]string{
 	0: "UNKNOWN",
 	1: "CONTROLLER_SERVICE",
 	2: "VOLUME_ACCESSIBILITY_CONSTRAINTS",
+	3: "GROUP_CONTROLLER_SERVICE",
 }
 
 var PluginCapability_Service_Type_value = map[string]int32{
 	"UNKNOWN":                          0,
 	"CONTROLLER_SERVICE":               1,
 	"VOLUME_ACCESSIBILITY_CONSTRAINTS": 2,
+	"GROUP_CONTROLLER_SERVICE":         3,
 }
 
 func (x PluginCapability_Service_Type) String() string {
@@ -85,17 +95,20 @@ const (
 	// expansion of node-published volume via NodeExpandVolume.
 	//
 	// Example 1: Given a shared filesystem volume (e.g. GlusterFs),
-	//   the Plugin may set the ONLINE volume expansion capability and
-	//   implement ControllerExpandVolume but not NodeExpandVolume.
+	//
+	//	the Plugin may set the ONLINE volume expansion capability and
+	//	implement ControllerExpandVolume but not NodeExpandVolume.
 	//
 	// Example 2: Given a block storage volume type (e.g. EBS), the
-	//   Plugin may set the ONLINE volume expansion capability and
-	//   implement both ControllerExpandVolume and NodeExpandVolume.
+	//
+	//	Plugin may set the ONLINE volume expansion capability and
+	//	implement both ControllerExpandVolume and NodeExpandVolume.
 	//
 	// Example 3: Given a Plugin that supports volume expansion only
-	//   upon a node, the Plugin may set the ONLINE volume
-	//   expansion capability and implement NodeExpandVolume but not
-	//   ControllerExpandVolume.
+	//
+	//	upon a node, the Plugin may set the ONLINE volume
+	//	expansion capability and implement NodeExpandVolume but not
+	//	ControllerExpandVolume.
 	PluginCapability_VolumeExpansion_ONLINE PluginCapability_VolumeExpansion_Type = 1
 	// OFFLINE indicates that volumes currently published and
 	// available on a node SHALL NOT be expanded via
@@ -105,10 +118,11 @@ const (
 	// the EXPAND_VOLUME node capability.
 	//
 	// Example 1: Given a block storage volume type (e.g. Azure Disk)
-	//   that does not support expansion of "node-attached" (i.e.
-	//   controller-published) volumes, the Plugin may indicate
-	//   OFFLINE volume expansion support and implement both
-	//   ControllerExpandVolume and NodeExpandVolume.
+	//
+	//	that does not support expansion of "node-attached" (i.e.
+	//	controller-published) volumes, the Plugin may indicate
+	//	OFFLINE volume expansion support and implement both
+	//	ControllerExpandVolume and NodeExpandVolume.
 	PluginCapability_VolumeExpansion_OFFLINE PluginCapability_VolumeExpansion_Type = 2
 )
 
@@ -150,6 +164,16 @@ const (
 	// Can be published as read/write at multiple nodes
 	// simultaneously.
 	VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER VolumeCapability_AccessMode_Mode = 5
+	// Can only be published once as read/write at a single workload
+	// on a single node, at any given time. SHOULD be used instead of
+	// SINGLE_NODE_WRITER for COs using the experimental
+	// SINGLE_NODE_MULTI_WRITER capability.
+	VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER VolumeCapability_AccessMode_Mode = 6
+	// Can be published as read/write at multiple workloads on a
+	// single node simultaneously. SHOULD be used instead of
+	// SINGLE_NODE_WRITER for COs using the experimental
+	// SINGLE_NODE_MULTI_WRITER capability.
+	VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER VolumeCapability_AccessMode_Mode = 7
 )
 
 var VolumeCapability_AccessMode_Mode_name = map[int32]string{
@@ -159,15 +183,19 @@ var VolumeCapability_AccessMode_Mode_name = map[int32]string{
 	3: "MULTI_NODE_READER_ONLY",
 	4: "MULTI_NODE_SINGLE_WRITER",
 	5: "MULTI_NODE_MULTI_WRITER",
+	6: "SINGLE_NODE_SINGLE_WRITER",
+	7: "SINGLE_NODE_MULTI_WRITER",
 }
 
 var VolumeCapability_AccessMode_Mode_value = map[string]int32{
-	"UNKNOWN":                  0,
-	"SINGLE_NODE_WRITER":       1,
-	"SINGLE_NODE_READER_ONLY":  2,
-	"MULTI_NODE_READER_ONLY":   3,
-	"MULTI_NODE_SINGLE_WRITER": 4,
-	"MULTI_NODE_MULTI_WRITER":  5,
+	"UNKNOWN":                   0,
+	"SINGLE_NODE_WRITER":        1,
+	"SINGLE_NODE_READER_ONLY":   2,
+	"MULTI_NODE_READER_ONLY":    3,
+	"MULTI_NODE_SINGLE_WRITER":  4,
+	"MULTI_NODE_MULTI_WRITER":   5,
+	"SINGLE_NODE_SINGLE_WRITER": 6,
+	"SINGLE_NODE_MULTI_WRITER":  7,
 }
 
 func (x VolumeCapability_AccessMode_Mode) String() string {
@@ -203,8 +231,35 @@ const (
 	// See VolumeExpansion for details.
 	ControllerServiceCapability_RPC_EXPAND_VOLUME ControllerServiceCapability_RPC_Type = 9
 	// Indicates the SP supports the
-	// ListVolumesResponse.entry.published_nodes field
+	// ListVolumesResponse.entry.published_node_ids field and the
+	// ControllerGetVolumeResponse.published_node_ids field.
+	// The SP MUST also support PUBLISH_UNPUBLISH_VOLUME.
 	ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES ControllerServiceCapability_RPC_Type = 10
+	// Indicates that the Controller service can report volume
+	// conditions.
+	// An SP MAY implement `VolumeCondition` in only the Controller
+	// Plugin, only the Node Plugin, or both.
+	// If `VolumeCondition` is implemented in both the Controller and
+	// Node Plugins, it SHALL report from different perspectives.
+	// If for some reason Controller and Node Plugins report
+	// misaligned volume conditions, CO SHALL assume the worst case
+	// is the truth.
+	// Note that, for alpha, `VolumeCondition` is intended be
+	// informative for humans only, not for automation.
+	ControllerServiceCapability_RPC_VOLUME_CONDITION ControllerServiceCapability_RPC_Type = 11
+	// Indicates the SP supports the ControllerGetVolume RPC.
+	// This enables COs to, for example, fetch per volume
+	// condition after a volume is provisioned.
+	ControllerServiceCapability_RPC_GET_VOLUME ControllerServiceCapability_RPC_Type = 12
+	// Indicates the SP supports the SINGLE_NODE_SINGLE_WRITER and/or
+	// SINGLE_NODE_MULTI_WRITER access modes.
+	// These access modes are intended to replace the
+	// SINGLE_NODE_WRITER access mode to clarify the number of writers
+	// for a volume on a single node. Plugins MUST accept and allow
+	// use of the SINGLE_NODE_WRITER access mode when either
+	// SINGLE_NODE_SINGLE_WRITER and/or SINGLE_NODE_MULTI_WRITER are
+	// supported, in order to permit older COs to continue working.
+	ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER ControllerServiceCapability_RPC_Type = 13
 )
 
 var ControllerServiceCapability_RPC_Type_name = map[int32]string{
@@ -219,6 +274,9 @@ var ControllerServiceCapability_RPC_Type_name = map[int32]string{
 	8:  "PUBLISH_READONLY",
 	9:  "EXPAND_VOLUME",
 	10: "LIST_VOLUMES_PUBLISHED_NODES",
+	11: "VOLUME_CONDITION",
+	12: "GET_VOLUME",
+	13: "SINGLE_NODE_MULTI_WRITER",
 }
 
 var ControllerServiceCapability_RPC_Type_value = map[string]int32{
@@ -233,6 +291,9 @@ var ControllerServiceCapability_RPC_Type_value = map[string]int32{
 	"PUBLISH_READONLY":             8,
 	"EXPAND_VOLUME":                9,
 	"LIST_VOLUMES_PUBLISHED_NODES": 10,
+	"VOLUME_CONDITION":             11,
+	"GET_VOLUME":                   12,
+	"SINGLE_NODE_MULTI_WRITER":     13,
 }
 
 func (x ControllerServiceCapability_RPC_Type) String() string {
@@ -240,7 +301,7 @@ func (x ControllerServiceCapability_RPC_Type) String() string {
 }
 
 func (ControllerServiceCapability_RPC_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{29, 0, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{31, 0, 0}
 }
 
 type VolumeUsage_Unit int32
@@ -268,7 +329,7 @@ func (x VolumeUsage_Unit) String() string {
 }
 
 func (VolumeUsage_Unit) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{49, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{51, 0}
 }
 
 type NodeServiceCapability_RPC_Type int32
@@ -282,6 +343,32 @@ const (
 	NodeServiceCapability_RPC_GET_VOLUME_STATS NodeServiceCapability_RPC_Type = 2
 	// See VolumeExpansion for details.
 	NodeServiceCapability_RPC_EXPAND_VOLUME NodeServiceCapability_RPC_Type = 3
+	// Indicates that the Node service can report volume conditions.
+	// An SP MAY implement `VolumeCondition` in only the Node
+	// Plugin, only the Controller Plugin, or both.
+	// If `VolumeCondition` is implemented in both the Node and
+	// Controller Plugins, it SHALL report from different
+	// perspectives.
+	// If for some reason Node and Controller Plugins report
+	// misaligned volume conditions, CO SHALL assume the worst case
+	// is the truth.
+	// Note that, for alpha, `VolumeCondition` is intended to be
+	// informative for humans only, not for automation.
+	NodeServiceCapability_RPC_VOLUME_CONDITION NodeServiceCapability_RPC_Type = 4
+	// Indicates the SP supports the SINGLE_NODE_SINGLE_WRITER and/or
+	// SINGLE_NODE_MULTI_WRITER access modes.
+	// These access modes are intended to replace the
+	// SINGLE_NODE_WRITER access mode to clarify the number of writers
+	// for a volume on a single node. Plugins MUST accept and allow
+	// use of the SINGLE_NODE_WRITER access mode (subject to the
+	// processing rules for NodePublishVolume), when either
+	// SINGLE_NODE_SINGLE_WRITER and/or SINGLE_NODE_MULTI_WRITER are
+	// supported, in order to permit older COs to continue working.
+	NodeServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER NodeServiceCapability_RPC_Type = 5
+	// Indicates that Node service supports mounting volumes
+	// with provided volume group identifier during node stage
+	// or node publish RPC calls.
+	NodeServiceCapability_RPC_VOLUME_MOUNT_GROUP NodeServiceCapability_RPC_Type = 6
 )
 
 var NodeServiceCapability_RPC_Type_name = map[int32]string{
@@ -289,13 +376,19 @@ var NodeServiceCapability_RPC_Type_name = map[int32]string{
 	1: "STAGE_UNSTAGE_VOLUME",
 	2: "GET_VOLUME_STATS",
 	3: "EXPAND_VOLUME",
+	4: "VOLUME_CONDITION",
+	5: "SINGLE_NODE_MULTI_WRITER",
+	6: "VOLUME_MOUNT_GROUP",
 }
 
 var NodeServiceCapability_RPC_Type_value = map[string]int32{
-	"UNKNOWN":              0,
-	"STAGE_UNSTAGE_VOLUME": 1,
-	"GET_VOLUME_STATS":     2,
-	"EXPAND_VOLUME":        3,
+	"UNKNOWN":                  0,
+	"STAGE_UNSTAGE_VOLUME":     1,
+	"GET_VOLUME_STATS":         2,
+	"EXPAND_VOLUME":            3,
+	"VOLUME_CONDITION":         4,
+	"SINGLE_NODE_MULTI_WRITER": 5,
+	"VOLUME_MOUNT_GROUP":       6,
 }
 
 func (x NodeServiceCapability_RPC_Type) String() string {
@@ -303,7 +396,35 @@ func (x NodeServiceCapability_RPC_Type) String() string {
 }
 
 func (NodeServiceCapability_RPC_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{52, 0, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{55, 0, 0}
+}
+
+type GroupControllerServiceCapability_RPC_Type int32
+
+const (
+	GroupControllerServiceCapability_RPC_UNKNOWN GroupControllerServiceCapability_RPC_Type = 0
+	// Indicates that the group controller plugin supports
+	// creating, deleting, and getting details of a volume
+	// group snapshot.
+	GroupControllerServiceCapability_RPC_CREATE_DELETE_GET_VOLUME_GROUP_SNAPSHOT GroupControllerServiceCapability_RPC_Type = 1
+)
+
+var GroupControllerServiceCapability_RPC_Type_name = map[int32]string{
+	0: "UNKNOWN",
+	1: "CREATE_DELETE_GET_VOLUME_GROUP_SNAPSHOT",
+}
+
+var GroupControllerServiceCapability_RPC_Type_value = map[string]int32{
+	"UNKNOWN": 0,
+	"CREATE_DELETE_GET_VOLUME_GROUP_SNAPSHOT": 1,
+}
+
+func (x GroupControllerServiceCapability_RPC_Type) String() string {
+	return proto.EnumName(GroupControllerServiceCapability_RPC_Type_name, int32(x))
+}
+
+func (GroupControllerServiceCapability_RPC_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{62, 0, 0}
 }
 
 type GetPluginInfoRequest struct {
@@ -476,6 +597,7 @@ func (m *GetPluginCapabilitiesResponse) GetCapabilities() []*PluginCapability {
 // Specifies a capability of the plugin.
 type PluginCapability struct {
 	// Types that are valid to be assigned to Type:
+	//
 	//	*PluginCapability_Service_
 	//	*PluginCapability_VolumeExpansion_
 	Type                 isPluginCapability_Type `protobuf_oneof:"type"`
@@ -669,16 +791,16 @@ type ProbeResponse struct {
 	// and it is important for a CO to distinguish between the following
 	// cases:
 	//
-	// 1) The plugin is in an unhealthy state and MAY need restarting. In
-	//    this case a gRPC error code SHALL be returned.
-	// 2) The plugin is still initializing, but is otherwise perfectly
-	//    healthy. In this case a successful response SHALL be returned
-	//    with a readiness value of `false`. Calls to the plugin's
-	//    Controller and/or Node services MAY fail due to an incomplete
-	//    initialization state.
-	// 3) The plugin has finished initializing and is ready to service
-	//    calls to its Controller and/or Node services. A successful
-	//    response is returned with a readiness value of `true`.
+	//  1. The plugin is in an unhealthy state and MAY need restarting. In
+	//     this case a gRPC error code SHALL be returned.
+	//  2. The plugin is still initializing, but is otherwise perfectly
+	//     healthy. In this case a successful response SHALL be returned
+	//     with a readiness value of `false`. Calls to the plugin's
+	//     Controller and/or Node services MAY fail due to an incomplete
+	//     initialization state.
+	//  3. The plugin has finished initializing and is ready to service
+	//     calls to its Controller and/or Node services. A successful
+	//     response is returned with a readiness value of `true`.
 	//
 	// This field is OPTIONAL. If not present, the caller SHALL assume
 	// that the plugin is in a ready state and is accepting calls to its
@@ -725,26 +847,27 @@ func (m *ProbeResponse) GetReady() *wrappers.BoolValue {
 type CreateVolumeRequest struct {
 	// The suggested name for the storage space. This field is REQUIRED.
 	// It serves two purposes:
-	// 1) Idempotency - This name is generated by the CO to achieve
-	//    idempotency.  The Plugin SHOULD ensure that multiple
-	//    `CreateVolume` calls for the same name do not result in more
-	//    than one piece of storage provisioned corresponding to that
-	//    name. If a Plugin is unable to enforce idempotency, the CO's
-	//    error recovery logic could result in multiple (unused) volumes
-	//    being provisioned.
-	//    In the case of error, the CO MUST handle the gRPC error codes
-	//    per the recovery behavior defined in the "CreateVolume Errors"
-	//    section below.
-	//    The CO is responsible for cleaning up volumes it provisioned
-	//    that it no longer needs. If the CO is uncertain whether a volume
-	//    was provisioned or not when a `CreateVolume` call fails, the CO
-	//    MAY call `CreateVolume` again, with the same name, to ensure the
-	//    volume exists and to retrieve the volume's `volume_id` (unless
-	//    otherwise prohibited by "CreateVolume Errors").
-	// 2) Suggested name - Some storage systems allow callers to specify
-	//    an identifier by which to refer to the newly provisioned
-	//    storage. If a storage system supports this, it can optionally
-	//    use this name as the identifier for the new volume.
+	//  1. Idempotency - This name is generated by the CO to achieve
+	//     idempotency.  The Plugin SHOULD ensure that multiple
+	//     `CreateVolume` calls for the same name do not result in more
+	//     than one piece of storage provisioned corresponding to that
+	//     name. If a Plugin is unable to enforce idempotency, the CO's
+	//     error recovery logic could result in multiple (unused) volumes
+	//     being provisioned.
+	//     In the case of error, the CO MUST handle the gRPC error codes
+	//     per the recovery behavior defined in the "CreateVolume Errors"
+	//     section below.
+	//     The CO is responsible for cleaning up volumes it provisioned
+	//     that it no longer needs. If the CO is uncertain whether a volume
+	//     was provisioned or not when a `CreateVolume` call fails, the CO
+	//     MAY call `CreateVolume` again, with the same name, to ensure the
+	//     volume exists and to retrieve the volume's `volume_id` (unless
+	//     otherwise prohibited by "CreateVolume Errors").
+	//  2. Suggested name - Some storage systems allow callers to specify
+	//     an identifier by which to refer to the newly provisioned
+	//     storage. If a storage system supports this, it can optionally
+	//     use this name as the identifier for the new volume.
+	//
 	// Any Unicode string that conforms to the length limit is allowed
 	// except those containing the following banned characters:
 	// U+0000-U+0008, U+000B, U+000C, U+000E-U+001F, U+007F-U+009F.
@@ -878,6 +1001,7 @@ func (m *CreateVolumeRequest) GetAccessibilityRequirements() *TopologyRequiremen
 // type fields MUST be specified.
 type VolumeContentSource struct {
 	// Types that are valid to be assigned to Type:
+	//
 	//	*VolumeContentSource_Snapshot
 	//	*VolumeContentSource_Volume
 	Type                 isVolumeContentSource_Type `protobuf_oneof:"type"`
@@ -1089,6 +1213,7 @@ type VolumeCapability struct {
 	// following fields MUST be specified.
 	//
 	// Types that are valid to be assigned to AccessType:
+	//
 	//	*VolumeCapability_Block
 	//	*VolumeCapability_Mount
 	AccessType isVolumeCapability_AccessType `protobuf_oneof:"access_type"`
@@ -1218,7 +1343,19 @@ type VolumeCapability_MountVolume struct {
 	// Therefore, the CO and the Plugin MUST NOT leak this information
 	// to untrusted entities. The total size of this repeated field
 	// SHALL NOT exceed 4 KiB.
-	MountFlags           []string `protobuf:"bytes,2,rep,name=mount_flags,json=mountFlags,proto3" json:"mount_flags,omitempty"`
+	MountFlags []string `protobuf:"bytes,2,rep,name=mount_flags,json=mountFlags,proto3" json:"mount_flags,omitempty"`
+	// If SP has VOLUME_MOUNT_GROUP node capability and CO provides
+	// this field then SP MUST ensure that the volume_mount_group
+	// parameter is passed as the group identifier to the underlying
+	// operating system mount system call, with the understanding
+	// that the set of available mount call parameters and/or
+	// mount implementations may vary across operating systems.
+	// Additionally, new file and/or directory entries written to
+	// the underlying filesystem SHOULD be permission-labeled in such a
+	// manner, unless otherwise modified by a workload, that they are
+	// both readable and writable by said mount group identifier.
+	// This is an OPTIONAL field.
+	VolumeMountGroup     string   `protobuf:"bytes,3,opt,name=volume_mount_group,json=volumeMountGroup,proto3" json:"volume_mount_group,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1261,6 +1398,13 @@ func (m *VolumeCapability_MountVolume) GetMountFlags() []string {
 		return m.MountFlags
 	}
 	return nil
+}
+
+func (m *VolumeCapability_MountVolume) GetVolumeMountGroup() string {
+	if m != nil {
+		return m.VolumeMountGroup
+	}
+	return ""
 }
 
 // Specify how a volume can be accessed.
@@ -1411,14 +1555,18 @@ type Volume struct {
 	// node.
 	//
 	// Example 1:
-	//   accessible_topology = {"region": "R1", "zone": "Z2"}
+	//
+	//	accessible_topology = {"region": "R1", "zone": "Z2"}
+	//
 	// Indicates a volume accessible only from the "region" "R1" and the
 	// "zone" "Z2".
 	//
 	// Example 2:
-	//   accessible_topology =
-	//     {"region": "R1", "zone": "Z2"},
-	//     {"region": "R1", "zone": "Z3"}
+	//
+	//	accessible_topology =
+	//	  {"region": "R1", "zone": "Z2"},
+	//	  {"region": "R1", "zone": "Z3"}
+	//
 	// Indicates a volume accessible from both "zone" "Z2" and "zone" "Z3"
 	// in the "region" "R1".
 	AccessibleTopology   []*Topology `protobuf:"bytes,5,rep,name=accessible_topology,json=accessibleTopology,proto3" json:"accessible_topology,omitempty"`
@@ -1497,21 +1645,27 @@ type TopologyRequirement struct {
 	// accessible from at least one of the requisite topologies.
 	//
 	// Given
-	//   x = number of topologies provisioned volume is accessible from
-	//   n = number of requisite topologies
+	//
+	//	x = number of topologies provisioned volume is accessible from
+	//	n = number of requisite topologies
+	//
 	// The CO MUST ensure n >= 1. The SP MUST ensure x >= 1
 	// If x==n, then the SP MUST make the provisioned volume available to
 	// all topologies from the list of requisite topologies. If it is
 	// unable to do so, the SP MUST fail the CreateVolume call.
 	// For example, if a volume should be accessible from a single zone,
 	// and requisite =
-	//   {"region": "R1", "zone": "Z2"}
+	//
+	//	{"region": "R1", "zone": "Z2"}
+	//
 	// then the provisioned volume MUST be accessible from the "region"
 	// "R1" and the "zone" "Z2".
 	// Similarly, if a volume should be accessible from two zones, and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"}
+	//
 	// then the provisioned volume MUST be accessible from the "region"
 	// "R1" and both "zone" "Z2" and "zone" "Z3".
 	//
@@ -1520,18 +1674,23 @@ type TopologyRequirement struct {
 	// the CreateVolume call.
 	// For example, if a volume should be accessible from a single zone,
 	// and requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"}
+	//
 	// then the SP may choose to make the provisioned volume available in
 	// either the "zone" "Z2" or the "zone" "Z3" in the "region" "R1".
 	// Similarly, if a volume should be accessible from two zones, and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"},
-	//   {"region": "R1", "zone": "Z4"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"},
+	//	{"region": "R1", "zone": "Z4"}
+	//
 	// then the provisioned volume MUST be accessible from any combination
 	// of two unique topologies: e.g. "R1/Z2" and "R1/Z3", or "R1/Z2" and
-	//  "R1/Z4", or "R1/Z3" and "R1/Z4".
+	//
+	//	"R1/Z4", or "R1/Z3" and "R1/Z4".
 	//
 	// If x>n, then the SP MUST make the provisioned volume available from
 	// all topologies from the list of requisite topologies and MAY choose
@@ -1540,7 +1699,9 @@ type TopologyRequirement struct {
 	// CreateVolume call.
 	// For example, if a volume should be accessible from two zones, and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"}
+	//
+	//	{"region": "R1", "zone": "Z2"}
+	//
 	// then the provisioned volume MUST be accessible from the "region"
 	// "R1" and the "zone" "Z2" and the SP may select the second zone
 	// independently, e.g. "R1/Z4".
@@ -1569,25 +1730,33 @@ type TopologyRequirement struct {
 	// Example 1:
 	// Given a volume should be accessible from a single zone, and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"}
+	//
 	// preferred =
-	//   {"region": "R1", "zone": "Z3"}
-	// then the the SP SHOULD first attempt to make the provisioned volume
+	//
+	//	{"region": "R1", "zone": "Z3"}
+	//
+	// then the SP SHOULD first attempt to make the provisioned volume
 	// available from "zone" "Z3" in the "region" "R1" and fall back to
 	// "zone" "Z2" in the "region" "R1" if that is not possible.
 	//
 	// Example 2:
 	// Given a volume should be accessible from a single zone, and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"},
-	//   {"region": "R1", "zone": "Z4"},
-	//   {"region": "R1", "zone": "Z5"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"},
+	//	{"region": "R1", "zone": "Z4"},
+	//	{"region": "R1", "zone": "Z5"}
+	//
 	// preferred =
-	//   {"region": "R1", "zone": "Z4"},
-	//   {"region": "R1", "zone": "Z2"}
-	// then the the SP SHOULD first attempt to make the provisioned volume
+	//
+	//	{"region": "R1", "zone": "Z4"},
+	//	{"region": "R1", "zone": "Z2"}
+	//
+	// then the SP SHOULD first attempt to make the provisioned volume
 	// accessible from "zone" "Z4" in the "region" "R1" and fall back to
 	// "zone" "Z2" in the "region" "R1" if that is not possible. If that
 	// is not possible, the SP may choose between either the "zone"
@@ -1599,14 +1768,18 @@ type TopologyRequirement struct {
 	// the volume is accessible from two zones, aka synchronously
 	// replicated), and
 	// requisite =
-	//   {"region": "R1", "zone": "Z2"},
-	//   {"region": "R1", "zone": "Z3"},
-	//   {"region": "R1", "zone": "Z4"},
-	//   {"region": "R1", "zone": "Z5"}
+	//
+	//	{"region": "R1", "zone": "Z2"},
+	//	{"region": "R1", "zone": "Z3"},
+	//	{"region": "R1", "zone": "Z4"},
+	//	{"region": "R1", "zone": "Z5"}
+	//
 	// preferred =
-	//   {"region": "R1", "zone": "Z5"},
-	//   {"region": "R1", "zone": "Z3"}
-	// then the the SP SHOULD first attempt to make the provisioned volume
+	//
+	//	{"region": "R1", "zone": "Z5"},
+	//	{"region": "R1", "zone": "Z3"}
+	//
+	// then the SP SHOULD first attempt to make the provisioned volume
 	// accessible from the combination of the two "zones" "Z5" and "Z3" in
 	// the "region" "R1". If that's not possible, it should fall back to
 	// a combination of "Z5" and other possibilities from the list of
@@ -1831,9 +2004,10 @@ type ControllerPublishVolumeRequest struct {
 	// request. This field is OPTIONAL. Refer to the
 	// `Secrets Requirements` section on how to use this field.
 	Secrets map[string]string `protobuf:"bytes,5,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Volume context as returned by CO in CreateVolumeRequest. This field
-	// is OPTIONAL and MUST match the volume_context of the volume
-	// identified by `volume_id`.
+	// Volume context as returned by SP in
+	// CreateVolumeResponse.Volume.volume_context.
+	// This field is OPTIONAL and MUST match the volume_context of the
+	// volume identified by `volume_id`.
 	VolumeContext        map[string]string `protobuf:"bytes,6,rep,name=volume_context,json=volumeContext,proto3" json:"volume_context,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -2059,9 +2233,10 @@ var xxx_messageInfo_ControllerUnpublishVolumeResponse proto.InternalMessageInfo
 type ValidateVolumeCapabilitiesRequest struct {
 	// The ID of the volume to check. This field is REQUIRED.
 	VolumeId string `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
-	// Volume context as returned by CO in CreateVolumeRequest. This field
-	// is OPTIONAL and MUST match the volume_context of the volume
-	// identified by `volume_id`.
+	// Volume context as returned by SP in
+	// CreateVolumeResponse.Volume.volume_context.
+	// This field is OPTIONAL and MUST match the volume_context of the
+	// volume identified by `volume_id`.
 	VolumeContext map[string]string `protobuf:"bytes,2,rep,name=volume_context,json=volumeContext,proto3" json:"volume_context,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// The capabilities that the CO wants to check for the volume. This
 	// call SHALL return "confirmed" only if all the volume capabilities
@@ -2385,10 +2560,15 @@ type ListVolumesResponse_VolumeStatus struct {
 	// not interpret this field.
 	// published_node_ids MAY include nodes not published to or
 	// reported by the SP. The CO MUST be resilient to that.
-	PublishedNodeIds     []string `protobuf:"bytes,1,rep,name=published_node_ids,json=publishedNodeIds,proto3" json:"published_node_ids,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	PublishedNodeIds []string `protobuf:"bytes,1,rep,name=published_node_ids,json=publishedNodeIds,proto3" json:"published_node_ids,omitempty"`
+	// Information about the current condition of the volume.
+	// This field is OPTIONAL.
+	// This field MUST be specified if the
+	// VOLUME_CONDITION controller capability is supported.
+	VolumeCondition      *VolumeCondition `protobuf:"bytes,2,opt,name=volume_condition,json=volumeCondition,proto3" json:"volume_condition,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *ListVolumesResponse_VolumeStatus) Reset()         { *m = ListVolumesResponse_VolumeStatus{} }
@@ -2419,6 +2599,13 @@ var xxx_messageInfo_ListVolumesResponse_VolumeStatus proto.InternalMessageInfo
 func (m *ListVolumesResponse_VolumeStatus) GetPublishedNodeIds() []string {
 	if m != nil {
 		return m.PublishedNodeIds
+	}
+	return nil
+}
+
+func (m *ListVolumesResponse_VolumeStatus) GetVolumeCondition() *VolumeCondition {
+	if m != nil {
+		return m.VolumeCondition
 	}
 	return nil
 }
@@ -2474,6 +2661,156 @@ func (m *ListVolumesResponse_Entry) GetStatus() *ListVolumesResponse_VolumeStatu
 	return nil
 }
 
+type ControllerGetVolumeRequest struct {
+	// The ID of the volume to fetch current volume information for.
+	// This field is REQUIRED.
+	VolumeId             string   `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ControllerGetVolumeRequest) Reset()         { *m = ControllerGetVolumeRequest{} }
+func (m *ControllerGetVolumeRequest) String() string { return proto.CompactTextString(m) }
+func (*ControllerGetVolumeRequest) ProtoMessage()    {}
+func (*ControllerGetVolumeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{25}
+}
+
+func (m *ControllerGetVolumeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ControllerGetVolumeRequest.Unmarshal(m, b)
+}
+func (m *ControllerGetVolumeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ControllerGetVolumeRequest.Marshal(b, m, deterministic)
+}
+func (m *ControllerGetVolumeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ControllerGetVolumeRequest.Merge(m, src)
+}
+func (m *ControllerGetVolumeRequest) XXX_Size() int {
+	return xxx_messageInfo_ControllerGetVolumeRequest.Size(m)
+}
+func (m *ControllerGetVolumeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ControllerGetVolumeRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ControllerGetVolumeRequest proto.InternalMessageInfo
+
+func (m *ControllerGetVolumeRequest) GetVolumeId() string {
+	if m != nil {
+		return m.VolumeId
+	}
+	return ""
+}
+
+type ControllerGetVolumeResponse struct {
+	// This field is REQUIRED
+	Volume *Volume `protobuf:"bytes,1,opt,name=volume,proto3" json:"volume,omitempty"`
+	// This field is REQUIRED.
+	Status               *ControllerGetVolumeResponse_VolumeStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                  `json:"-"`
+	XXX_unrecognized     []byte                                    `json:"-"`
+	XXX_sizecache        int32                                     `json:"-"`
+}
+
+func (m *ControllerGetVolumeResponse) Reset()         { *m = ControllerGetVolumeResponse{} }
+func (m *ControllerGetVolumeResponse) String() string { return proto.CompactTextString(m) }
+func (*ControllerGetVolumeResponse) ProtoMessage()    {}
+func (*ControllerGetVolumeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{26}
+}
+
+func (m *ControllerGetVolumeResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ControllerGetVolumeResponse.Unmarshal(m, b)
+}
+func (m *ControllerGetVolumeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ControllerGetVolumeResponse.Marshal(b, m, deterministic)
+}
+func (m *ControllerGetVolumeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ControllerGetVolumeResponse.Merge(m, src)
+}
+func (m *ControllerGetVolumeResponse) XXX_Size() int {
+	return xxx_messageInfo_ControllerGetVolumeResponse.Size(m)
+}
+func (m *ControllerGetVolumeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ControllerGetVolumeResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ControllerGetVolumeResponse proto.InternalMessageInfo
+
+func (m *ControllerGetVolumeResponse) GetVolume() *Volume {
+	if m != nil {
+		return m.Volume
+	}
+	return nil
+}
+
+func (m *ControllerGetVolumeResponse) GetStatus() *ControllerGetVolumeResponse_VolumeStatus {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+type ControllerGetVolumeResponse_VolumeStatus struct {
+	// A list of all the `node_id` of nodes that this volume is
+	// controller published on.
+	// This field is OPTIONAL.
+	// This field MUST be specified if the LIST_VOLUMES_PUBLISHED_NODES
+	// controller capability is supported.
+	// published_node_ids MAY include nodes not published to or
+	// reported by the SP. The CO MUST be resilient to that.
+	PublishedNodeIds []string `protobuf:"bytes,1,rep,name=published_node_ids,json=publishedNodeIds,proto3" json:"published_node_ids,omitempty"`
+	// Information about the current condition of the volume.
+	// This field is OPTIONAL.
+	// This field MUST be specified if the
+	// VOLUME_CONDITION controller capability is supported.
+	VolumeCondition      *VolumeCondition `protobuf:"bytes,2,opt,name=volume_condition,json=volumeCondition,proto3" json:"volume_condition,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *ControllerGetVolumeResponse_VolumeStatus) Reset() {
+	*m = ControllerGetVolumeResponse_VolumeStatus{}
+}
+func (m *ControllerGetVolumeResponse_VolumeStatus) String() string { return proto.CompactTextString(m) }
+func (*ControllerGetVolumeResponse_VolumeStatus) ProtoMessage()    {}
+func (*ControllerGetVolumeResponse_VolumeStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{26, 0}
+}
+
+func (m *ControllerGetVolumeResponse_VolumeStatus) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus.Unmarshal(m, b)
+}
+func (m *ControllerGetVolumeResponse_VolumeStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus.Marshal(b, m, deterministic)
+}
+func (m *ControllerGetVolumeResponse_VolumeStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus.Merge(m, src)
+}
+func (m *ControllerGetVolumeResponse_VolumeStatus) XXX_Size() int {
+	return xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus.Size(m)
+}
+func (m *ControllerGetVolumeResponse_VolumeStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ControllerGetVolumeResponse_VolumeStatus proto.InternalMessageInfo
+
+func (m *ControllerGetVolumeResponse_VolumeStatus) GetPublishedNodeIds() []string {
+	if m != nil {
+		return m.PublishedNodeIds
+	}
+	return nil
+}
+
+func (m *ControllerGetVolumeResponse_VolumeStatus) GetVolumeCondition() *VolumeCondition {
+	if m != nil {
+		return m.VolumeCondition
+	}
+	return nil
+}
+
 type GetCapacityRequest struct {
 	// If specified, the Plugin SHALL report the capacity of the storage
 	// that can be used to provision volumes that satisfy ALL of the
@@ -2502,7 +2839,7 @@ func (m *GetCapacityRequest) Reset()         { *m = GetCapacityRequest{} }
 func (m *GetCapacityRequest) String() string { return proto.CompactTextString(m) }
 func (*GetCapacityRequest) ProtoMessage()    {}
 func (*GetCapacityRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{25}
+	return fileDescriptor_9cdb00adce470e01, []int{27}
 }
 
 func (m *GetCapacityRequest) XXX_Unmarshal(b []byte) error {
@@ -2551,17 +2888,49 @@ type GetCapacityResponse struct {
 	// consideration when calculating the available capacity of the
 	// storage. This field is REQUIRED.
 	// The value of this field MUST NOT be negative.
-	AvailableCapacity    int64    `protobuf:"varint,1,opt,name=available_capacity,json=availableCapacity,proto3" json:"available_capacity,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	AvailableCapacity int64 `protobuf:"varint,1,opt,name=available_capacity,json=availableCapacity,proto3" json:"available_capacity,omitempty"`
+	// The largest size that may be used in a
+	// CreateVolumeRequest.capacity_range.required_bytes field
+	// to create a volume with the same parameters as those in
+	// GetCapacityRequest.
+	//
+	// If `volume_capabilities` or `parameters` is
+	// specified in the request, the Plugin SHALL take those into
+	// consideration when calculating the minimum volume size of the
+	// storage.
+	//
+	// This field is OPTIONAL. MUST NOT be negative.
+	// The Plugin SHOULD provide a value for this field if it has
+	// a maximum size for individual volumes and leave it unset
+	// otherwise. COs MAY use it to make decision about
+	// where to create volumes.
+	MaximumVolumeSize *wrappers.Int64Value `protobuf:"bytes,2,opt,name=maximum_volume_size,json=maximumVolumeSize,proto3" json:"maximum_volume_size,omitempty"`
+	// The smallest size that may be used in a
+	// CreateVolumeRequest.capacity_range.limit_bytes field
+	// to create a volume with the same parameters as those in
+	// GetCapacityRequest.
+	//
+	// If `volume_capabilities` or `parameters` is
+	// specified in the request, the Plugin SHALL take those into
+	// consideration when calculating the maximum volume size of the
+	// storage.
+	//
+	// This field is OPTIONAL. MUST NOT be negative.
+	// The Plugin SHOULD provide a value for this field if it has
+	// a minimum size for individual volumes and leave it unset
+	// otherwise. COs MAY use it to make decision about
+	// where to create volumes.
+	MinimumVolumeSize    *wrappers.Int64Value `protobuf:"bytes,3,opt,name=minimum_volume_size,json=minimumVolumeSize,proto3" json:"minimum_volume_size,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
 }
 
 func (m *GetCapacityResponse) Reset()         { *m = GetCapacityResponse{} }
 func (m *GetCapacityResponse) String() string { return proto.CompactTextString(m) }
 func (*GetCapacityResponse) ProtoMessage()    {}
 func (*GetCapacityResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{26}
+	return fileDescriptor_9cdb00adce470e01, []int{28}
 }
 
 func (m *GetCapacityResponse) XXX_Unmarshal(b []byte) error {
@@ -2589,6 +2958,20 @@ func (m *GetCapacityResponse) GetAvailableCapacity() int64 {
 	return 0
 }
 
+func (m *GetCapacityResponse) GetMaximumVolumeSize() *wrappers.Int64Value {
+	if m != nil {
+		return m.MaximumVolumeSize
+	}
+	return nil
+}
+
+func (m *GetCapacityResponse) GetMinimumVolumeSize() *wrappers.Int64Value {
+	if m != nil {
+		return m.MinimumVolumeSize
+	}
+	return nil
+}
+
 type ControllerGetCapabilitiesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -2599,7 +2982,7 @@ func (m *ControllerGetCapabilitiesRequest) Reset()         { *m = ControllerGetC
 func (m *ControllerGetCapabilitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*ControllerGetCapabilitiesRequest) ProtoMessage()    {}
 func (*ControllerGetCapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{27}
+	return fileDescriptor_9cdb00adce470e01, []int{29}
 }
 
 func (m *ControllerGetCapabilitiesRequest) XXX_Unmarshal(b []byte) error {
@@ -2633,7 +3016,7 @@ func (m *ControllerGetCapabilitiesResponse) Reset()         { *m = ControllerGet
 func (m *ControllerGetCapabilitiesResponse) String() string { return proto.CompactTextString(m) }
 func (*ControllerGetCapabilitiesResponse) ProtoMessage()    {}
 func (*ControllerGetCapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{28}
+	return fileDescriptor_9cdb00adce470e01, []int{30}
 }
 
 func (m *ControllerGetCapabilitiesResponse) XXX_Unmarshal(b []byte) error {
@@ -2664,6 +3047,7 @@ func (m *ControllerGetCapabilitiesResponse) GetCapabilities() []*ControllerServi
 // Specifies a capability of the controller service.
 type ControllerServiceCapability struct {
 	// Types that are valid to be assigned to Type:
+	//
 	//	*ControllerServiceCapability_Rpc
 	Type                 isControllerServiceCapability_Type `protobuf_oneof:"type"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
@@ -2675,7 +3059,7 @@ func (m *ControllerServiceCapability) Reset()         { *m = ControllerServiceCa
 func (m *ControllerServiceCapability) String() string { return proto.CompactTextString(m) }
 func (*ControllerServiceCapability) ProtoMessage()    {}
 func (*ControllerServiceCapability) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{29}
+	return fileDescriptor_9cdb00adce470e01, []int{31}
 }
 
 func (m *ControllerServiceCapability) XXX_Unmarshal(b []byte) error {
@@ -2738,7 +3122,7 @@ func (m *ControllerServiceCapability_RPC) Reset()         { *m = ControllerServi
 func (m *ControllerServiceCapability_RPC) String() string { return proto.CompactTextString(m) }
 func (*ControllerServiceCapability_RPC) ProtoMessage()    {}
 func (*ControllerServiceCapability_RPC) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{29, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{31, 0}
 }
 
 func (m *ControllerServiceCapability_RPC) XXX_Unmarshal(b []byte) error {
@@ -2785,12 +3169,12 @@ type CreateSnapshotRequest struct {
 	// This field is OPTIONAL. The Plugin is responsible for parsing and
 	// validating these parameters. COs will treat these as opaque.
 	// Use cases for opaque parameters:
-	// - Specify a policy to automatically clean up the snapshot.
-	// - Specify an expiration date for the snapshot.
-	// - Specify whether the snapshot is readonly or read/write.
-	// - Specify if the snapshot should be replicated to some place.
-	// - Specify primary or secondary for replication systems that
-	//   support snapshotting only on primary.
+	//   - Specify a policy to automatically clean up the snapshot.
+	//   - Specify an expiration date for the snapshot.
+	//   - Specify whether the snapshot is readonly or read/write.
+	//   - Specify if the snapshot should be replicated to some place.
+	//   - Specify primary or secondary for replication systems that
+	//     support snapshotting only on primary.
 	Parameters           map[string]string `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -2801,7 +3185,7 @@ func (m *CreateSnapshotRequest) Reset()         { *m = CreateSnapshotRequest{} }
 func (m *CreateSnapshotRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateSnapshotRequest) ProtoMessage()    {}
 func (*CreateSnapshotRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{30}
+	return fileDescriptor_9cdb00adce470e01, []int{32}
 }
 
 func (m *CreateSnapshotRequest) XXX_Unmarshal(b []byte) error {
@@ -2864,7 +3248,7 @@ func (m *CreateSnapshotResponse) Reset()         { *m = CreateSnapshotResponse{}
 func (m *CreateSnapshotResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateSnapshotResponse) ProtoMessage()    {}
 func (*CreateSnapshotResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{31}
+	return fileDescriptor_9cdb00adce470e01, []int{33}
 }
 
 func (m *CreateSnapshotResponse) XXX_Unmarshal(b []byte) error {
@@ -2922,7 +3306,21 @@ type Snapshot struct {
 	// Indicates if a snapshot is ready to use as a
 	// `volume_content_source` in a `CreateVolumeRequest`. The default
 	// value is false. This field is REQUIRED.
-	ReadyToUse           bool     `protobuf:"varint,5,opt,name=ready_to_use,json=readyToUse,proto3" json:"ready_to_use,omitempty"`
+	ReadyToUse bool `protobuf:"varint,5,opt,name=ready_to_use,json=readyToUse,proto3" json:"ready_to_use,omitempty"`
+	// The ID of the volume group snapshot that this snapshot is part of.
+	// It uniquely identifies the group snapshot on the storage system.
+	// This field is OPTIONAL.
+	// If this snapshot is a member of a volume group snapshot, and it
+	// MUST NOT be deleted as a stand alone snapshot, then the SP
+	// MUST provide the ID of the volume group snapshot in this field.
+	// If provided, CO MUST use this field in subsequent volume group
+	// snapshot operations to indicate that this snapshot is part of the
+	// specified group snapshot.
+	// If not provided, CO SHALL treat the snapshot as independent,
+	// and SP SHALL allow it to be deleted separately.
+	// If this message is inside a VolumeGroupSnapshot message, the value
+	// MUST be the same as the group_snapshot_id in that message.
+	GroupSnapshotId      string   `protobuf:"bytes,6,opt,name=group_snapshot_id,json=groupSnapshotId,proto3" json:"group_snapshot_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -2932,7 +3330,7 @@ func (m *Snapshot) Reset()         { *m = Snapshot{} }
 func (m *Snapshot) String() string { return proto.CompactTextString(m) }
 func (*Snapshot) ProtoMessage()    {}
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{32}
+	return fileDescriptor_9cdb00adce470e01, []int{34}
 }
 
 func (m *Snapshot) XXX_Unmarshal(b []byte) error {
@@ -2988,6 +3386,13 @@ func (m *Snapshot) GetReadyToUse() bool {
 	return false
 }
 
+func (m *Snapshot) GetGroupSnapshotId() string {
+	if m != nil {
+		return m.GroupSnapshotId
+	}
+	return ""
+}
+
 type DeleteSnapshotRequest struct {
 	// The ID of the snapshot to be deleted.
 	// This field is REQUIRED.
@@ -3005,7 +3410,7 @@ func (m *DeleteSnapshotRequest) Reset()         { *m = DeleteSnapshotRequest{} }
 func (m *DeleteSnapshotRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteSnapshotRequest) ProtoMessage()    {}
 func (*DeleteSnapshotRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{33}
+	return fileDescriptor_9cdb00adce470e01, []int{35}
 }
 
 func (m *DeleteSnapshotRequest) XXX_Unmarshal(b []byte) error {
@@ -3050,7 +3455,7 @@ func (m *DeleteSnapshotResponse) Reset()         { *m = DeleteSnapshotResponse{}
 func (m *DeleteSnapshotResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteSnapshotResponse) ProtoMessage()    {}
 func (*DeleteSnapshotResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{34}
+	return fileDescriptor_9cdb00adce470e01, []int{36}
 }
 
 func (m *DeleteSnapshotResponse) XXX_Unmarshal(b []byte) error {
@@ -3110,7 +3515,7 @@ func (m *ListSnapshotsRequest) Reset()         { *m = ListSnapshotsRequest{} }
 func (m *ListSnapshotsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListSnapshotsRequest) ProtoMessage()    {}
 func (*ListSnapshotsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{35}
+	return fileDescriptor_9cdb00adce470e01, []int{37}
 }
 
 func (m *ListSnapshotsRequest) XXX_Unmarshal(b []byte) error {
@@ -3184,7 +3589,7 @@ func (m *ListSnapshotsResponse) Reset()         { *m = ListSnapshotsResponse{} }
 func (m *ListSnapshotsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListSnapshotsResponse) ProtoMessage()    {}
 func (*ListSnapshotsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{36}
+	return fileDescriptor_9cdb00adce470e01, []int{38}
 }
 
 func (m *ListSnapshotsResponse) XXX_Unmarshal(b []byte) error {
@@ -3230,7 +3635,7 @@ func (m *ListSnapshotsResponse_Entry) Reset()         { *m = ListSnapshotsRespon
 func (m *ListSnapshotsResponse_Entry) String() string { return proto.CompactTextString(m) }
 func (*ListSnapshotsResponse_Entry) ProtoMessage()    {}
 func (*ListSnapshotsResponse_Entry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{36, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{38, 0}
 }
 
 func (m *ListSnapshotsResponse_Entry) XXX_Unmarshal(b []byte) error {
@@ -3284,7 +3689,7 @@ func (m *ControllerExpandVolumeRequest) Reset()         { *m = ControllerExpandV
 func (m *ControllerExpandVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*ControllerExpandVolumeRequest) ProtoMessage()    {}
 func (*ControllerExpandVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{37}
+	return fileDescriptor_9cdb00adce470e01, []int{39}
 }
 
 func (m *ControllerExpandVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -3349,7 +3754,7 @@ func (m *ControllerExpandVolumeResponse) Reset()         { *m = ControllerExpand
 func (m *ControllerExpandVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*ControllerExpandVolumeResponse) ProtoMessage()    {}
 func (*ControllerExpandVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{38}
+	return fileDescriptor_9cdb00adce470e01, []int{40}
 }
 
 func (m *ControllerExpandVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -3402,6 +3807,10 @@ type NodeStageVolumeRequest struct {
 	// CO SHALL be responsible for creating the directory if it does not
 	// exist.
 	// This is a REQUIRED field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	StagingTargetPath string `protobuf:"bytes,3,opt,name=staging_target_path,json=stagingTargetPath,proto3" json:"staging_target_path,omitempty"`
 	// Volume capability describing how the CO intends to use this volume.
 	// SP MUST ensure the CO can use the staged volume as described.
@@ -3412,9 +3821,10 @@ type NodeStageVolumeRequest struct {
 	// This field is OPTIONAL. Refer to the `Secrets Requirements`
 	// section on how to use this field.
 	Secrets map[string]string `protobuf:"bytes,5,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Volume context as returned by CO in CreateVolumeRequest. This field
-	// is OPTIONAL and MUST match the volume_context of the volume
-	// identified by `volume_id`.
+	// Volume context as returned by SP in
+	// CreateVolumeResponse.Volume.volume_context.
+	// This field is OPTIONAL and MUST match the volume_context of the
+	// volume identified by `volume_id`.
 	VolumeContext        map[string]string `protobuf:"bytes,6,rep,name=volume_context,json=volumeContext,proto3" json:"volume_context,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -3425,7 +3835,7 @@ func (m *NodeStageVolumeRequest) Reset()         { *m = NodeStageVolumeRequest{}
 func (m *NodeStageVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeStageVolumeRequest) ProtoMessage()    {}
 func (*NodeStageVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{39}
+	return fileDescriptor_9cdb00adce470e01, []int{41}
 }
 
 func (m *NodeStageVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -3498,7 +3908,7 @@ func (m *NodeStageVolumeResponse) Reset()         { *m = NodeStageVolumeResponse
 func (m *NodeStageVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeStageVolumeResponse) ProtoMessage()    {}
 func (*NodeStageVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{40}
+	return fileDescriptor_9cdb00adce470e01, []int{42}
 }
 
 func (m *NodeStageVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -3525,6 +3935,10 @@ type NodeUnstageVolumeRequest struct {
 	// The path at which the volume was staged. It MUST be an absolute
 	// path in the root filesystem of the process serving this request.
 	// This is a REQUIRED field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	StagingTargetPath    string   `protobuf:"bytes,2,opt,name=staging_target_path,json=stagingTargetPath,proto3" json:"staging_target_path,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -3535,7 +3949,7 @@ func (m *NodeUnstageVolumeRequest) Reset()         { *m = NodeUnstageVolumeReque
 func (m *NodeUnstageVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeUnstageVolumeRequest) ProtoMessage()    {}
 func (*NodeUnstageVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{41}
+	return fileDescriptor_9cdb00adce470e01, []int{43}
 }
 
 func (m *NodeUnstageVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -3580,7 +3994,7 @@ func (m *NodeUnstageVolumeResponse) Reset()         { *m = NodeUnstageVolumeResp
 func (m *NodeUnstageVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeUnstageVolumeResponse) ProtoMessage()    {}
 func (*NodeUnstageVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{42}
+	return fileDescriptor_9cdb00adce470e01, []int{44}
 }
 
 func (m *NodeUnstageVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -3616,6 +4030,10 @@ type NodePublishVolumeRequest struct {
 	// It MUST be set if the Node Plugin implements the
 	// `STAGE_UNSTAGE_VOLUME` node capability.
 	// This is an OPTIONAL field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	StagingTargetPath string `protobuf:"bytes,3,opt,name=staging_target_path,json=stagingTargetPath,proto3" json:"staging_target_path,omitempty"`
 	// The path to which the volume will be published. It MUST be an
 	// absolute path in the root filesystem of the process serving this
@@ -3629,6 +4047,10 @@ type NodePublishVolumeRequest struct {
 	// mounted directory at target_path.
 	// Creation of target_path is the responsibility of the SP.
 	// This is a REQUIRED field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	TargetPath string `protobuf:"bytes,4,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"`
 	// Volume capability describing how the CO intends to use this volume.
 	// SP MUST ensure the CO can use the published volume as described.
@@ -3642,9 +4064,10 @@ type NodePublishVolumeRequest struct {
 	// This field is OPTIONAL. Refer to the `Secrets Requirements`
 	// section on how to use this field.
 	Secrets map[string]string `protobuf:"bytes,7,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Volume context as returned by CO in CreateVolumeRequest. This field
-	// is OPTIONAL and MUST match the volume_context of the volume
-	// identified by `volume_id`.
+	// Volume context as returned by SP in
+	// CreateVolumeResponse.Volume.volume_context.
+	// This field is OPTIONAL and MUST match the volume_context of the
+	// volume identified by `volume_id`.
 	VolumeContext        map[string]string `protobuf:"bytes,8,rep,name=volume_context,json=volumeContext,proto3" json:"volume_context,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
@@ -3655,7 +4078,7 @@ func (m *NodePublishVolumeRequest) Reset()         { *m = NodePublishVolumeReque
 func (m *NodePublishVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*NodePublishVolumeRequest) ProtoMessage()    {}
 func (*NodePublishVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{43}
+	return fileDescriptor_9cdb00adce470e01, []int{45}
 }
 
 func (m *NodePublishVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -3742,7 +4165,7 @@ func (m *NodePublishVolumeResponse) Reset()         { *m = NodePublishVolumeResp
 func (m *NodePublishVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*NodePublishVolumeResponse) ProtoMessage()    {}
 func (*NodePublishVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{44}
+	return fileDescriptor_9cdb00adce470e01, []int{46}
 }
 
 func (m *NodePublishVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -3770,6 +4193,10 @@ type NodeUnpublishVolumeRequest struct {
 	// path in the root filesystem of the process serving this request.
 	// The SP MUST delete the file or directory it created at this path.
 	// This is a REQUIRED field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	TargetPath           string   `protobuf:"bytes,2,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -3780,7 +4207,7 @@ func (m *NodeUnpublishVolumeRequest) Reset()         { *m = NodeUnpublishVolumeR
 func (m *NodeUnpublishVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeUnpublishVolumeRequest) ProtoMessage()    {}
 func (*NodeUnpublishVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{45}
+	return fileDescriptor_9cdb00adce470e01, []int{47}
 }
 
 func (m *NodeUnpublishVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -3825,7 +4252,7 @@ func (m *NodeUnpublishVolumeResponse) Reset()         { *m = NodeUnpublishVolume
 func (m *NodeUnpublishVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeUnpublishVolumeResponse) ProtoMessage()    {}
 func (*NodeUnpublishVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{46}
+	return fileDescriptor_9cdb00adce470e01, []int{48}
 }
 
 func (m *NodeUnpublishVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -3854,12 +4281,20 @@ type NodeGetVolumeStatsRequest struct {
 	// It MUST be an absolute path in the root filesystem of
 	// the process serving this request.
 	// This is a REQUIRED field.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	VolumePath string `protobuf:"bytes,2,opt,name=volume_path,json=volumePath,proto3" json:"volume_path,omitempty"`
 	// The path where the volume is staged, if the plugin has the
 	// STAGE_UNSTAGE_VOLUME capability, otherwise empty.
 	// If not empty, it MUST be an absolute path in the root
 	// filesystem of the process serving this request.
 	// This field is OPTIONAL.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	StagingTargetPath    string   `protobuf:"bytes,3,opt,name=staging_target_path,json=stagingTargetPath,proto3" json:"staging_target_path,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -3870,7 +4305,7 @@ func (m *NodeGetVolumeStatsRequest) Reset()         { *m = NodeGetVolumeStatsReq
 func (m *NodeGetVolumeStatsRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeGetVolumeStatsRequest) ProtoMessage()    {}
 func (*NodeGetVolumeStatsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{47}
+	return fileDescriptor_9cdb00adce470e01, []int{49}
 }
 
 func (m *NodeGetVolumeStatsRequest) XXX_Unmarshal(b []byte) error {
@@ -3914,17 +4349,22 @@ func (m *NodeGetVolumeStatsRequest) GetStagingTargetPath() string {
 
 type NodeGetVolumeStatsResponse struct {
 	// This field is OPTIONAL.
-	Usage                []*VolumeUsage `protobuf:"bytes,1,rep,name=usage,proto3" json:"usage,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	Usage []*VolumeUsage `protobuf:"bytes,1,rep,name=usage,proto3" json:"usage,omitempty"`
+	// Information about the current condition of the volume.
+	// This field is OPTIONAL.
+	// This field MUST be specified if the VOLUME_CONDITION node
+	// capability is supported.
+	VolumeCondition      *VolumeCondition `protobuf:"bytes,2,opt,name=volume_condition,json=volumeCondition,proto3" json:"volume_condition,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *NodeGetVolumeStatsResponse) Reset()         { *m = NodeGetVolumeStatsResponse{} }
 func (m *NodeGetVolumeStatsResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeGetVolumeStatsResponse) ProtoMessage()    {}
 func (*NodeGetVolumeStatsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{48}
+	return fileDescriptor_9cdb00adce470e01, []int{50}
 }
 
 func (m *NodeGetVolumeStatsResponse) XXX_Unmarshal(b []byte) error {
@@ -3952,6 +4392,13 @@ func (m *NodeGetVolumeStatsResponse) GetUsage() []*VolumeUsage {
 	return nil
 }
 
+func (m *NodeGetVolumeStatsResponse) GetVolumeCondition() *VolumeCondition {
+	if m != nil {
+		return m.VolumeCondition
+	}
+	return nil
+}
+
 type VolumeUsage struct {
 	// The available capacity in specified Unit. This field is OPTIONAL.
 	// The value of this field MUST NOT be negative.
@@ -3973,7 +4420,7 @@ func (m *VolumeUsage) Reset()         { *m = VolumeUsage{} }
 func (m *VolumeUsage) String() string { return proto.CompactTextString(m) }
 func (*VolumeUsage) ProtoMessage()    {}
 func (*VolumeUsage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{49}
+	return fileDescriptor_9cdb00adce470e01, []int{51}
 }
 
 func (m *VolumeUsage) XXX_Unmarshal(b []byte) error {
@@ -4022,6 +4469,59 @@ func (m *VolumeUsage) GetUnit() VolumeUsage_Unit {
 	return VolumeUsage_UNKNOWN
 }
 
+// VolumeCondition represents the current condition of a volume.
+type VolumeCondition struct {
+	// Normal volumes are available for use and operating optimally.
+	// An abnormal volume does not meet these criteria.
+	// This field is REQUIRED.
+	Abnormal bool `protobuf:"varint,1,opt,name=abnormal,proto3" json:"abnormal,omitempty"`
+	// The message describing the condition of the volume.
+	// This field is REQUIRED.
+	Message              string   `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *VolumeCondition) Reset()         { *m = VolumeCondition{} }
+func (m *VolumeCondition) String() string { return proto.CompactTextString(m) }
+func (*VolumeCondition) ProtoMessage()    {}
+func (*VolumeCondition) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{52}
+}
+
+func (m *VolumeCondition) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_VolumeCondition.Unmarshal(m, b)
+}
+func (m *VolumeCondition) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_VolumeCondition.Marshal(b, m, deterministic)
+}
+func (m *VolumeCondition) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_VolumeCondition.Merge(m, src)
+}
+func (m *VolumeCondition) XXX_Size() int {
+	return xxx_messageInfo_VolumeCondition.Size(m)
+}
+func (m *VolumeCondition) XXX_DiscardUnknown() {
+	xxx_messageInfo_VolumeCondition.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_VolumeCondition proto.InternalMessageInfo
+
+func (m *VolumeCondition) GetAbnormal() bool {
+	if m != nil {
+		return m.Abnormal
+	}
+	return false
+}
+
+func (m *VolumeCondition) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
 type NodeGetCapabilitiesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -4032,7 +4532,7 @@ func (m *NodeGetCapabilitiesRequest) Reset()         { *m = NodeGetCapabilitiesR
 func (m *NodeGetCapabilitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeGetCapabilitiesRequest) ProtoMessage()    {}
 func (*NodeGetCapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{50}
+	return fileDescriptor_9cdb00adce470e01, []int{53}
 }
 
 func (m *NodeGetCapabilitiesRequest) XXX_Unmarshal(b []byte) error {
@@ -4066,7 +4566,7 @@ func (m *NodeGetCapabilitiesResponse) Reset()         { *m = NodeGetCapabilities
 func (m *NodeGetCapabilitiesResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeGetCapabilitiesResponse) ProtoMessage()    {}
 func (*NodeGetCapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{51}
+	return fileDescriptor_9cdb00adce470e01, []int{54}
 }
 
 func (m *NodeGetCapabilitiesResponse) XXX_Unmarshal(b []byte) error {
@@ -4097,6 +4597,7 @@ func (m *NodeGetCapabilitiesResponse) GetCapabilities() []*NodeServiceCapability
 // Specifies a capability of the node service.
 type NodeServiceCapability struct {
 	// Types that are valid to be assigned to Type:
+	//
 	//	*NodeServiceCapability_Rpc
 	Type                 isNodeServiceCapability_Type `protobuf_oneof:"type"`
 	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
@@ -4108,7 +4609,7 @@ func (m *NodeServiceCapability) Reset()         { *m = NodeServiceCapability{} }
 func (m *NodeServiceCapability) String() string { return proto.CompactTextString(m) }
 func (*NodeServiceCapability) ProtoMessage()    {}
 func (*NodeServiceCapability) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{52}
+	return fileDescriptor_9cdb00adce470e01, []int{55}
 }
 
 func (m *NodeServiceCapability) XXX_Unmarshal(b []byte) error {
@@ -4171,7 +4672,7 @@ func (m *NodeServiceCapability_RPC) Reset()         { *m = NodeServiceCapability
 func (m *NodeServiceCapability_RPC) String() string { return proto.CompactTextString(m) }
 func (*NodeServiceCapability_RPC) ProtoMessage()    {}
 func (*NodeServiceCapability_RPC) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{52, 0}
+	return fileDescriptor_9cdb00adce470e01, []int{55, 0}
 }
 
 func (m *NodeServiceCapability_RPC) XXX_Unmarshal(b []byte) error {
@@ -4209,7 +4710,7 @@ func (m *NodeGetInfoRequest) Reset()         { *m = NodeGetInfoRequest{} }
 func (m *NodeGetInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeGetInfoRequest) ProtoMessage()    {}
 func (*NodeGetInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{53}
+	return fileDescriptor_9cdb00adce470e01, []int{56}
 }
 
 func (m *NodeGetInfoRequest) XXX_Unmarshal(b []byte) error {
@@ -4239,6 +4740,10 @@ type NodeGetInfoResponse struct {
 	// `ControllerPublishVolume`, to refer to this node.
 	// The SP is NOT responsible for global uniqueness of node_id across
 	// multiple SPs.
+	// This field overrides the general CSI size limit.
+	// The size of this field SHALL NOT exceed 256 bytes. The general
+	// CSI size limit, 128 byte, is RECOMMENDED for best backwards
+	// compatibility.
 	NodeId string `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	// Maximum number of volumes that controller can publish to the node.
 	// If value is not set or zero CO SHALL decide how many volumes of
@@ -4259,8 +4764,10 @@ type NodeGetInfoResponse struct {
 	// no topological constraints declared for V.
 	//
 	// Example 1:
-	//   accessible_topology =
-	//     {"region": "R1", "zone": "Z2"}
+	//
+	//	accessible_topology =
+	//	  {"region": "R1", "zone": "Z2"}
+	//
 	// Indicates the node exists within the "region" "R1" and the "zone"
 	// "Z2".
 	AccessibleTopology   *Topology `protobuf:"bytes,3,opt,name=accessible_topology,json=accessibleTopology,proto3" json:"accessible_topology,omitempty"`
@@ -4273,7 +4780,7 @@ func (m *NodeGetInfoResponse) Reset()         { *m = NodeGetInfoResponse{} }
 func (m *NodeGetInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeGetInfoResponse) ProtoMessage()    {}
 func (*NodeGetInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{54}
+	return fileDescriptor_9cdb00adce470e01, []int{57}
 }
 
 func (m *NodeGetInfoResponse) XXX_Unmarshal(b []byte) error {
@@ -4319,6 +4826,10 @@ type NodeExpandVolumeRequest struct {
 	// The ID of the volume. This field is REQUIRED.
 	VolumeId string `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
 	// The path on which volume is available. This field is REQUIRED.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	VolumePath string `protobuf:"bytes,2,opt,name=volume_path,json=volumePath,proto3" json:"volume_path,omitempty"`
 	// This allows CO to specify the capacity requirements of the volume
 	// after expansion. If capacity_range is omitted then a plugin MAY
@@ -4332,6 +4843,10 @@ type NodeExpandVolumeRequest struct {
 	// If not empty, it MUST be an absolute path in the root
 	// filesystem of the process serving this request.
 	// This field is OPTIONAL.
+	// This field overrides the general CSI size limit.
+	// SP SHOULD support the maximum path length allowed by the operating
+	// system/filesystem, but, at a minimum, SP MUST accept a max path
+	// length of at least 128 bytes.
 	StagingTargetPath string `protobuf:"bytes,4,opt,name=staging_target_path,json=stagingTargetPath,proto3" json:"staging_target_path,omitempty"`
 	// Volume capability describing how the CO intends to use this volume.
 	// This allows SP to determine if volume is being used as a block
@@ -4342,7 +4857,11 @@ type NodeExpandVolumeRequest struct {
 	// volume_capability is omitted the SP MAY determine
 	// access_type from given volume_path for the volume and perform
 	// node expansion. This is an OPTIONAL field.
-	VolumeCapability     *VolumeCapability `protobuf:"bytes,5,opt,name=volume_capability,json=volumeCapability,proto3" json:"volume_capability,omitempty"`
+	VolumeCapability *VolumeCapability `protobuf:"bytes,5,opt,name=volume_capability,json=volumeCapability,proto3" json:"volume_capability,omitempty"`
+	// Secrets required by plugin to complete node expand volume request.
+	// This field is OPTIONAL. Refer to the `Secrets Requirements`
+	// section on how to use this field.
+	Secrets              map[string]string `protobuf:"bytes,6,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -4352,7 +4871,7 @@ func (m *NodeExpandVolumeRequest) Reset()         { *m = NodeExpandVolumeRequest
 func (m *NodeExpandVolumeRequest) String() string { return proto.CompactTextString(m) }
 func (*NodeExpandVolumeRequest) ProtoMessage()    {}
 func (*NodeExpandVolumeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{55}
+	return fileDescriptor_9cdb00adce470e01, []int{58}
 }
 
 func (m *NodeExpandVolumeRequest) XXX_Unmarshal(b []byte) error {
@@ -4408,6 +4927,13 @@ func (m *NodeExpandVolumeRequest) GetVolumeCapability() *VolumeCapability {
 	return nil
 }
 
+func (m *NodeExpandVolumeRequest) GetSecrets() map[string]string {
+	if m != nil {
+		return m.Secrets
+	}
+	return nil
+}
+
 type NodeExpandVolumeResponse struct {
 	// The capacity of the volume in bytes. This field is OPTIONAL.
 	CapacityBytes        int64    `protobuf:"varint,1,opt,name=capacity_bytes,json=capacityBytes,proto3" json:"capacity_bytes,omitempty"`
@@ -4420,7 +4946,7 @@ func (m *NodeExpandVolumeResponse) Reset()         { *m = NodeExpandVolumeRespon
 func (m *NodeExpandVolumeResponse) String() string { return proto.CompactTextString(m) }
 func (*NodeExpandVolumeResponse) ProtoMessage()    {}
 func (*NodeExpandVolumeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9cdb00adce470e01, []int{56}
+	return fileDescriptor_9cdb00adce470e01, []int{59}
 }
 
 func (m *NodeExpandVolumeResponse) XXX_Unmarshal(b []byte) error {
@@ -4448,12 +4974,668 @@ func (m *NodeExpandVolumeResponse) GetCapacityBytes() int64 {
 	return 0
 }
 
+type GroupControllerGetCapabilitiesRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GroupControllerGetCapabilitiesRequest) Reset()         { *m = GroupControllerGetCapabilitiesRequest{} }
+func (m *GroupControllerGetCapabilitiesRequest) String() string { return proto.CompactTextString(m) }
+func (*GroupControllerGetCapabilitiesRequest) ProtoMessage()    {}
+func (*GroupControllerGetCapabilitiesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{60}
+}
+
+func (m *GroupControllerGetCapabilitiesRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesRequest.Unmarshal(m, b)
+}
+func (m *GroupControllerGetCapabilitiesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesRequest.Marshal(b, m, deterministic)
+}
+func (m *GroupControllerGetCapabilitiesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GroupControllerGetCapabilitiesRequest.Merge(m, src)
+}
+func (m *GroupControllerGetCapabilitiesRequest) XXX_Size() int {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesRequest.Size(m)
+}
+func (m *GroupControllerGetCapabilitiesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GroupControllerGetCapabilitiesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GroupControllerGetCapabilitiesRequest proto.InternalMessageInfo
+
+type GroupControllerGetCapabilitiesResponse struct {
+	// All the capabilities that the group controller service supports.
+	// This field is OPTIONAL.
+	Capabilities         []*GroupControllerServiceCapability `protobuf:"bytes,1,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                            `json:"-"`
+	XXX_unrecognized     []byte                              `json:"-"`
+	XXX_sizecache        int32                               `json:"-"`
+}
+
+func (m *GroupControllerGetCapabilitiesResponse) Reset() {
+	*m = GroupControllerGetCapabilitiesResponse{}
+}
+func (m *GroupControllerGetCapabilitiesResponse) String() string { return proto.CompactTextString(m) }
+func (*GroupControllerGetCapabilitiesResponse) ProtoMessage()    {}
+func (*GroupControllerGetCapabilitiesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{61}
+}
+
+func (m *GroupControllerGetCapabilitiesResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesResponse.Unmarshal(m, b)
+}
+func (m *GroupControllerGetCapabilitiesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesResponse.Marshal(b, m, deterministic)
+}
+func (m *GroupControllerGetCapabilitiesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GroupControllerGetCapabilitiesResponse.Merge(m, src)
+}
+func (m *GroupControllerGetCapabilitiesResponse) XXX_Size() int {
+	return xxx_messageInfo_GroupControllerGetCapabilitiesResponse.Size(m)
+}
+func (m *GroupControllerGetCapabilitiesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GroupControllerGetCapabilitiesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GroupControllerGetCapabilitiesResponse proto.InternalMessageInfo
+
+func (m *GroupControllerGetCapabilitiesResponse) GetCapabilities() []*GroupControllerServiceCapability {
+	if m != nil {
+		return m.Capabilities
+	}
+	return nil
+}
+
+// Specifies a capability of the group controller service.
+type GroupControllerServiceCapability struct {
+	// Types that are valid to be assigned to Type:
+	//
+	//	*GroupControllerServiceCapability_Rpc
+	Type                 isGroupControllerServiceCapability_Type `protobuf_oneof:"type"`
+	XXX_NoUnkeyedLiteral struct{}                                `json:"-"`
+	XXX_unrecognized     []byte                                  `json:"-"`
+	XXX_sizecache        int32                                   `json:"-"`
+}
+
+func (m *GroupControllerServiceCapability) Reset()         { *m = GroupControllerServiceCapability{} }
+func (m *GroupControllerServiceCapability) String() string { return proto.CompactTextString(m) }
+func (*GroupControllerServiceCapability) ProtoMessage()    {}
+func (*GroupControllerServiceCapability) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{62}
+}
+
+func (m *GroupControllerServiceCapability) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GroupControllerServiceCapability.Unmarshal(m, b)
+}
+func (m *GroupControllerServiceCapability) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GroupControllerServiceCapability.Marshal(b, m, deterministic)
+}
+func (m *GroupControllerServiceCapability) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GroupControllerServiceCapability.Merge(m, src)
+}
+func (m *GroupControllerServiceCapability) XXX_Size() int {
+	return xxx_messageInfo_GroupControllerServiceCapability.Size(m)
+}
+func (m *GroupControllerServiceCapability) XXX_DiscardUnknown() {
+	xxx_messageInfo_GroupControllerServiceCapability.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GroupControllerServiceCapability proto.InternalMessageInfo
+
+type isGroupControllerServiceCapability_Type interface {
+	isGroupControllerServiceCapability_Type()
+}
+
+type GroupControllerServiceCapability_Rpc struct {
+	Rpc *GroupControllerServiceCapability_RPC `protobuf:"bytes,1,opt,name=rpc,proto3,oneof"`
+}
+
+func (*GroupControllerServiceCapability_Rpc) isGroupControllerServiceCapability_Type() {}
+
+func (m *GroupControllerServiceCapability) GetType() isGroupControllerServiceCapability_Type {
+	if m != nil {
+		return m.Type
+	}
+	return nil
+}
+
+func (m *GroupControllerServiceCapability) GetRpc() *GroupControllerServiceCapability_RPC {
+	if x, ok := m.GetType().(*GroupControllerServiceCapability_Rpc); ok {
+		return x.Rpc
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*GroupControllerServiceCapability) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*GroupControllerServiceCapability_Rpc)(nil),
+	}
+}
+
+type GroupControllerServiceCapability_RPC struct {
+	Type                 GroupControllerServiceCapability_RPC_Type `protobuf:"varint,1,opt,name=type,proto3,enum=csi.v1.GroupControllerServiceCapability_RPC_Type" json:"type,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                  `json:"-"`
+	XXX_unrecognized     []byte                                    `json:"-"`
+	XXX_sizecache        int32                                     `json:"-"`
+}
+
+func (m *GroupControllerServiceCapability_RPC) Reset()         { *m = GroupControllerServiceCapability_RPC{} }
+func (m *GroupControllerServiceCapability_RPC) String() string { return proto.CompactTextString(m) }
+func (*GroupControllerServiceCapability_RPC) ProtoMessage()    {}
+func (*GroupControllerServiceCapability_RPC) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{62, 0}
+}
+
+func (m *GroupControllerServiceCapability_RPC) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GroupControllerServiceCapability_RPC.Unmarshal(m, b)
+}
+func (m *GroupControllerServiceCapability_RPC) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GroupControllerServiceCapability_RPC.Marshal(b, m, deterministic)
+}
+func (m *GroupControllerServiceCapability_RPC) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GroupControllerServiceCapability_RPC.Merge(m, src)
+}
+func (m *GroupControllerServiceCapability_RPC) XXX_Size() int {
+	return xxx_messageInfo_GroupControllerServiceCapability_RPC.Size(m)
+}
+func (m *GroupControllerServiceCapability_RPC) XXX_DiscardUnknown() {
+	xxx_messageInfo_GroupControllerServiceCapability_RPC.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GroupControllerServiceCapability_RPC proto.InternalMessageInfo
+
+func (m *GroupControllerServiceCapability_RPC) GetType() GroupControllerServiceCapability_RPC_Type {
+	if m != nil {
+		return m.Type
+	}
+	return GroupControllerServiceCapability_RPC_UNKNOWN
+}
+
+type CreateVolumeGroupSnapshotRequest struct {
+	// The suggested name for the group snapshot. This field is REQUIRED
+	// for idempotency.
+	// Any Unicode string that conforms to the length limit is allowed
+	// except those containing the following banned characters:
+	// U+0000-U+0008, U+000B, U+000C, U+000E-U+001F, U+007F-U+009F.
+	// (These are control characters other than commonly used whitespace.)
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// volume IDs of the source volumes to be snapshotted together.
+	// This field is REQUIRED.
+	SourceVolumeIds []string `protobuf:"bytes,2,rep,name=source_volume_ids,json=sourceVolumeIds,proto3" json:"source_volume_ids,omitempty"`
+	// Secrets required by plugin to complete
+	// ControllerCreateVolumeGroupSnapshot request.
+	// This field is OPTIONAL. Refer to the `Secrets Requirements`
+	// section on how to use this field.
+	// The secrets provided in this field SHOULD be the same for
+	// all group snapshot operations on the same group snapshot.
+	Secrets map[string]string `protobuf:"bytes,3,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Plugin specific parameters passed in as opaque key-value pairs.
+	// This field is OPTIONAL. The Plugin is responsible for parsing and
+	// validating these parameters. COs will treat these as opaque.
+	Parameters           map[string]string `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *CreateVolumeGroupSnapshotRequest) Reset()         { *m = CreateVolumeGroupSnapshotRequest{} }
+func (m *CreateVolumeGroupSnapshotRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateVolumeGroupSnapshotRequest) ProtoMessage()    {}
+func (*CreateVolumeGroupSnapshotRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{63}
+}
+
+func (m *CreateVolumeGroupSnapshotRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotRequest.Unmarshal(m, b)
+}
+func (m *CreateVolumeGroupSnapshotRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotRequest.Marshal(b, m, deterministic)
+}
+func (m *CreateVolumeGroupSnapshotRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateVolumeGroupSnapshotRequest.Merge(m, src)
+}
+func (m *CreateVolumeGroupSnapshotRequest) XXX_Size() int {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotRequest.Size(m)
+}
+func (m *CreateVolumeGroupSnapshotRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateVolumeGroupSnapshotRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateVolumeGroupSnapshotRequest proto.InternalMessageInfo
+
+func (m *CreateVolumeGroupSnapshotRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *CreateVolumeGroupSnapshotRequest) GetSourceVolumeIds() []string {
+	if m != nil {
+		return m.SourceVolumeIds
+	}
+	return nil
+}
+
+func (m *CreateVolumeGroupSnapshotRequest) GetSecrets() map[string]string {
+	if m != nil {
+		return m.Secrets
+	}
+	return nil
+}
+
+func (m *CreateVolumeGroupSnapshotRequest) GetParameters() map[string]string {
+	if m != nil {
+		return m.Parameters
+	}
+	return nil
+}
+
+type CreateVolumeGroupSnapshotResponse struct {
+	// Contains all attributes of the newly created group snapshot.
+	// This field is REQUIRED.
+	GroupSnapshot        *VolumeGroupSnapshot `protobuf:"bytes,1,opt,name=group_snapshot,json=groupSnapshot,proto3" json:"group_snapshot,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *CreateVolumeGroupSnapshotResponse) Reset()         { *m = CreateVolumeGroupSnapshotResponse{} }
+func (m *CreateVolumeGroupSnapshotResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateVolumeGroupSnapshotResponse) ProtoMessage()    {}
+func (*CreateVolumeGroupSnapshotResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{64}
+}
+
+func (m *CreateVolumeGroupSnapshotResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotResponse.Unmarshal(m, b)
+}
+func (m *CreateVolumeGroupSnapshotResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotResponse.Marshal(b, m, deterministic)
+}
+func (m *CreateVolumeGroupSnapshotResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateVolumeGroupSnapshotResponse.Merge(m, src)
+}
+func (m *CreateVolumeGroupSnapshotResponse) XXX_Size() int {
+	return xxx_messageInfo_CreateVolumeGroupSnapshotResponse.Size(m)
+}
+func (m *CreateVolumeGroupSnapshotResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateVolumeGroupSnapshotResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateVolumeGroupSnapshotResponse proto.InternalMessageInfo
+
+func (m *CreateVolumeGroupSnapshotResponse) GetGroupSnapshot() *VolumeGroupSnapshot {
+	if m != nil {
+		return m.GroupSnapshot
+	}
+	return nil
+}
+
+type VolumeGroupSnapshot struct {
+	// The identifier for this group snapshot, generated by the plugin.
+	// This field MUST contain enough information to uniquely identify
+	// this specific snapshot vs all other group snapshots supported by
+	// this plugin.
+	// This field SHALL be used by the CO in subsequent calls to refer to
+	// this group snapshot.
+	// The SP is NOT responsible for global uniqueness of
+	// group_snapshot_id across multiple SPs.
+	// This field is REQUIRED.
+	GroupSnapshotId string `protobuf:"bytes,1,opt,name=group_snapshot_id,json=groupSnapshotId,proto3" json:"group_snapshot_id,omitempty"`
+	// A list of snapshots belonging to this group.
+	// This field is REQUIRED.
+	Snapshots []*Snapshot `protobuf:"bytes,2,rep,name=snapshots,proto3" json:"snapshots,omitempty"`
+	// Timestamp of when the volume group snapshot was taken.
+	// This field is REQUIRED.
+	CreationTime *timestamp.Timestamp `protobuf:"bytes,3,opt,name=creation_time,json=creationTime,proto3" json:"creation_time,omitempty"`
+	// Indicates if all individual snapshots in the group snapshot
+	// are ready to use as a `volume_content_source` in a
+	// `CreateVolumeRequest`. The default value is false.
+	// If any snapshot in the list of snapshots in this message have
+	// ready_to_use set to false, the SP MUST set this field to false.
+	// If all of the snapshots in the list of snapshots in this message
+	// have ready_to_use set to true, the SP SHOULD set this field to
+	// true.
+	// This field is REQUIRED.
+	ReadyToUse           bool     `protobuf:"varint,4,opt,name=ready_to_use,json=readyToUse,proto3" json:"ready_to_use,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *VolumeGroupSnapshot) Reset()         { *m = VolumeGroupSnapshot{} }
+func (m *VolumeGroupSnapshot) String() string { return proto.CompactTextString(m) }
+func (*VolumeGroupSnapshot) ProtoMessage()    {}
+func (*VolumeGroupSnapshot) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{65}
+}
+
+func (m *VolumeGroupSnapshot) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_VolumeGroupSnapshot.Unmarshal(m, b)
+}
+func (m *VolumeGroupSnapshot) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_VolumeGroupSnapshot.Marshal(b, m, deterministic)
+}
+func (m *VolumeGroupSnapshot) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_VolumeGroupSnapshot.Merge(m, src)
+}
+func (m *VolumeGroupSnapshot) XXX_Size() int {
+	return xxx_messageInfo_VolumeGroupSnapshot.Size(m)
+}
+func (m *VolumeGroupSnapshot) XXX_DiscardUnknown() {
+	xxx_messageInfo_VolumeGroupSnapshot.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_VolumeGroupSnapshot proto.InternalMessageInfo
+
+func (m *VolumeGroupSnapshot) GetGroupSnapshotId() string {
+	if m != nil {
+		return m.GroupSnapshotId
+	}
+	return ""
+}
+
+func (m *VolumeGroupSnapshot) GetSnapshots() []*Snapshot {
+	if m != nil {
+		return m.Snapshots
+	}
+	return nil
+}
+
+func (m *VolumeGroupSnapshot) GetCreationTime() *timestamp.Timestamp {
+	if m != nil {
+		return m.CreationTime
+	}
+	return nil
+}
+
+func (m *VolumeGroupSnapshot) GetReadyToUse() bool {
+	if m != nil {
+		return m.ReadyToUse
+	}
+	return false
+}
+
+type DeleteVolumeGroupSnapshotRequest struct {
+	// The ID of the group snapshot to be deleted.
+	// This field is REQUIRED.
+	GroupSnapshotId string `protobuf:"bytes,1,opt,name=group_snapshot_id,json=groupSnapshotId,proto3" json:"group_snapshot_id,omitempty"`
+	// A list of snapshot IDs that are part of this group snapshot.
+	// If SP does not need to rely on this field to delete the snapshots
+	// in the group, it SHOULD check this field and report an error
+	// if it has the ability to detect a mismatch.
+	// Some SPs require this list to delete the snapshots in the group.
+	// If SP needs to use this field to delete the snapshots in the
+	// group, it MUST report an error if it has the ability to detect
+	// a mismatch.
+	// This field is REQUIRED.
+	SnapshotIds []string `protobuf:"bytes,2,rep,name=snapshot_ids,json=snapshotIds,proto3" json:"snapshot_ids,omitempty"`
+	// Secrets required by plugin to complete group snapshot deletion
+	// request.
+	// This field is OPTIONAL. Refer to the `Secrets Requirements`
+	// section on how to use this field.
+	// The secrets provided in this field SHOULD be the same for
+	// all group snapshot operations on the same group snapshot.
+	Secrets              map[string]string `protobuf:"bytes,3,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *DeleteVolumeGroupSnapshotRequest) Reset()         { *m = DeleteVolumeGroupSnapshotRequest{} }
+func (m *DeleteVolumeGroupSnapshotRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteVolumeGroupSnapshotRequest) ProtoMessage()    {}
+func (*DeleteVolumeGroupSnapshotRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{66}
+}
+
+func (m *DeleteVolumeGroupSnapshotRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotRequest.Unmarshal(m, b)
+}
+func (m *DeleteVolumeGroupSnapshotRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotRequest.Marshal(b, m, deterministic)
+}
+func (m *DeleteVolumeGroupSnapshotRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteVolumeGroupSnapshotRequest.Merge(m, src)
+}
+func (m *DeleteVolumeGroupSnapshotRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotRequest.Size(m)
+}
+func (m *DeleteVolumeGroupSnapshotRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteVolumeGroupSnapshotRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteVolumeGroupSnapshotRequest proto.InternalMessageInfo
+
+func (m *DeleteVolumeGroupSnapshotRequest) GetGroupSnapshotId() string {
+	if m != nil {
+		return m.GroupSnapshotId
+	}
+	return ""
+}
+
+func (m *DeleteVolumeGroupSnapshotRequest) GetSnapshotIds() []string {
+	if m != nil {
+		return m.SnapshotIds
+	}
+	return nil
+}
+
+func (m *DeleteVolumeGroupSnapshotRequest) GetSecrets() map[string]string {
+	if m != nil {
+		return m.Secrets
+	}
+	return nil
+}
+
+type DeleteVolumeGroupSnapshotResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteVolumeGroupSnapshotResponse) Reset()         { *m = DeleteVolumeGroupSnapshotResponse{} }
+func (m *DeleteVolumeGroupSnapshotResponse) String() string { return proto.CompactTextString(m) }
+func (*DeleteVolumeGroupSnapshotResponse) ProtoMessage()    {}
+func (*DeleteVolumeGroupSnapshotResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{67}
+}
+
+func (m *DeleteVolumeGroupSnapshotResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotResponse.Unmarshal(m, b)
+}
+func (m *DeleteVolumeGroupSnapshotResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotResponse.Marshal(b, m, deterministic)
+}
+func (m *DeleteVolumeGroupSnapshotResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteVolumeGroupSnapshotResponse.Merge(m, src)
+}
+func (m *DeleteVolumeGroupSnapshotResponse) XXX_Size() int {
+	return xxx_messageInfo_DeleteVolumeGroupSnapshotResponse.Size(m)
+}
+func (m *DeleteVolumeGroupSnapshotResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteVolumeGroupSnapshotResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteVolumeGroupSnapshotResponse proto.InternalMessageInfo
+
+type GetVolumeGroupSnapshotRequest struct {
+	// The ID of the group snapshot to fetch current group snapshot
+	// information for.
+	// This field is REQUIRED.
+	GroupSnapshotId string `protobuf:"bytes,1,opt,name=group_snapshot_id,json=groupSnapshotId,proto3" json:"group_snapshot_id,omitempty"`
+	// A list of snapshot IDs that are part of this group snapshot.
+	// If SP does not need to rely on this field to get the snapshots
+	// in the group, it SHOULD check this field and report an error
+	// if it has the ability to detect a mismatch.
+	// Some SPs require this list to get the snapshots in the group.
+	// If SP needs to use this field to get the snapshots in the
+	// group, it MUST report an error if it has the ability to detect
+	// a mismatch.
+	// This field is REQUIRED.
+	SnapshotIds []string `protobuf:"bytes,2,rep,name=snapshot_ids,json=snapshotIds,proto3" json:"snapshot_ids,omitempty"`
+	// Secrets required by plugin to complete
+	// GetVolumeGroupSnapshot request.
+	// This field is OPTIONAL. Refer to the `Secrets Requirements`
+	// section on how to use this field.
+	// The secrets provided in this field SHOULD be the same for
+	// all group snapshot operations on the same group snapshot.
+	Secrets              map[string]string `protobuf:"bytes,3,rep,name=secrets,proto3" json:"secrets,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *GetVolumeGroupSnapshotRequest) Reset()         { *m = GetVolumeGroupSnapshotRequest{} }
+func (m *GetVolumeGroupSnapshotRequest) String() string { return proto.CompactTextString(m) }
+func (*GetVolumeGroupSnapshotRequest) ProtoMessage()    {}
+func (*GetVolumeGroupSnapshotRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{68}
+}
+
+func (m *GetVolumeGroupSnapshotRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetVolumeGroupSnapshotRequest.Unmarshal(m, b)
+}
+func (m *GetVolumeGroupSnapshotRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetVolumeGroupSnapshotRequest.Marshal(b, m, deterministic)
+}
+func (m *GetVolumeGroupSnapshotRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetVolumeGroupSnapshotRequest.Merge(m, src)
+}
+func (m *GetVolumeGroupSnapshotRequest) XXX_Size() int {
+	return xxx_messageInfo_GetVolumeGroupSnapshotRequest.Size(m)
+}
+func (m *GetVolumeGroupSnapshotRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetVolumeGroupSnapshotRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetVolumeGroupSnapshotRequest proto.InternalMessageInfo
+
+func (m *GetVolumeGroupSnapshotRequest) GetGroupSnapshotId() string {
+	if m != nil {
+		return m.GroupSnapshotId
+	}
+	return ""
+}
+
+func (m *GetVolumeGroupSnapshotRequest) GetSnapshotIds() []string {
+	if m != nil {
+		return m.SnapshotIds
+	}
+	return nil
+}
+
+func (m *GetVolumeGroupSnapshotRequest) GetSecrets() map[string]string {
+	if m != nil {
+		return m.Secrets
+	}
+	return nil
+}
+
+type GetVolumeGroupSnapshotResponse struct {
+	// This field is REQUIRED
+	GroupSnapshot        *VolumeGroupSnapshot `protobuf:"bytes,1,opt,name=group_snapshot,json=groupSnapshot,proto3" json:"group_snapshot,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *GetVolumeGroupSnapshotResponse) Reset()         { *m = GetVolumeGroupSnapshotResponse{} }
+func (m *GetVolumeGroupSnapshotResponse) String() string { return proto.CompactTextString(m) }
+func (*GetVolumeGroupSnapshotResponse) ProtoMessage()    {}
+func (*GetVolumeGroupSnapshotResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9cdb00adce470e01, []int{69}
+}
+
+func (m *GetVolumeGroupSnapshotResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetVolumeGroupSnapshotResponse.Unmarshal(m, b)
+}
+func (m *GetVolumeGroupSnapshotResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetVolumeGroupSnapshotResponse.Marshal(b, m, deterministic)
+}
+func (m *GetVolumeGroupSnapshotResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetVolumeGroupSnapshotResponse.Merge(m, src)
+}
+func (m *GetVolumeGroupSnapshotResponse) XXX_Size() int {
+	return xxx_messageInfo_GetVolumeGroupSnapshotResponse.Size(m)
+}
+func (m *GetVolumeGroupSnapshotResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetVolumeGroupSnapshotResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetVolumeGroupSnapshotResponse proto.InternalMessageInfo
+
+func (m *GetVolumeGroupSnapshotResponse) GetGroupSnapshot() *VolumeGroupSnapshot {
+	if m != nil {
+		return m.GroupSnapshot
+	}
+	return nil
+}
+
+var E_AlphaEnum = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.EnumOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_enum",
+	Tag:           "varint,1060,opt,name=alpha_enum",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
+var E_AlphaEnumValue = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.EnumValueOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_enum_value",
+	Tag:           "varint,1060,opt,name=alpha_enum_value",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
 var E_CsiSecret = &proto.ExtensionDesc{
 	ExtendedType:  (*descriptor.FieldOptions)(nil),
 	ExtensionType: (*bool)(nil),
 	Field:         1059,
 	Name:          "csi.v1.csi_secret",
 	Tag:           "varint,1059,opt,name=csi_secret",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
+var E_AlphaField = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.FieldOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_field",
+	Tag:           "varint,1060,opt,name=alpha_field",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
+var E_AlphaMessage = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.MessageOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_message",
+	Tag:           "varint,1060,opt,name=alpha_message",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
+var E_AlphaMethod = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.MethodOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_method",
+	Tag:           "varint,1060,opt,name=alpha_method",
+	Filename:      "github.com/container-storage-interface/spec/csi.proto",
+}
+
+var E_AlphaService = &proto.ExtensionDesc{
+	ExtendedType:  (*descriptor.ServiceOptions)(nil),
+	ExtensionType: (*bool)(nil),
+	Field:         1060,
+	Name:          "csi.v1.alpha_service",
+	Tag:           "varint,1060,opt,name=alpha_service",
 	Filename:      "github.com/container-storage-interface/spec/csi.proto",
 }
 
@@ -4464,6 +5646,7 @@ func init() {
 	proto.RegisterEnum("csi.v1.ControllerServiceCapability_RPC_Type", ControllerServiceCapability_RPC_Type_name, ControllerServiceCapability_RPC_Type_value)
 	proto.RegisterEnum("csi.v1.VolumeUsage_Unit", VolumeUsage_Unit_name, VolumeUsage_Unit_value)
 	proto.RegisterEnum("csi.v1.NodeServiceCapability_RPC_Type", NodeServiceCapability_RPC_Type_name, NodeServiceCapability_RPC_Type_value)
+	proto.RegisterEnum("csi.v1.GroupControllerServiceCapability_RPC_Type", GroupControllerServiceCapability_RPC_Type_name, GroupControllerServiceCapability_RPC_Type_value)
 	proto.RegisterType((*GetPluginInfoRequest)(nil), "csi.v1.GetPluginInfoRequest")
 	proto.RegisterType((*GetPluginInfoResponse)(nil), "csi.v1.GetPluginInfoResponse")
 	proto.RegisterMapType((map[string]string)(nil), "csi.v1.GetPluginInfoResponse.ManifestEntry")
@@ -4514,6 +5697,9 @@ func init() {
 	proto.RegisterType((*ListVolumesResponse)(nil), "csi.v1.ListVolumesResponse")
 	proto.RegisterType((*ListVolumesResponse_VolumeStatus)(nil), "csi.v1.ListVolumesResponse.VolumeStatus")
 	proto.RegisterType((*ListVolumesResponse_Entry)(nil), "csi.v1.ListVolumesResponse.Entry")
+	proto.RegisterType((*ControllerGetVolumeRequest)(nil), "csi.v1.ControllerGetVolumeRequest")
+	proto.RegisterType((*ControllerGetVolumeResponse)(nil), "csi.v1.ControllerGetVolumeResponse")
+	proto.RegisterType((*ControllerGetVolumeResponse_VolumeStatus)(nil), "csi.v1.ControllerGetVolumeResponse.VolumeStatus")
 	proto.RegisterType((*GetCapacityRequest)(nil), "csi.v1.GetCapacityRequest")
 	proto.RegisterMapType((map[string]string)(nil), "csi.v1.GetCapacityRequest.ParametersEntry")
 	proto.RegisterType((*GetCapacityResponse)(nil), "csi.v1.GetCapacityResponse")
@@ -4553,6 +5739,7 @@ func init() {
 	proto.RegisterType((*NodeGetVolumeStatsRequest)(nil), "csi.v1.NodeGetVolumeStatsRequest")
 	proto.RegisterType((*NodeGetVolumeStatsResponse)(nil), "csi.v1.NodeGetVolumeStatsResponse")
 	proto.RegisterType((*VolumeUsage)(nil), "csi.v1.VolumeUsage")
+	proto.RegisterType((*VolumeCondition)(nil), "csi.v1.VolumeCondition")
 	proto.RegisterType((*NodeGetCapabilitiesRequest)(nil), "csi.v1.NodeGetCapabilitiesRequest")
 	proto.RegisterType((*NodeGetCapabilitiesResponse)(nil), "csi.v1.NodeGetCapabilitiesResponse")
 	proto.RegisterType((*NodeServiceCapability)(nil), "csi.v1.NodeServiceCapability")
@@ -4560,8 +5747,30 @@ func init() {
 	proto.RegisterType((*NodeGetInfoRequest)(nil), "csi.v1.NodeGetInfoRequest")
 	proto.RegisterType((*NodeGetInfoResponse)(nil), "csi.v1.NodeGetInfoResponse")
 	proto.RegisterType((*NodeExpandVolumeRequest)(nil), "csi.v1.NodeExpandVolumeRequest")
+	proto.RegisterMapType((map[string]string)(nil), "csi.v1.NodeExpandVolumeRequest.SecretsEntry")
 	proto.RegisterType((*NodeExpandVolumeResponse)(nil), "csi.v1.NodeExpandVolumeResponse")
+	proto.RegisterType((*GroupControllerGetCapabilitiesRequest)(nil), "csi.v1.GroupControllerGetCapabilitiesRequest")
+	proto.RegisterType((*GroupControllerGetCapabilitiesResponse)(nil), "csi.v1.GroupControllerGetCapabilitiesResponse")
+	proto.RegisterType((*GroupControllerServiceCapability)(nil), "csi.v1.GroupControllerServiceCapability")
+	proto.RegisterType((*GroupControllerServiceCapability_RPC)(nil), "csi.v1.GroupControllerServiceCapability.RPC")
+	proto.RegisterType((*CreateVolumeGroupSnapshotRequest)(nil), "csi.v1.CreateVolumeGroupSnapshotRequest")
+	proto.RegisterMapType((map[string]string)(nil), "csi.v1.CreateVolumeGroupSnapshotRequest.ParametersEntry")
+	proto.RegisterMapType((map[string]string)(nil), "csi.v1.CreateVolumeGroupSnapshotRequest.SecretsEntry")
+	proto.RegisterType((*CreateVolumeGroupSnapshotResponse)(nil), "csi.v1.CreateVolumeGroupSnapshotResponse")
+	proto.RegisterType((*VolumeGroupSnapshot)(nil), "csi.v1.VolumeGroupSnapshot")
+	proto.RegisterType((*DeleteVolumeGroupSnapshotRequest)(nil), "csi.v1.DeleteVolumeGroupSnapshotRequest")
+	proto.RegisterMapType((map[string]string)(nil), "csi.v1.DeleteVolumeGroupSnapshotRequest.SecretsEntry")
+	proto.RegisterType((*DeleteVolumeGroupSnapshotResponse)(nil), "csi.v1.DeleteVolumeGroupSnapshotResponse")
+	proto.RegisterType((*GetVolumeGroupSnapshotRequest)(nil), "csi.v1.GetVolumeGroupSnapshotRequest")
+	proto.RegisterMapType((map[string]string)(nil), "csi.v1.GetVolumeGroupSnapshotRequest.SecretsEntry")
+	proto.RegisterType((*GetVolumeGroupSnapshotResponse)(nil), "csi.v1.GetVolumeGroupSnapshotResponse")
+	proto.RegisterExtension(E_AlphaEnum)
+	proto.RegisterExtension(E_AlphaEnumValue)
 	proto.RegisterExtension(E_CsiSecret)
+	proto.RegisterExtension(E_AlphaField)
+	proto.RegisterExtension(E_AlphaMessage)
+	proto.RegisterExtension(E_AlphaMethod)
+	proto.RegisterExtension(E_AlphaService)
 }
 
 func init() {
@@ -4569,218 +5778,269 @@ func init() {
 }
 
 var fileDescriptor_9cdb00adce470e01 = []byte{
-	// 3366 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x5a, 0x4d, 0x70, 0xdb, 0xc6,
-	0xf5, 0x27, 0xf8, 0x25, 0xea, 0xe9, 0xc3, 0xf4, 0xea, 0xc3, 0x34, 0x24, 0xd9, 0x32, 0x1c, 0x3b,
-	0xb2, 0x63, 0xd3, 0xff, 0x28, 0x71, 0xe6, 0x1f, 0x5b, 0x69, 0x43, 0x51, 0xb4, 0xc4, 0x98, 0xa6,
-	0x14, 0x90, 0x92, 0x63, 0xb7, 0x19, 0x04, 0x22, 0x57, 0x34, 0x26, 0x24, 0xc0, 0x00, 0xa0, 0x2a,
-	0xf5, 0xd2, 0x99, 0xf6, 0xd4, 0x69, 0xef, 0x6d, 0x4f, 0x9d, 0x49, 0x6f, 0x6d, 0x33, 0x39, 0x75,
-	0x7a, 0xec, 0x4c, 0x0f, 0x3d, 0xf4, 0xd0, 0xe9, 0xad, 0x9d, 0x5e, 0x72, 0xed, 0x64, 0xda, 0x99,
-	0x4c, 0x8f, 0x9d, 0x1e, 0x3a, 0xc0, 0x2e, 0x40, 0x2c, 0x08, 0x80, 0xa4, 0x65, 0x4f, 0x0e, 0x3d,
-	0x49, 0x7c, 0xfb, 0xf6, 0xed, 0xdb, 0xb7, 0xef, 0xbd, 0x7d, 0xef, 0xb7, 0x80, 0xbb, 0x2d, 0xc5,
-	0x7c, 0xd6, 0x3b, 0xcc, 0x37, 0xb4, 0xce, 0x9d, 0x86, 0xa6, 0x9a, 0xb2, 0xa2, 0x62, 0xfd, 0xb6,
-	0x61, 0x6a, 0xba, 0xdc, 0xc2, 0xb7, 0x15, 0xd5, 0xc4, 0xfa, 0x91, 0xdc, 0xc0, 0x77, 0x8c, 0x2e,
-	0x6e, 0xdc, 0x69, 0x18, 0x4a, 0xbe, 0xab, 0x6b, 0xa6, 0x86, 0xd2, 0xd6, 0xbf, 0xc7, 0xaf, 0xf3,
-	0xab, 0x2d, 0x4d, 0x6b, 0xb5, 0xf1, 0x1d, 0x9b, 0x7a, 0xd8, 0x3b, 0xba, 0xd3, 0xc4, 0x46, 0x43,
-	0x57, 0xba, 0xa6, 0xa6, 0x13, 0x4e, 0xfe, 0xb2, 0x9f, 0xc3, 0x54, 0x3a, 0xd8, 0x30, 0xe5, 0x4e,
-	0x97, 0x32, 0x5c, 0xf2, 0x33, 0x7c, 0x47, 0x97, 0xbb, 0x5d, 0xac, 0x1b, 0x64, 0x5c, 0x58, 0x84,
-	0xf9, 0x6d, 0x6c, 0xee, 0xb5, 0x7b, 0x2d, 0x45, 0x2d, 0xab, 0x47, 0x9a, 0x88, 0x3f, 0xe9, 0x61,
-	0xc3, 0x14, 0xfe, 0xca, 0xc1, 0x82, 0x6f, 0xc0, 0xe8, 0x6a, 0xaa, 0x81, 0x11, 0x82, 0xa4, 0x2a,
-	0x77, 0x70, 0x8e, 0x5b, 0xe5, 0xd6, 0x26, 0x45, 0xfb, 0x7f, 0x74, 0x0d, 0x66, 0x8f, 0xb1, 0xda,
-	0xd4, 0x74, 0xe9, 0x18, 0xeb, 0x86, 0xa2, 0xa9, 0xb9, 0xb8, 0x3d, 0x3a, 0x43, 0xa8, 0x07, 0x84,
-	0x88, 0xb6, 0x21, 0xd3, 0x91, 0x55, 0xe5, 0x08, 0x1b, 0x66, 0x2e, 0xb1, 0x9a, 0x58, 0x9b, 0x5a,
-	0x7f, 0x2d, 0x4f, 0xb6, 0x9a, 0x0f, 0x5c, 0x2b, 0xff, 0x88, 0x72, 0x97, 0x54, 0x53, 0x3f, 0x15,
-	0xdd, 0xc9, 0xfc, 0x7d, 0x98, 0x61, 0x86, 0x50, 0x16, 0x12, 0x1f, 0xe3, 0x53, 0xaa, 0x93, 0xf5,
-	0x2f, 0x9a, 0x87, 0xd4, 0xb1, 0xdc, 0xee, 0x61, 0xaa, 0x09, 0xf9, 0x71, 0x2f, 0xfe, 0xff, 0x9c,
-	0x70, 0x09, 0x96, 0xdd, 0xd5, 0x8a, 0x72, 0x57, 0x3e, 0x54, 0xda, 0x8a, 0xa9, 0x60, 0xc3, 0xd9,
-	0xfa, 0x87, 0xb0, 0x12, 0x32, 0x4e, 0x2d, 0xb0, 0x01, 0xd3, 0x0d, 0x0f, 0x3d, 0xc7, 0xd9, 0x5b,
-	0xc9, 0x39, 0x5b, 0xf1, 0xcd, 0x3c, 0x15, 0x19, 0x6e, 0xe1, 0x4f, 0x09, 0xc8, 0xfa, 0x59, 0xd0,
-	0x06, 0x4c, 0x18, 0x58, 0x3f, 0x56, 0x1a, 0xc4, 0xae, 0x53, 0xeb, 0xab, 0x61, 0xd2, 0xf2, 0x35,
-	0xc2, 0xb7, 0x13, 0x13, 0x9d, 0x29, 0x68, 0x1f, 0xb2, 0xc7, 0x5a, 0xbb, 0xd7, 0xc1, 0x12, 0x3e,
-	0xe9, 0xca, 0xaa, 0x7b, 0x00, 0x53, 0xeb, 0x6b, 0xa1, 0x62, 0x0e, 0xec, 0x09, 0x25, 0x87, 0x7f,
-	0x27, 0x26, 0x9e, 0x3b, 0x66, 0x49, 0xfc, 0x4f, 0x38, 0x98, 0xa0, 0xab, 0xa1, 0xb7, 0x21, 0x69,
-	0x9e, 0x76, 0x89, 0x76, 0xb3, 0xeb, 0xd7, 0x86, 0x69, 0x97, 0xaf, 0x9f, 0x76, 0xb1, 0x68, 0x4f,
-	0x11, 0xde, 0x87, 0xa4, 0xf5, 0x0b, 0x4d, 0xc1, 0xc4, 0x7e, 0xf5, 0x61, 0x75, 0xf7, 0x71, 0x35,
-	0x1b, 0x43, 0x8b, 0x80, 0x8a, 0xbb, 0xd5, 0xba, 0xb8, 0x5b, 0xa9, 0x94, 0x44, 0xa9, 0x56, 0x12,
-	0x0f, 0xca, 0xc5, 0x52, 0x96, 0x43, 0xaf, 0xc0, 0xea, 0xc1, 0x6e, 0x65, 0xff, 0x51, 0x49, 0x2a,
-	0x14, 0x8b, 0xa5, 0x5a, 0xad, 0xbc, 0x59, 0xae, 0x94, 0xeb, 0x4f, 0xa4, 0xe2, 0x6e, 0xb5, 0x56,
-	0x17, 0x0b, 0xe5, 0x6a, 0xbd, 0x96, 0x8d, 0xf3, 0xdf, 0xe7, 0xe0, 0x9c, 0x6f, 0x03, 0xa8, 0xc0,
-	0x68, 0x78, 0x7b, 0xd4, 0x8d, 0x7b, 0x35, 0xbd, 0x15, 0xa4, 0x29, 0x40, 0x7a, 0xb7, 0x5a, 0x29,
-	0x57, 0x2d, 0xed, 0xa6, 0x60, 0x62, 0xf7, 0xc1, 0x03, 0xfb, 0x47, 0x7c, 0x33, 0x4d, 0x16, 0x14,
-	0x66, 0x61, 0x7a, 0x4f, 0xd7, 0x0e, 0xb1, 0xe3, 0x3f, 0x05, 0x98, 0xa1, 0xbf, 0xa9, 0xbf, 0xfc,
-	0x1f, 0xa4, 0x74, 0x2c, 0x37, 0x4f, 0xe9, 0xd1, 0xf2, 0x79, 0x12, 0x93, 0x79, 0x27, 0x26, 0xf3,
-	0x9b, 0x9a, 0xd6, 0x3e, 0xb0, 0xfc, 0x53, 0x24, 0x8c, 0xc2, 0x57, 0x49, 0x98, 0x2b, 0xea, 0x58,
-	0x36, 0x31, 0xd1, 0x96, 0x8a, 0x0e, 0x8c, 0xbd, 0x0d, 0x98, 0xb5, 0xfc, 0xab, 0xa1, 0x98, 0xa7,
-	0x92, 0x2e, 0xab, 0x2d, 0x4c, 0x8f, 0x7e, 0xc1, 0xb1, 0x40, 0x91, 0x8e, 0x8a, 0xd6, 0xa0, 0x38,
-	0xd3, 0xf0, 0xfe, 0x44, 0x65, 0x98, 0xa3, 0xae, 0xc3, 0xb8, 0x74, 0x82, 0x75, 0x69, 0xa2, 0x85,
-	0xc7, 0xa5, 0xd1, 0x31, 0x4b, 0x51, 0xb0, 0x81, 0x1e, 0x02, 0x74, 0x65, 0x5d, 0xee, 0x60, 0x13,
-	0xeb, 0x46, 0x2e, 0xc9, 0xc6, 0x77, 0xc0, 0x6e, 0xf2, 0x7b, 0x2e, 0x37, 0x89, 0x6f, 0xcf, 0x74,
-	0xb4, 0x6d, 0x05, 0x44, 0x43, 0xc7, 0xa6, 0x91, 0x4b, 0xd9, 0x92, 0xd6, 0xa2, 0x24, 0xd5, 0x08,
-	0xab, 0x2d, 0x66, 0x33, 0xf1, 0xd3, 0x4d, 0x4e, 0x74, 0x66, 0xa3, 0x5d, 0x58, 0x70, 0x36, 0xa8,
-	0xa9, 0x26, 0x56, 0x4d, 0xc9, 0xd0, 0x7a, 0x7a, 0x03, 0xe7, 0xd2, 0xb6, 0x95, 0x96, 0x7c, 0x5b,
-	0x24, 0x3c, 0x35, 0x9b, 0x45, 0xa4, 0xa6, 0x61, 0x88, 0xe8, 0x29, 0xf0, 0x72, 0xa3, 0x81, 0x0d,
-	0x43, 0x21, 0xb6, 0x90, 0x74, 0xfc, 0x49, 0x4f, 0xd1, 0x71, 0x07, 0xab, 0xa6, 0x91, 0x9b, 0x60,
-	0xa5, 0xd6, 0xb5, 0xae, 0xd6, 0xd6, 0x5a, 0xa7, 0x62, 0x9f, 0x47, 0xbc, 0xc8, 0x4c, 0xf7, 0x8c,
-	0x18, 0xfc, 0x3b, 0x70, 0xce, 0x67, 0x94, 0x71, 0x32, 0x1b, 0x7f, 0x0f, 0xa6, 0xbd, 0x96, 0x18,
-	0x2b, 0x2b, 0xfe, 0x28, 0x0e, 0x73, 0x01, 0x36, 0x40, 0x3b, 0x90, 0x31, 0x54, 0xb9, 0x6b, 0x3c,
-	0xd3, 0x4c, 0xea, 0xbf, 0x37, 0x23, 0x4c, 0x96, 0xaf, 0x51, 0x5e, 0xf2, 0x73, 0x27, 0x26, 0xba,
-	0xb3, 0xd1, 0x26, 0xa4, 0x89, 0x3d, 0xfd, 0xb9, 0x29, 0x48, 0x0e, 0xa1, 0xb9, 0x52, 0xe8, 0x4c,
-	0xfe, 0x75, 0x98, 0x65, 0x57, 0x40, 0x97, 0x61, 0xca, 0x59, 0x41, 0x52, 0x9a, 0x74, 0xaf, 0xe0,
-	0x90, 0xca, 0x4d, 0xfe, 0x35, 0x98, 0xf6, 0x0a, 0x43, 0x4b, 0x30, 0x49, 0x1d, 0xc2, 0x65, 0xcf,
-	0x10, 0x42, 0xb9, 0xe9, 0xc6, 0xf4, 0x37, 0x60, 0x9e, 0xf5, 0x33, 0x1a, 0xca, 0xd7, 0xdd, 0x3d,
-	0x10, 0x5b, 0xcc, 0xb2, 0x7b, 0x70, 0xf4, 0x14, 0x7e, 0x99, 0x84, 0xac, 0x3f, 0x68, 0xd0, 0x06,
-	0xa4, 0x0e, 0xdb, 0x5a, 0xe3, 0x63, 0x3a, 0xf7, 0x95, 0xb0, 0xe8, 0xca, 0x6f, 0x5a, 0x5c, 0x84,
-	0xba, 0x13, 0x13, 0xc9, 0x24, 0x6b, 0x76, 0x47, 0xeb, 0xa9, 0x26, 0xb5, 0x5e, 0xf8, 0xec, 0x47,
-	0x16, 0x57, 0x7f, 0xb6, 0x3d, 0x09, 0x6d, 0xc1, 0x14, 0x71, 0x3b, 0xa9, 0xa3, 0x35, 0x71, 0x2e,
-	0x61, 0xcb, 0xb8, 0x1a, 0x2a, 0xa3, 0x60, 0xf3, 0x3e, 0xd2, 0x9a, 0x58, 0x04, 0xd9, 0xfd, 0x9f,
-	0x9f, 0x81, 0x29, 0x8f, 0x6e, 0xfc, 0x36, 0x4c, 0x79, 0x16, 0x43, 0x17, 0x60, 0xe2, 0xc8, 0x90,
-	0xdc, 0x24, 0x3c, 0x29, 0xa6, 0x8f, 0x0c, 0x3b, 0x9f, 0x5e, 0x86, 0x29, 0x5b, 0x0b, 0xe9, 0xa8,
-	0x2d, 0xb7, 0x8c, 0x5c, 0x7c, 0x35, 0x61, 0x9d, 0x91, 0x4d, 0x7a, 0x60, 0x51, 0xf8, 0x7f, 0x70,
-	0x00, 0xfd, 0x25, 0xd1, 0x06, 0x24, 0x6d, 0x2d, 0x49, 0x2a, 0x5f, 0x1b, 0x41, 0xcb, 0xbc, 0xad,
-	0xaa, 0x3d, 0x4b, 0xf8, 0x39, 0x07, 0x49, 0x5b, 0x8c, 0xff, 0xc2, 0xa9, 0x95, 0xab, 0xdb, 0x95,
-	0x92, 0x54, 0xdd, 0xdd, 0x2a, 0x49, 0x8f, 0xc5, 0x72, 0xbd, 0x24, 0x66, 0x39, 0xb4, 0x04, 0x17,
-	0xbc, 0x74, 0xb1, 0x54, 0xd8, 0x2a, 0x89, 0xd2, 0x6e, 0xb5, 0xf2, 0x24, 0x1b, 0x47, 0x3c, 0x2c,
-	0x3e, 0xda, 0xaf, 0xd4, 0xcb, 0x83, 0x63, 0x09, 0xb4, 0x0c, 0x39, 0xcf, 0x18, 0x95, 0x41, 0xc5,
-	0x26, 0x2d, 0xb1, 0x9e, 0x51, 0xf2, 0x2f, 0x1d, 0x4c, 0x6d, 0xce, 0xb8, 0x87, 0x61, 0x3b, 0xdb,
-	0x63, 0x98, 0x61, 0x72, 0xb4, 0x55, 0x4e, 0xd1, 0xa4, 0xd2, 0x94, 0x0e, 0x4f, 0x4d, 0xbb, 0xc4,
-	0xe0, 0xd6, 0x12, 0xe2, 0x8c, 0x43, 0xdd, 0xb4, 0x88, 0x96, 0x59, 0xdb, 0x4a, 0x47, 0x31, 0x29,
-	0x4f, 0xdc, 0xe6, 0x01, 0x9b, 0x64, 0x33, 0x08, 0x5f, 0xc4, 0x21, 0x4d, 0xcf, 0xe6, 0x9a, 0xe7,
-	0x96, 0x60, 0x44, 0x3a, 0x54, 0x22, 0x92, 0x09, 0x8e, 0x38, 0x1b, 0x1c, 0x68, 0x07, 0x66, 0xbd,
-	0xa9, 0xf4, 0xc4, 0x29, 0xe2, 0xae, 0xb0, 0x07, 0xe4, 0x8d, 0xe7, 0x13, 0x5a, 0xba, 0xcd, 0x1c,
-	0x7b, 0x69, 0x68, 0x13, 0x66, 0x7d, 0xd9, 0x38, 0x39, 0x3c, 0x1b, 0xcf, 0x34, 0x98, 0xc4, 0x54,
-	0x80, 0x39, 0x27, 0x91, 0xb6, 0xb1, 0x64, 0xd2, 0x44, 0x4b, 0x6f, 0x8b, 0xec, 0x40, 0x02, 0x46,
-	0x7d, 0x66, 0x87, 0xc6, 0xbf, 0x0b, 0x68, 0x50, 0xd7, 0xb1, 0xb2, 0x66, 0x0f, 0xe6, 0x02, 0x52,
-	0x3c, 0xca, 0xc3, 0xa4, 0x7d, 0x54, 0x86, 0x62, 0x62, 0x5a, 0x1e, 0x0e, 0x6a, 0xd4, 0x67, 0xb1,
-	0xf8, 0xbb, 0x3a, 0x3e, 0xc2, 0xba, 0x8e, 0x9b, 0x76, 0x78, 0x04, 0xf2, 0xbb, 0x2c, 0xc2, 0x0f,
-	0x38, 0xc8, 0x38, 0x74, 0x74, 0x0f, 0x32, 0x06, 0x6e, 0x91, 0xeb, 0x87, 0xac, 0x75, 0xc9, 0x3f,
-	0x37, 0x5f, 0xa3, 0x0c, 0xb4, 0x90, 0x76, 0xf8, 0xad, 0x42, 0x9a, 0x19, 0x1a, 0x6b, 0xf3, 0xbf,
-	0xe5, 0x60, 0x6e, 0x0b, 0xb7, 0xb1, 0xbf, 0x4a, 0x89, 0xca, 0xb0, 0xde, 0x8b, 0x3d, 0xce, 0x5e,
-	0xec, 0x01, 0xa2, 0x22, 0x2e, 0xf6, 0x33, 0x5d, 0x76, 0x8b, 0x30, 0xcf, 0xae, 0x46, 0xd2, 0xbb,
-	0xf0, 0xcf, 0x04, 0x5c, 0xb2, 0x7c, 0x41, 0xd7, 0xda, 0x6d, 0xac, 0xef, 0xf5, 0x0e, 0xdb, 0x8a,
-	0xf1, 0x6c, 0x8c, 0xcd, 0x5d, 0x80, 0x09, 0x55, 0x6b, 0x7a, 0x82, 0x27, 0x6d, 0xfd, 0x2c, 0x37,
-	0x51, 0x09, 0xce, 0xfb, 0xcb, 0xac, 0x53, 0x9a, 0x84, 0xc3, 0x8b, 0xac, 0xec, 0xb1, 0xff, 0x06,
-	0xe1, 0x21, 0x63, 0x15, 0x88, 0x9a, 0xda, 0x3e, 0xb5, 0x23, 0x26, 0x23, 0xba, 0xbf, 0x91, 0xe8,
-	0xaf, 0x98, 0xde, 0x70, 0x2b, 0xa6, 0xc8, 0x1d, 0x45, 0x15, 0x4f, 0x1f, 0x0d, 0x44, 0x7c, 0xda,
-	0x16, 0xfd, 0xf6, 0x88, 0xa2, 0x87, 0x66, 0x82, 0xb3, 0x9c, 0xe2, 0x0b, 0x08, 0xdf, 0x3f, 0x72,
-	0x70, 0x39, 0x74, 0x0b, 0xf4, 0xca, 0x6f, 0xc2, 0xb9, 0x2e, 0x19, 0x70, 0x8d, 0x40, 0xa2, 0xec,
-	0xfe, 0x50, 0x23, 0xd0, 0x2e, 0x96, 0x52, 0x19, 0x33, 0xcc, 0x76, 0x19, 0x22, 0x5f, 0x80, 0xb9,
-	0x00, 0xb6, 0xb1, 0x36, 0xf3, 0x25, 0x07, 0xab, 0x7d, 0x55, 0xf6, 0xd5, 0xee, 0x8b, 0x73, 0xdf,
-	0x7a, 0xdf, 0xb7, 0x48, 0xca, 0xbf, 0x3b, 0xb8, 0xf7, 0xe0, 0x05, 0x5f, 0x56, 0x04, 0x5f, 0x85,
-	0x2b, 0x11, 0x4b, 0xd3, 0x70, 0xfe, 0x22, 0x09, 0x57, 0x0e, 0xe4, 0xb6, 0xd2, 0x74, 0x0b, 0xb9,
-	0x80, 0x7e, 0x3f, 0xda, 0x24, 0x8d, 0x81, 0x08, 0x20, 0x59, 0x6b, 0xc3, 0x8d, 0xda, 0x61, 0xf2,
-	0x47, 0xb8, 0x0e, 0x5f, 0x60, 0x13, 0xf6, 0x24, 0xa0, 0x09, 0x7b, 0x7b, 0x74, 0x5d, 0xa3, 0x5a,
-	0xb2, 0x7d, 0x7f, 0x82, 0x79, 0x6b, 0x74, 0xb9, 0x11, 0x5e, 0x70, 0xe6, 0x28, 0xfe, 0x3a, 0xbb,
-	0xa6, 0xdf, 0x27, 0x41, 0x88, 0xda, 0x3d, 0xcd, 0x21, 0x22, 0x4c, 0x36, 0x34, 0xf5, 0x48, 0xd1,
-	0x3b, 0xb8, 0x49, 0xab, 0xff, 0x37, 0x47, 0x31, 0x1e, 0x4d, 0x20, 0x45, 0x67, 0xae, 0xd8, 0x17,
-	0x83, 0x72, 0x30, 0xd1, 0xc1, 0x86, 0x21, 0xb7, 0x1c, 0xb5, 0x9c, 0x9f, 0xfc, 0x67, 0x09, 0x98,
-	0x74, 0xa7, 0x20, 0x75, 0xc0, 0x83, 0x49, 0xfa, 0xda, 0x7e, 0x1e, 0x05, 0x9e, 0xdf, 0x99, 0xe3,
-	0xcf, 0xe1, 0xcc, 0x4d, 0xc6, 0x99, 0x49, 0x38, 0x6c, 0x3d, 0x97, 0xda, 0x11, 0x7e, 0xfd, 0xb5,
-	0x3b, 0xa0, 0xf0, 0x6d, 0x40, 0x15, 0xc5, 0xa0, 0x5d, 0x94, 0x9b, 0x96, 0xac, 0xa6, 0x49, 0x3e,
-	0x91, 0xb0, 0x6a, 0xea, 0x0a, 0x2d, 0xd7, 0x53, 0x22, 0x74, 0xe4, 0x93, 0x12, 0xa1, 0x58, 0x25,
-	0xbd, 0x61, 0xca, 0xba, 0xa9, 0xa8, 0x2d, 0xc9, 0xd4, 0x3e, 0xc6, 0x2e, 0xe8, 0xea, 0x50, 0xeb,
-	0x16, 0x51, 0xf8, 0x34, 0x0e, 0x73, 0x8c, 0x78, 0xea, 0x93, 0xf7, 0x61, 0xa2, 0x2f, 0x9b, 0x29,
-	0xe3, 0x03, 0xb8, 0xf3, 0xc4, 0x6c, 0xce, 0x0c, 0xb4, 0x02, 0xa0, 0xe2, 0x13, 0x93, 0x59, 0x77,
-	0xd2, 0xa2, 0xd8, 0x6b, 0xf2, 0x1b, 0x6e, 0xcf, 0x6d, 0xca, 0x66, 0xcf, 0x40, 0xb7, 0x00, 0xd1,
-	0x0c, 0x8d, 0x9b, 0x12, 0xbd, 0x62, 0xc8, 0xb2, 0x93, 0x62, 0xd6, 0x1d, 0xa9, 0xda, 0x97, 0x8d,
-	0xc1, 0x7f, 0x02, 0x29, 0x62, 0xc4, 0x11, 0xbb, 0x6d, 0xf4, 0x2e, 0xa4, 0x0d, 0x7b, 0x21, 0x3f,
-	0xb2, 0x10, 0xb4, 0x13, 0xaf, 0x62, 0x22, 0x9d, 0x27, 0x7c, 0x16, 0x07, 0xb4, 0x8d, 0x4d, 0xb7,
-	0x0d, 0xa3, 0x67, 0x10, 0xe2, 0xcb, 0xdc, 0x73, 0xf8, 0xf2, 0x7b, 0x8c, 0x2f, 0x93, 0x68, 0xb8,
-	0xe9, 0x41, 0xbf, 0x7d, 0x4b, 0x47, 0x66, 0xe2, 0x90, 0xd6, 0x87, 0xd4, 0x93, 0xa3, 0xb5, 0x3e,
-	0x67, 0x74, 0xd9, 0x2d, 0x98, 0x63, 0x74, 0xa6, 0x3e, 0x75, 0x1b, 0x90, 0x7c, 0x2c, 0x2b, 0x6d,
-	0xd9, 0xd2, 0xcb, 0xe9, 0x2c, 0x69, 0xa7, 0x79, 0xde, 0x1d, 0x71, 0xa6, 0x09, 0x82, 0xb7, 0x60,
-	0xa1, 0xf2, 0xfc, 0x68, 0x7c, 0xdb, 0x7b, 0xd1, 0x0f, 0xf0, 0xd0, 0x75, 0xb7, 0x03, 0x11, 0xf9,
-	0xab, 0x83, 0x45, 0x0a, 0x85, 0xa7, 0x43, 0xc1, 0xf9, 0x5f, 0x25, 0x60, 0x29, 0x82, 0x1b, 0xdd,
-	0x87, 0x84, 0xde, 0x6d, 0x50, 0x77, 0x7c, 0x75, 0x04, 0xf9, 0x79, 0x71, 0xaf, 0xb8, 0x13, 0x13,
-	0xad, 0x59, 0xfc, 0x1f, 0xe2, 0x90, 0x10, 0xf7, 0x8a, 0xe8, 0x5d, 0x06, 0xa9, 0xbe, 0x35, 0xa2,
-	0x14, 0x2f, 0x50, 0xfd, 0x1f, 0x2e, 0x08, 0xa9, 0xce, 0xc1, 0x7c, 0x51, 0x2c, 0x15, 0xea, 0x25,
-	0x69, 0xab, 0x54, 0x29, 0xd5, 0x4b, 0x12, 0x41, 0xd2, 0xb3, 0x1c, 0x5a, 0x86, 0xdc, 0xde, 0xfe,
-	0x66, 0xa5, 0x5c, 0xdb, 0x91, 0xf6, 0xab, 0xce, 0x7f, 0x74, 0x34, 0x8e, 0xb2, 0x30, 0x5d, 0x29,
-	0xd7, 0xea, 0x94, 0x50, 0xcb, 0x26, 0x2c, 0xca, 0x76, 0xa9, 0x2e, 0x15, 0x0b, 0x7b, 0x85, 0x62,
-	0xb9, 0xfe, 0x24, 0x9b, 0x44, 0x3c, 0x2c, 0xb2, 0xb2, 0x6b, 0xd5, 0xc2, 0x5e, 0x6d, 0x67, 0xb7,
-	0x9e, 0x4d, 0x21, 0x04, 0xb3, 0xf6, 0x7c, 0x87, 0x54, 0xcb, 0xa6, 0x2d, 0x09, 0xc5, 0xca, 0x6e,
-	0xd5, 0xd5, 0x61, 0x02, 0xcd, 0x43, 0xd6, 0x59, 0x59, 0x2c, 0x15, 0xb6, 0x6c, 0x14, 0x25, 0x83,
-	0xce, 0xc3, 0x4c, 0xe9, 0x83, 0xbd, 0x42, 0x75, 0xcb, 0x61, 0x9c, 0x44, 0xab, 0xb0, 0xec, 0x55,
-	0x47, 0xa2, 0xb3, 0x4a, 0x5b, 0x36, 0x96, 0x52, 0xcb, 0x82, 0x8b, 0xd2, 0x7d, 0x19, 0x87, 0x05,
-	0x02, 0xd3, 0x39, 0xa0, 0xa0, 0x13, 0xb8, 0x6b, 0x90, 0x25, 0xc0, 0x82, 0xe4, 0x2f, 0xed, 0x66,
-	0x09, 0xfd, 0xc0, 0x29, 0xf0, 0x1c, 0x48, 0x3d, 0xee, 0x81, 0xd4, 0xcb, 0xfe, 0x72, 0xf7, 0x26,
-	0x0b, 0x3e, 0xfb, 0x56, 0x8b, 0xea, 0xa0, 0x1e, 0x05, 0xd4, 0x63, 0xb7, 0xa3, 0xa5, 0x45, 0xdd,
-	0x55, 0x67, 0x69, 0x97, 0xce, 0x18, 0xf2, 0x0f, 0x60, 0xd1, 0xaf, 0x2f, 0x8d, 0xbe, 0x5b, 0x03,
-	0x10, 0xb1, 0x9b, 0x83, 0x5c, 0x5e, 0x97, 0x43, 0xf8, 0x0b, 0x07, 0x19, 0x87, 0x6c, 0xdd, 0x23,
-	0x86, 0xf2, 0x5d, 0xcc, 0x40, 0x52, 0x93, 0x16, 0xc5, 0x45, 0xb8, 0xbc, 0xe0, 0x6e, 0xdc, 0x0f,
-	0xee, 0x06, 0x9e, 0x73, 0x22, 0xf0, 0x9c, 0xbf, 0x09, 0x33, 0x0d, 0x4b, 0x7d, 0x45, 0x53, 0x25,
-	0x53, 0xe9, 0x38, 0x88, 0xd3, 0xe0, 0x63, 0x4c, 0xdd, 0x79, 0x41, 0x15, 0xa7, 0x9d, 0x09, 0x16,
-	0x09, 0xad, 0xc2, 0xb4, 0xfd, 0x38, 0x23, 0x99, 0x9a, 0xd4, 0x33, 0x70, 0x2e, 0x65, 0xf7, 0xdf,
-	0x60, 0xd3, 0xea, 0xda, 0xbe, 0x81, 0x85, 0xdf, 0x71, 0xb0, 0x40, 0x60, 0x05, 0xbf, 0x3b, 0x0e,
-	0x03, 0xa9, 0xbd, 0x1e, 0xe7, 0xbb, 0x1a, 0x02, 0x05, 0xbe, 0xac, 0xae, 0x2a, 0x07, 0x8b, 0xfe,
-	0xf5, 0x68, 0x2b, 0xf5, 0x79, 0x1c, 0xe6, 0xad, 0xdb, 0xd4, 0x19, 0x78, 0xd1, 0x65, 0xca, 0x18,
-	0x27, 0xe9, 0x33, 0x66, 0x72, 0xc0, 0x98, 0x3b, 0xfe, 0x46, 0xe5, 0x86, 0xb7, 0x1e, 0xf0, 0xef,
-	0xe0, 0x65, 0xd9, 0xf2, 0xd7, 0x1c, 0x2c, 0xf8, 0xd6, 0xa3, 0xf1, 0xf2, 0x8e, 0xbf, 0xf2, 0xba,
-	0x1a, 0xa2, 0xdf, 0x73, 0xd5, 0x5e, 0x77, 0x9d, 0xea, 0x69, 0xbc, 0xb0, 0xfc, 0x73, 0x1c, 0x56,
-	0xfa, 0x37, 0x90, 0xfd, 0x3c, 0xda, 0x1c, 0x03, 0x3a, 0x38, 0xdb, 0x2b, 0xe4, 0xfb, 0xfe, 0x84,
-	0xbb, 0x3e, 0x78, 0x29, 0x06, 0xa8, 0x14, 0x95, 0x78, 0x03, 0x11, 0xb7, 0xe4, 0xb8, 0x88, 0xdb,
-	0x99, 0x3c, 0xe0, 0x7b, 0x5e, 0x30, 0x91, 0x55, 0x9f, 0x7a, 0xc2, 0x88, 0xa8, 0xfc, 0x5b, 0x70,
-	0xc1, 0x2e, 0x9a, 0xdd, 0xd7, 0x7d, 0xe7, 0xcd, 0x91, 0xa4, 0xc4, 0x8c, 0xb8, 0x60, 0x0d, 0xbb,
-	0x4f, 0xda, 0x14, 0x89, 0x6e, 0x0a, 0x5f, 0x25, 0x61, 0xd1, 0x2a, 0xaa, 0x6b, 0xa6, 0xdc, 0x1a,
-	0x07, 0xa3, 0xfd, 0xd6, 0x20, 0xe4, 0x15, 0x67, 0x8f, 0x25, 0x58, 0xea, 0x28, 0x48, 0x17, 0xca,
-	0xc3, 0x9c, 0x61, 0xca, 0x2d, 0x3b, 0x1d, 0xc8, 0x7a, 0x0b, 0x9b, 0x52, 0x57, 0x36, 0x9f, 0xd1,
-	0x58, 0x3f, 0x4f, 0x87, 0xea, 0xf6, 0xc8, 0x9e, 0x6c, 0x3e, 0x7b, 0x41, 0x07, 0x89, 0xde, 0xf3,
-	0x27, 0x85, 0xd7, 0x86, 0xec, 0x25, 0xc2, 0xb7, 0x3e, 0x08, 0x81, 0x45, 0x5f, 0x1f, 0x22, 0x72,
-	0x38, 0x1c, 0x7a, 0x76, 0x18, 0xf0, 0x6b, 0x46, 0x54, 0x2f, 0xc2, 0x85, 0x81, 0xcd, 0xd3, 0x2b,
-	0xa4, 0x05, 0x39, 0x6b, 0x68, 0x5f, 0x35, 0xc6, 0x74, 0xc7, 0x10, 0x8f, 0x89, 0x87, 0x78, 0x8c,
-	0xb0, 0x04, 0x17, 0x03, 0x16, 0xa2, 0x5a, 0xfc, 0x26, 0x45, 0xd4, 0x18, 0x1f, 0xdc, 0xff, 0x30,
-	0x2c, 0x2a, 0xde, 0xf4, 0x1e, 0x7b, 0x20, 0x0e, 0xfe, 0x32, 0xe2, 0xe2, 0x32, 0x4c, 0x79, 0xf9,
-	0xe8, 0x35, 0x68, 0x0e, 0x09, 0x9c, 0xd4, 0x99, 0xde, 0x1c, 0xd2, 0xbe, 0x37, 0x87, 0x4a, 0x3f,
-	0xa8, 0x26, 0xd8, 0xd2, 0x36, 0xd4, 0x14, 0x11, 0x61, 0xf5, 0x74, 0x20, 0xac, 0x32, 0xec, 0x43,
-	0x46, 0xa8, 0xd0, 0xff, 0x81, 0xc0, 0xa2, 0x4e, 0x1d, 0xf8, 0xc2, 0x20, 0x3c, 0x05, 0x9e, 0x78,
-	0xfc, 0xf8, 0x98, 0xbf, 0xcf, 0x8d, 0xe2, 0x7e, 0x37, 0x12, 0x56, 0x60, 0x29, 0x50, 0x36, 0x5d,
-	0xfa, 0x87, 0x1c, 0x51, 0x6c, 0x1b, 0x9b, 0x7d, 0x64, 0xc5, 0x18, 0x75, 0x69, 0x3a, 0xe8, 0x5d,
-	0x9a, 0x90, 0x6c, 0x0f, 0x1e, 0x33, 0x24, 0x84, 0x6d, 0x62, 0x06, 0xbf, 0x2a, 0xf4, 0xb2, 0xbd,
-	0x01, 0xa9, 0x9e, 0x0d, 0x97, 0x92, 0xa2, 0x6b, 0x8e, 0x8d, 0x81, 0x7d, 0x6b, 0x48, 0x24, 0x1c,
-	0xc2, 0xe7, 0x1c, 0x4c, 0x79, 0xc8, 0x68, 0x19, 0x26, 0x5d, 0xf4, 0xc2, 0xe9, 0x52, 0x5c, 0x82,
-	0x75, 0x68, 0xa6, 0x66, 0xca, 0x6d, 0xfa, 0x02, 0x4f, 0x7e, 0x58, 0x8d, 0x65, 0xcf, 0xc0, 0xa4,
-	0x88, 0x4d, 0x88, 0xf6, 0xff, 0xe8, 0x16, 0x24, 0x7b, 0xaa, 0x62, 0xda, 0xc1, 0x3a, 0xeb, 0x8f,
-	0x42, 0x7b, 0xa9, 0xfc, 0xbe, 0xaa, 0x98, 0xa2, 0xcd, 0x25, 0xdc, 0x84, 0xa4, 0xf5, 0x8b, 0x6d,
-	0xf2, 0x27, 0x21, 0xb5, 0xf9, 0xa4, 0x5e, 0xaa, 0x65, 0x39, 0x04, 0x90, 0x2e, 0x93, 0x96, 0x38,
-	0x2e, 0x2c, 0xbb, 0x5b, 0x0f, 0x02, 0x51, 0x3e, 0x22, 0x67, 0x18, 0x06, 0x9f, 0x14, 0x02, 0xe1,
-	0x93, 0x15, 0xe6, 0x36, 0x1b, 0x02, 0x9c, 0xfc, 0x8b, 0x83, 0x85, 0x40, 0x3e, 0x74, 0xd7, 0x0b,
-	0x99, 0x5c, 0x89, 0x94, 0xe9, 0x05, 0x4b, 0x7e, 0xc6, 0x11, 0xb0, 0xe4, 0x1e, 0x03, 0x96, 0x5c,
-	0x1f, 0x3a, 0xdf, 0x0b, 0x93, 0x1c, 0x84, 0xa0, 0x24, 0xb5, 0x7a, 0x61, 0xbb, 0x24, 0xed, 0x57,
-	0xc9, 0x5f, 0x17, 0x25, 0x99, 0x87, 0xec, 0x76, 0xc9, 0xc1, 0x1d, 0xa4, 0x5a, 0xbd, 0x50, 0xaf,
-	0x65, 0xe3, 0x83, 0x08, 0x45, 0xc2, 0xc5, 0x1f, 0xe6, 0x01, 0x51, 0xb3, 0x7a, 0x3f, 0x9d, 0xfd,
-	0x94, 0x83, 0x39, 0x86, 0x4c, 0xad, 0xec, 0x79, 0x5d, 0xe3, 0x98, 0xd7, 0xb5, 0x3b, 0x30, 0x6f,
-	0xb5, 0x50, 0xc4, 0xf1, 0x0d, 0xa9, 0x8b, 0x75, 0x1b, 0x23, 0xa5, 0xee, 0x74, 0xbe, 0x23, 0x9f,
-	0x50, 0x0c, 0x73, 0x0f, 0xeb, 0x96, 0xe0, 0x17, 0x80, 0xff, 0x09, 0x3f, 0x8e, 0x93, 0x8b, 0x7a,
-	0xec, 0x42, 0x7f, 0x68, 0xd0, 0x0e, 0x76, 0x02, 0x89, 0x31, 0x3a, 0x81, 0x90, 0x90, 0x4f, 0x8e,
-	0x55, 0x1d, 0x8e, 0x7d, 0xc9, 0x09, 0x05, 0x52, 0x14, 0x9c, 0xa1, 0x48, 0x5f, 0xff, 0x37, 0x07,
-	0x99, 0x72, 0x13, 0xab, 0xa6, 0xe5, 0xf4, 0x55, 0x98, 0x61, 0xbe, 0x68, 0x46, 0xcb, 0x21, 0x1f,
-	0x3a, 0xdb, 0x16, 0xe7, 0x57, 0x22, 0x3f, 0x83, 0x16, 0x62, 0xe8, 0xc8, 0xf3, 0x35, 0x36, 0x03,
-	0x2b, 0xbf, 0x32, 0x30, 0x33, 0x20, 0xfe, 0xf9, 0x6b, 0x43, 0xb8, 0xdc, 0x75, 0xde, 0x82, 0x94,
-	0xfd, 0xed, 0x2a, 0x9a, 0x77, 0xbf, 0x9f, 0xf5, 0x7c, 0xda, 0xca, 0x2f, 0xf8, 0xa8, 0xce, 0xbc,
-	0xf5, 0xbf, 0x67, 0x00, 0xfa, 0xbd, 0x0e, 0x7a, 0x08, 0xd3, 0xde, 0xcf, 0xe7, 0xd0, 0x52, 0xc4,
-	0xc7, 0x9b, 0xfc, 0x72, 0xf0, 0xa0, 0xab, 0xd3, 0x43, 0x98, 0xf6, 0x7e, 0xac, 0xd1, 0x17, 0x16,
-	0xf0, 0xc1, 0x48, 0x5f, 0x58, 0xe0, 0xf7, 0x1d, 0x31, 0xd4, 0x86, 0x0b, 0x21, 0xcf, 0xf5, 0xe8,
-	0xfa, 0x68, 0x1f, 0x35, 0xf0, 0xaf, 0x8e, 0xf8, 0xee, 0x2f, 0xc4, 0x90, 0x0e, 0x17, 0x43, 0x5f,
-	0xa9, 0xd1, 0xda, 0xa8, 0x6f, 0xe8, 0xfc, 0x8d, 0x11, 0x38, 0xdd, 0x35, 0x7b, 0xc0, 0x87, 0x3f,
-	0x8d, 0xa1, 0x1b, 0x23, 0xbf, 0xd9, 0xf2, 0x37, 0x47, 0x7f, 0x69, 0x13, 0x62, 0x68, 0x07, 0xa6,
-	0x3c, 0xaf, 0x2d, 0x88, 0x0f, 0x7c, 0x82, 0x21, 0x82, 0x97, 0x22, 0x9e, 0x67, 0x88, 0x24, 0xcf,
-	0xdb, 0x42, 0x5f, 0xd2, 0xe0, 0x23, 0x49, 0x5f, 0x52, 0xc0, 0x63, 0x84, 0xdf, 0xfc, 0xbe, 0xcb,
-	0x2f, 0xc8, 0xfc, 0xc1, 0xb7, 0x67, 0x90, 0xf9, 0x43, 0x6e, 0x52, 0x21, 0x86, 0xde, 0x87, 0x59,
-	0x16, 0x26, 0x45, 0x2b, 0x91, 0x70, 0x2f, 0x7f, 0x29, 0x6c, 0xd8, 0x2b, 0x92, 0x45, 0xe5, 0xfa,
-	0x22, 0x03, 0xd1, 0xc1, 0xbe, 0xc8, 0x10, 0x30, 0x2f, 0x66, 0xe5, 0x27, 0x06, 0x6b, 0xea, 0xe7,
-	0xa7, 0x20, 0x88, 0xac, 0x9f, 0x9f, 0x02, 0x01, 0x2a, 0x21, 0x86, 0x14, 0x58, 0x0c, 0x86, 0x3a,
-	0xd0, 0xb5, 0x91, 0x90, 0x1c, 0xfe, 0xfa, 0x30, 0x36, 0x37, 0xd5, 0xfc, 0x2d, 0x05, 0x49, 0xfb,
-	0x16, 0xac, 0xc3, 0x39, 0x5f, 0xab, 0x89, 0x2e, 0x45, 0x37, 0xe0, 0xfc, 0xe5, 0xd0, 0x71, 0x77,
-	0x27, 0x4f, 0xe1, 0xfc, 0x40, 0xf3, 0x88, 0x56, 0xbd, 0xf3, 0x82, 0x1a, 0x58, 0xfe, 0x4a, 0x04,
-	0x87, 0x5f, 0x36, 0x9b, 0x76, 0x56, 0x87, 0x75, 0x37, 0xac, 0xec, 0xb0, 0x54, 0xf3, 0x11, 0x29,
-	0x3a, 0xfc, 0x49, 0x46, 0x60, 0xf5, 0x0a, 0x4c, 0x2f, 0x57, 0x23, 0x79, 0xdc, 0x15, 0x3e, 0x74,
-	0xab, 0x1d, 0x4f, 0x75, 0x8d, 0x18, 0xe5, 0x02, 0x9b, 0x00, 0x5e, 0x88, 0x62, 0x71, 0xc5, 0x3f,
-	0x86, 0xac, 0xff, 0x0a, 0x46, 0xcc, 0x79, 0x05, 0xb9, 0xcd, 0x6a, 0x38, 0x83, 0xdf, 0x32, 0xfe,
-	0xf8, 0xf7, 0x6b, 0x15, 0x14, 0xf9, 0x57, 0x23, 0x79, 0xbc, 0x19, 0xcb, 0x53, 0xf0, 0xf5, 0x33,
-	0xd6, 0x60, 0x71, 0xd8, 0xcf, 0x58, 0x01, 0x15, 0xa2, 0x10, 0xbb, 0xf7, 0x0e, 0x40, 0xc3, 0x50,
-	0x24, 0xd2, 0x11, 0xa3, 0x95, 0x81, 0xc7, 0x89, 0x07, 0x0a, 0x6e, 0x37, 0x77, 0xbb, 0xa6, 0xa2,
-	0xa9, 0x46, 0xee, 0x17, 0x19, 0xbb, 0x1d, 0x9f, 0x6c, 0x18, 0x0a, 0x69, 0x4c, 0x37, 0x53, 0x4f,
-	0x13, 0x0d, 0x43, 0x39, 0x4c, 0xdb, 0xfc, 0x6f, 0xfc, 0x37, 0x00, 0x00, 0xff, 0xff, 0x16, 0x7c,
-	0xfe, 0x46, 0x7f, 0x36, 0x00, 0x00,
+	// 4182 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x5c, 0x4d, 0x6c, 0x1b, 0x49,
+	0x76, 0x56, 0xf3, 0x4f, 0xd2, 0xa3, 0x24, 0x53, 0xa5, 0x1f, 0xd3, 0x2d, 0x59, 0x96, 0xda, 0xe3,
+	0x19, 0x8d, 0xc7, 0xa6, 0x67, 0xbc, 0x33, 0x83, 0x1d, 0x8d, 0x67, 0x77, 0x48, 0x89, 0x96, 0xb8,
+	0xa6, 0x49, 0x6d, 0x93, 0xf2, 0xac, 0x9d, 0x0c, 0x7a, 0x5a, 0x64, 0x49, 0x6e, 0x0c, 0xd9, 0xcd,
+	0xe9, 0x6e, 0x2a, 0xd6, 0xe6, 0x90, 0x64, 0x83, 0x20, 0x1b, 0xe4, 0x12, 0x24, 0x87, 0x4c, 0x4e,
+	0x59, 0x24, 0x39, 0xee, 0x62, 0x0f, 0x41, 0x10, 0x20, 0x97, 0x00, 0xb9, 0x25, 0x40, 0x90, 0x1c,
+	0x93, 0x5c, 0xf6, 0x10, 0x20, 0x87, 0x45, 0x02, 0x4c, 0x2e, 0x39, 0xe4, 0x10, 0x04, 0x5d, 0x55,
+	0xfd, 0xff, 0x43, 0xd2, 0x92, 0x33, 0x01, 0xf6, 0x64, 0x75, 0xd5, 0xab, 0x57, 0xaf, 0xaa, 0xde,
+	0x7b, 0xf5, 0xde, 0xf7, 0x8a, 0x86, 0xf7, 0x4e, 0x15, 0xf3, 0xf9, 0xf0, 0xb8, 0xd4, 0xd1, 0xfa,
+	0xf7, 0x3a, 0x9a, 0x6a, 0xca, 0x8a, 0x8a, 0xf5, 0xbb, 0x86, 0xa9, 0xe9, 0xf2, 0x29, 0xbe, 0xab,
+	0xa8, 0x26, 0xd6, 0x4f, 0xe4, 0x0e, 0xbe, 0x67, 0x0c, 0x70, 0xe7, 0x5e, 0xc7, 0x50, 0x4a, 0x03,
+	0x5d, 0x33, 0x35, 0x94, 0xb3, 0xfe, 0x3c, 0x7b, 0x87, 0xdf, 0x3c, 0xd5, 0xb4, 0xd3, 0x1e, 0xbe,
+	0x47, 0x5a, 0x8f, 0x87, 0x27, 0xf7, 0xba, 0xd8, 0xe8, 0xe8, 0xca, 0xc0, 0xd4, 0x74, 0x4a, 0xc9,
+	0xdf, 0x08, 0x52, 0x98, 0x4a, 0x1f, 0x1b, 0xa6, 0xdc, 0x1f, 0x30, 0x82, 0x8d, 0x20, 0xc1, 0xaf,
+	0xe8, 0xf2, 0x60, 0x80, 0x75, 0x83, 0xf6, 0x0b, 0xab, 0xb0, 0xbc, 0x8f, 0xcd, 0xc3, 0xde, 0xf0,
+	0x54, 0x51, 0x6b, 0xea, 0x89, 0x26, 0xe2, 0x2f, 0x86, 0xd8, 0x30, 0x85, 0x7f, 0xe2, 0x60, 0x25,
+	0xd0, 0x61, 0x0c, 0x34, 0xd5, 0xc0, 0x08, 0x41, 0x46, 0x95, 0xfb, 0xb8, 0xc8, 0x6d, 0x72, 0xdb,
+	0xb3, 0x22, 0xf9, 0x1b, 0xdd, 0x82, 0x85, 0x33, 0xac, 0x76, 0x35, 0x5d, 0x3a, 0xc3, 0xba, 0xa1,
+	0x68, 0x6a, 0x31, 0x45, 0x7a, 0xe7, 0x69, 0xeb, 0x13, 0xda, 0x88, 0xf6, 0x61, 0xa6, 0x2f, 0xab,
+	0xca, 0x09, 0x36, 0xcc, 0x62, 0x7a, 0x33, 0xbd, 0x9d, 0xbf, 0xff, 0x56, 0x89, 0x2e, 0xb5, 0x14,
+	0x39, 0x57, 0xe9, 0x31, 0xa3, 0xae, 0xaa, 0xa6, 0x7e, 0x2e, 0x3a, 0x83, 0xf9, 0x0f, 0x61, 0xde,
+	0xd7, 0x85, 0x0a, 0x90, 0xfe, 0x1c, 0x9f, 0x33, 0x99, 0xac, 0x3f, 0xd1, 0x32, 0x64, 0xcf, 0xe4,
+	0xde, 0x10, 0x33, 0x49, 0xe8, 0xc7, 0x4e, 0xea, 0x9b, 0x9c, 0xb0, 0x01, 0xeb, 0xce, 0x6c, 0xbb,
+	0xf2, 0x40, 0x3e, 0x56, 0x7a, 0x8a, 0xa9, 0x60, 0xc3, 0x5e, 0xfa, 0xa7, 0x70, 0x3d, 0xa6, 0x9f,
+	0xed, 0xc0, 0x03, 0x98, 0xeb, 0x78, 0xda, 0x8b, 0x1c, 0x59, 0x4a, 0xd1, 0x5e, 0x4a, 0x60, 0xe4,
+	0xb9, 0xe8, 0xa3, 0x16, 0xfe, 0x33, 0x0d, 0x85, 0x20, 0x09, 0x7a, 0x00, 0xd3, 0x06, 0xd6, 0xcf,
+	0x94, 0x0e, 0xdd, 0xd7, 0xfc, 0xfd, 0xcd, 0x38, 0x6e, 0xa5, 0x16, 0xa5, 0x3b, 0x98, 0x12, 0xed,
+	0x21, 0xe8, 0x08, 0x0a, 0x67, 0x5a, 0x6f, 0xd8, 0xc7, 0x12, 0x7e, 0x31, 0x90, 0x55, 0xe7, 0x00,
+	0xf2, 0xf7, 0xb7, 0x63, 0xd9, 0x3c, 0x21, 0x03, 0xaa, 0x36, 0xfd, 0xc1, 0x94, 0x78, 0xe5, 0xcc,
+	0xdf, 0xc4, 0xff, 0x15, 0x07, 0xd3, 0x6c, 0x36, 0xf4, 0x01, 0x64, 0xcc, 0xf3, 0x01, 0x95, 0x6e,
+	0xe1, 0xfe, 0xad, 0x51, 0xd2, 0x95, 0xda, 0xe7, 0x03, 0x2c, 0x92, 0x21, 0x82, 0x09, 0x19, 0xeb,
+	0x0b, 0xe5, 0x61, 0xfa, 0xa8, 0xf1, 0xa8, 0xd1, 0xfc, 0xa4, 0x51, 0x98, 0x42, 0xab, 0x80, 0x76,
+	0x9b, 0x8d, 0xb6, 0xd8, 0xac, 0xd7, 0xab, 0xa2, 0xd4, 0xaa, 0x8a, 0x4f, 0x6a, 0xbb, 0xd5, 0x02,
+	0x87, 0x5e, 0x83, 0xcd, 0x27, 0xcd, 0xfa, 0xd1, 0xe3, 0xaa, 0x54, 0xde, 0xdd, 0xad, 0xb6, 0x5a,
+	0xb5, 0x4a, 0xad, 0x5e, 0x6b, 0x3f, 0x95, 0x76, 0x9b, 0x8d, 0x56, 0x5b, 0x2c, 0xd7, 0x1a, 0xed,
+	0x56, 0x21, 0x85, 0xb6, 0xa0, 0xb8, 0x2f, 0x36, 0x8f, 0x0e, 0xa5, 0x08, 0x1e, 0x69, 0x3e, 0xfd,
+	0xa3, 0x0a, 0xc7, 0xff, 0x80, 0x83, 0x2b, 0x81, 0x35, 0xa2, 0xb2, 0x6f, 0x11, 0x77, 0xc7, 0xdd,
+	0x1b, 0xef, 0x62, 0xee, 0x44, 0x2d, 0x06, 0x20, 0xd7, 0x6c, 0xd4, 0x6b, 0x0d, 0x6b, 0x01, 0x79,
+	0x98, 0x6e, 0x3e, 0x7c, 0x48, 0x3e, 0x52, 0x95, 0x1c, 0x9d, 0x50, 0x58, 0x80, 0xb9, 0x43, 0x5d,
+	0x3b, 0xc6, 0xb6, 0x8a, 0x95, 0x61, 0x9e, 0x7d, 0x33, 0x95, 0x7a, 0x1b, 0xb2, 0x3a, 0x96, 0xbb,
+	0xe7, 0xec, 0xf4, 0xf9, 0x12, 0x35, 0xdb, 0x92, 0x6d, 0xb6, 0xa5, 0x8a, 0xa6, 0xf5, 0x9e, 0x58,
+	0x2a, 0x2c, 0x52, 0x42, 0xe1, 0xab, 0x0c, 0x2c, 0xed, 0xea, 0x58, 0x36, 0x31, 0x95, 0x96, 0xb1,
+	0x8e, 0x34, 0xcf, 0x07, 0xb0, 0x60, 0xa9, 0x60, 0x47, 0x31, 0xcf, 0x25, 0x5d, 0x56, 0x4f, 0x31,
+	0xd3, 0x8e, 0x15, 0x7b, 0x07, 0x76, 0x59, 0xaf, 0x68, 0x75, 0x8a, 0xf3, 0x1d, 0xef, 0x27, 0xaa,
+	0xc1, 0x12, 0xd3, 0x2e, 0x9f, 0xd6, 0xa7, 0xfd, 0x5a, 0x4f, 0xa5, 0xf0, 0x68, 0x3d, 0x3a, 0xf3,
+	0xb7, 0x28, 0xd8, 0x40, 0x8f, 0x00, 0x06, 0xb2, 0x2e, 0xf7, 0xb1, 0x89, 0x75, 0xa3, 0x98, 0xf1,
+	0xbb, 0x80, 0x88, 0xd5, 0x94, 0x0e, 0x1d, 0x6a, 0xea, 0x02, 0x3c, 0xc3, 0xd1, 0xbe, 0x65, 0x33,
+	0x1d, 0x1d, 0x9b, 0x46, 0x31, 0x4b, 0x38, 0x6d, 0x27, 0x71, 0x6a, 0x51, 0x52, 0xc2, 0xa6, 0x92,
+	0xfe, 0xb2, 0xc2, 0x89, 0xf6, 0x68, 0xd4, 0x84, 0x15, 0x7b, 0x81, 0x9a, 0x6a, 0x62, 0xd5, 0x94,
+	0x0c, 0x6d, 0xa8, 0x77, 0x70, 0x31, 0x47, 0x76, 0x69, 0x2d, 0xb0, 0x44, 0x4a, 0xd3, 0x22, 0x24,
+	0x22, 0xdb, 0x1a, 0x5f, 0x23, 0x7a, 0x06, 0xbc, 0xdc, 0xe9, 0x60, 0xc3, 0x50, 0xe8, 0x5e, 0x48,
+	0x3a, 0xfe, 0x62, 0xa8, 0xe8, 0xb8, 0x8f, 0x55, 0xd3, 0x28, 0x4e, 0xfb, 0xb9, 0xb6, 0xb5, 0x81,
+	0xd6, 0xd3, 0x4e, 0xcf, 0x45, 0x97, 0x46, 0xbc, 0xe6, 0x1b, 0xee, 0xe9, 0x31, 0xf8, 0x8f, 0xe0,
+	0x4a, 0x60, 0x53, 0x26, 0x71, 0x7e, 0xfc, 0x0e, 0xcc, 0x79, 0x77, 0x62, 0x22, 0xc7, 0xf9, 0xbb,
+	0x29, 0x58, 0x8a, 0xd8, 0x03, 0x74, 0x00, 0x33, 0x86, 0x2a, 0x0f, 0x8c, 0xe7, 0x9a, 0xc9, 0xf4,
+	0xf7, 0x76, 0xc2, 0x96, 0x95, 0x5a, 0x8c, 0x96, 0x7e, 0x1e, 0x4c, 0x89, 0xce, 0x68, 0x54, 0x81,
+	0x1c, 0xdd, 0xcf, 0xa0, 0xfb, 0x8a, 0xe2, 0x43, 0xdb, 0x1c, 0x2e, 0x6c, 0x24, 0xff, 0x0e, 0x2c,
+	0xf8, 0x67, 0x40, 0x37, 0x20, 0x6f, 0xcf, 0x20, 0x29, 0x5d, 0xb6, 0x56, 0xb0, 0x9b, 0x6a, 0x5d,
+	0xfe, 0x2d, 0x98, 0xf3, 0x32, 0x43, 0x6b, 0x30, 0xcb, 0x14, 0xc2, 0x21, 0x9f, 0xa1, 0x0d, 0xb5,
+	0xae, 0x63, 0xd3, 0xdf, 0x82, 0x65, 0xbf, 0x9e, 0x31, 0x53, 0x7e, 0xdd, 0x59, 0x03, 0xdd, 0x8b,
+	0x05, 0xff, 0x1a, 0x6c, 0x39, 0x85, 0x3f, 0xce, 0x42, 0x21, 0x68, 0x34, 0xe8, 0x01, 0x64, 0x8f,
+	0x7b, 0x5a, 0xe7, 0x73, 0x36, 0xf6, 0xb5, 0x38, 0xeb, 0x2a, 0x55, 0x2c, 0x2a, 0xda, 0x7a, 0x30,
+	0x25, 0xd2, 0x41, 0xd6, 0xe8, 0xbe, 0x36, 0x54, 0x4d, 0xb6, 0x7b, 0xf1, 0xa3, 0x1f, 0x5b, 0x54,
+	0xee, 0x68, 0x32, 0x08, 0xed, 0x41, 0x9e, 0xaa, 0x9d, 0xd4, 0xd7, 0xba, 0xb8, 0x98, 0x26, 0x3c,
+	0x6e, 0xc6, 0xf2, 0x28, 0x13, 0xda, 0xc7, 0x5a, 0x17, 0x8b, 0x20, 0x3b, 0x7f, 0xf3, 0xf3, 0x90,
+	0xf7, 0xc8, 0xc6, 0x0f, 0x21, 0xef, 0x99, 0x0c, 0x5d, 0x85, 0xe9, 0x13, 0x43, 0x72, 0x9c, 0xf0,
+	0xac, 0x98, 0x3b, 0x31, 0x88, 0x3f, 0xbd, 0x01, 0x79, 0x22, 0x85, 0x74, 0xd2, 0x93, 0x4f, 0x8d,
+	0x62, 0x6a, 0x33, 0x6d, 0x9d, 0x11, 0x69, 0x7a, 0x68, 0xb5, 0xa0, 0x3b, 0xc0, 0x1c, 0x8a, 0x44,
+	0xe9, 0x4e, 0x75, 0x6d, 0x38, 0x20, 0x42, 0xce, 0x8a, 0xec, 0xf6, 0x23, 0x13, 0xed, 0x5b, 0xed,
+	0xfc, 0x9f, 0xa7, 0x00, 0x5c, 0x01, 0xd1, 0x03, 0xc8, 0x90, 0x35, 0x51, 0xc7, 0xbf, 0x3d, 0xc6,
+	0x9a, 0x4a, 0x64, 0x61, 0x64, 0x94, 0xf0, 0x6f, 0x1c, 0x64, 0x08, 0x9b, 0xe0, 0x0d, 0xd6, 0xaa,
+	0x35, 0xf6, 0xeb, 0x55, 0xa9, 0xd1, 0xdc, 0xab, 0x4a, 0x9f, 0x88, 0xb5, 0x76, 0x55, 0x2c, 0x70,
+	0x68, 0x0d, 0xae, 0x7a, 0xdb, 0xc5, 0x6a, 0x79, 0xaf, 0x2a, 0x4a, 0xcd, 0x46, 0xfd, 0x69, 0x21,
+	0x85, 0x78, 0x58, 0x7d, 0x7c, 0x54, 0x6f, 0xd7, 0xc2, 0x7d, 0x69, 0xb4, 0x0e, 0x45, 0x4f, 0x1f,
+	0xe3, 0xc1, 0xd8, 0x66, 0x2c, 0xb6, 0x9e, 0x5e, 0xfa, 0x27, 0xeb, 0xcc, 0x22, 0x01, 0xae, 0x79,
+	0xe7, 0xf4, 0x8f, 0xcd, 0x91, 0x0b, 0xd1, 0xba, 0x33, 0xbd, 0x34, 0x3e, 0x0e, 0xd3, 0x84, 0xa4,
+	0x32, 0xef, 0x68, 0x00, 0xd1, 0xf0, 0x4f, 0x60, 0xde, 0x77, 0x31, 0x58, 0x61, 0x1e, 0xf3, 0x64,
+	0x5d, 0xe9, 0xf8, 0xdc, 0x24, 0xa1, 0x0f, 0xb7, 0x9d, 0x16, 0xe7, 0xed, 0xd6, 0x8a, 0xd5, 0x68,
+	0x9d, 0x65, 0x4f, 0xe9, 0x2b, 0x26, 0xa3, 0x49, 0x11, 0x1a, 0x20, 0x4d, 0x84, 0x40, 0xf8, 0x59,
+	0x0a, 0x72, 0x4c, 0x21, 0x6e, 0x79, 0xae, 0x26, 0x1f, 0x4b, 0xbb, 0x95, 0xb2, 0xf4, 0x59, 0x64,
+	0xca, 0x6f, 0x91, 0xe8, 0x00, 0x16, 0xbc, 0xfe, 0xfb, 0x85, 0x1d, 0x5c, 0x6e, 0xf9, 0xcf, 0xd9,
+	0xeb, 0x44, 0x5e, 0xb0, 0x90, 0x72, 0xfe, 0xcc, 0xdb, 0x86, 0x2a, 0xb0, 0x10, 0xb8, 0x02, 0x32,
+	0xa3, 0xaf, 0x80, 0xf9, 0x8e, 0xcf, 0x1b, 0x96, 0x61, 0xc9, 0xf6, 0xde, 0x3d, 0x2c, 0x99, 0xcc,
+	0xbb, 0xb3, 0x2b, 0xaa, 0x10, 0xf2, 0xfa, 0xc8, 0x25, 0xb6, 0xdb, 0xf8, 0x8f, 0x01, 0x85, 0x65,
+	0x9d, 0xc8, 0x55, 0x0f, 0x61, 0x29, 0xe2, 0x5e, 0x41, 0x25, 0x98, 0x25, 0x47, 0x65, 0x28, 0x26,
+	0x66, 0x61, 0x6b, 0x58, 0x22, 0x97, 0xc4, 0xa2, 0x1f, 0xe8, 0xf8, 0x04, 0xeb, 0x3a, 0xee, 0x12,
+	0x9b, 0x8c, 0xa4, 0x77, 0x48, 0x84, 0xdf, 0xe4, 0x60, 0xc6, 0x6e, 0x47, 0x3b, 0x30, 0x63, 0xe0,
+	0x53, 0x7a, 0xe7, 0xd1, 0xb9, 0x36, 0x82, 0x63, 0x4b, 0x2d, 0x46, 0xc0, 0x02, 0x7c, 0x9b, 0xde,
+	0x0a, 0xf0, 0x7d, 0x5d, 0x13, 0x2d, 0xfe, 0x2f, 0x39, 0x58, 0xda, 0xc3, 0x3d, 0x1c, 0x0c, 0x8d,
+	0x92, 0xdc, 0xba, 0x37, 0x9a, 0x48, 0xf9, 0xa3, 0x89, 0x08, 0x56, 0x09, 0xd1, 0xc4, 0x85, 0x6e,
+	0xd8, 0x55, 0x58, 0xf6, 0xcf, 0x46, 0xef, 0x14, 0xe1, 0x3f, 0xd2, 0xb0, 0x61, 0xe9, 0x82, 0xae,
+	0xf5, 0x7a, 0x58, 0x3f, 0x1c, 0x1e, 0xf7, 0x14, 0xe3, 0xf9, 0x04, 0x8b, 0xbb, 0x0a, 0xd3, 0xaa,
+	0xd6, 0xf5, 0x18, 0x4f, 0xce, 0xfa, 0xac, 0x75, 0x51, 0x15, 0x16, 0x83, 0xb1, 0xdd, 0x39, 0xf3,
+	0xfc, 0xf1, 0x91, 0x5d, 0xe1, 0x2c, 0x78, 0x6d, 0xf1, 0x30, 0x63, 0x45, 0xa5, 0x9a, 0xda, 0x3b,
+	0x27, 0x16, 0x33, 0x23, 0x3a, 0xdf, 0x48, 0x0c, 0x86, 0x69, 0xdf, 0x70, 0xc2, 0xb4, 0xc4, 0x15,
+	0x25, 0x45, 0x6c, 0x9f, 0x85, 0x2c, 0x3e, 0x47, 0x58, 0x7f, 0x30, 0x26, 0xeb, 0x91, 0x9e, 0xe0,
+	0x22, 0xa7, 0x78, 0x09, 0xe6, 0xfb, 0x77, 0x1c, 0xdc, 0x88, 0x5d, 0x02, 0x8b, 0x33, 0xba, 0x70,
+	0x65, 0x40, 0x3b, 0x9c, 0x4d, 0xa0, 0x56, 0xf6, 0xe1, 0xc8, 0x4d, 0x60, 0xd9, 0x35, 0x6b, 0xf5,
+	0x6d, 0xc3, 0xc2, 0xc0, 0xd7, 0xc8, 0x97, 0x61, 0x29, 0x82, 0x6c, 0xa2, 0xc5, 0xfc, 0x9c, 0x83,
+	0x4d, 0x57, 0x94, 0x23, 0x75, 0x70, 0x79, 0xea, 0xdb, 0x76, 0x75, 0x8b, 0xba, 0xfc, 0xf7, 0xc2,
+	0x6b, 0x8f, 0x9e, 0xf0, 0x55, 0x59, 0xf0, 0x4d, 0xd8, 0x4a, 0x98, 0x9a, 0x99, 0xf3, 0xcf, 0x32,
+	0xb0, 0xf5, 0x44, 0xee, 0x29, 0x5d, 0x27, 0x7a, 0x8c, 0xc0, 0x21, 0x92, 0xb7, 0xa4, 0x13, 0xb2,
+	0x00, 0xea, 0xb5, 0x1e, 0x38, 0x56, 0x3b, 0x8a, 0xff, 0x18, 0xd7, 0xe1, 0x25, 0x66, 0x7e, 0x4f,
+	0x23, 0x32, 0xbf, 0x0f, 0xc6, 0x97, 0x35, 0x29, 0x0f, 0x3c, 0x0a, 0x3a, 0x98, 0xf7, 0xc7, 0xe7,
+	0x9b, 0xa0, 0x05, 0x17, 0xb6, 0xe2, 0xaf, 0x33, 0x55, 0xfb, 0x9b, 0x0c, 0x08, 0x49, 0xab, 0x67,
+	0x3e, 0x44, 0x84, 0xd9, 0x8e, 0xa6, 0x9e, 0x28, 0x7a, 0x1f, 0x77, 0x59, 0xca, 0xf1, 0xee, 0x38,
+	0x9b, 0xc7, 0x1c, 0xc8, 0xae, 0x3d, 0x56, 0x74, 0xd9, 0xa0, 0x22, 0x4c, 0xf7, 0xb1, 0x61, 0xc8,
+	0xa7, 0xb6, 0x58, 0xf6, 0x27, 0xff, 0x93, 0x34, 0xcc, 0x3a, 0x43, 0x90, 0x1a, 0xd2, 0x60, 0xea,
+	0xbe, 0xf6, 0x5f, 0x46, 0x80, 0x97, 0x57, 0xe6, 0xd4, 0x4b, 0x28, 0x73, 0xd7, 0xa7, 0xcc, 0xd4,
+	0x1c, 0xf6, 0x5e, 0x4a, 0xec, 0x04, 0xbd, 0xfe, 0xda, 0x15, 0x50, 0xf8, 0x65, 0x40, 0x75, 0xc5,
+	0x60, 0xa9, 0x9b, 0xe3, 0x96, 0xac, 0x4c, 0x4d, 0x7e, 0x21, 0x61, 0xd5, 0xd4, 0x15, 0x16, 0xae,
+	0x67, 0x45, 0xe8, 0xcb, 0x2f, 0xaa, 0xb4, 0xc5, 0x0a, 0xe9, 0x0d, 0x53, 0xd6, 0x4d, 0x45, 0x3d,
+	0x95, 0x4c, 0xed, 0x73, 0xec, 0x80, 0xc1, 0x76, 0x6b, 0xdb, 0x6a, 0x14, 0xfe, 0x3d, 0x05, 0x4b,
+	0x3e, 0xf6, 0x4c, 0x27, 0x3f, 0x84, 0x69, 0x97, 0xb7, 0x2f, 0x8c, 0x8f, 0xa0, 0x2e, 0xd1, 0x6d,
+	0xb3, 0x47, 0xa0, 0xeb, 0x00, 0x2a, 0x7e, 0x61, 0xfa, 0xe6, 0x9d, 0xb5, 0x5a, 0xc8, 0x9c, 0xfc,
+	0x6f, 0x71, 0x4e, 0xa6, 0x6f, 0xca, 0xe6, 0x90, 0x64, 0x95, 0xcc, 0x45, 0xe3, 0xae, 0xc4, 0xee,
+	0x18, 0x3a, 0xef, 0xac, 0x58, 0x70, 0x7a, 0x1a, 0xe4, 0xb6, 0x31, 0xd0, 0xbe, 0x83, 0xb3, 0x76,
+	0x34, 0xb5, 0xab, 0x98, 0x2e, 0xce, 0x7a, 0x35, 0x94, 0x20, 0xd0, 0xee, 0x8a, 0x95, 0x57, 0xd9,
+	0xc8, 0xaa, 0xd3, 0xca, 0x7f, 0x01, 0x59, 0x7a, 0x1c, 0x63, 0x82, 0x05, 0xe8, 0x63, 0xc8, 0x19,
+	0x44, 0xe2, 0x20, 0x30, 0x12, 0xb5, 0x27, 0xde, 0x15, 0x8a, 0x6c, 0x9c, 0xf0, 0x2d, 0xe0, 0xdd,
+	0x8b, 0x69, 0x1f, 0x9b, 0xe3, 0x5f, 0xbf, 0x3b, 0xd6, 0x1a, 0x84, 0x3f, 0x4c, 0xc1, 0x5a, 0x24,
+	0x83, 0xc9, 0x60, 0x0f, 0x74, 0x10, 0x58, 0xc9, 0xdb, 0xe1, 0x1b, 0x3b, 0xc4, 0x3c, 0x72, 0x45,
+	0xfc, 0xaf, 0x5f, 0xec, 0x30, 0x2b, 0x13, 0x1f, 0x66, 0xe8, 0x1c, 0xe9, 0xce, 0xfc, 0x24, 0x05,
+	0x68, 0x1f, 0x9b, 0x4e, 0xaa, 0xcc, 0xb6, 0x34, 0xc6, 0xdf, 0x70, 0x2f, 0xe1, 0x6f, 0xbe, 0xe3,
+	0xf3, 0x37, 0xd4, 0x63, 0xdd, 0xf6, 0x54, 0x4e, 0x02, 0x53, 0x27, 0xde, 0x96, 0x31, 0xe9, 0x29,
+	0x8d, 0xf9, 0xc7, 0x4b, 0x4f, 0x2f, 0xe8, 0x56, 0xfe, 0x95, 0x83, 0x25, 0x9f, 0xd0, 0x4c, 0x83,
+	0xee, 0x02, 0x92, 0xcf, 0x64, 0xa5, 0x27, 0x5b, 0x82, 0xd9, 0xe9, 0x3f, 0x83, 0x03, 0x16, 0x9d,
+	0x1e, 0x7b, 0x18, 0x7a, 0x04, 0x4b, 0x7d, 0xf9, 0x85, 0xd2, 0x1f, 0xf6, 0x25, 0xb6, 0xcf, 0x86,
+	0xf2, 0x7d, 0x1b, 0x38, 0x5c, 0x0b, 0x01, 0xe8, 0x35, 0xd5, 0x7c, 0xff, 0x5d, 0x8a, 0xa0, 0x2f,
+	0xb2, 0x71, 0x4c, 0x79, 0x94, 0xef, 0x63, 0x74, 0x08, 0x4b, 0x7d, 0x45, 0x0d, 0x31, 0x4b, 0x8f,
+	0x64, 0x46, 0x0d, 0x7c, 0x91, 0x0d, 0x76, 0x39, 0x0a, 0x82, 0x37, 0xe8, 0x65, 0xcb, 0x0d, 0x56,
+	0x9a, 0x7a, 0xde, 0x60, 0x31, 0x44, 0xc3, 0xb6, 0x65, 0x3f, 0xb2, 0xda, 0x74, 0x33, 0x6c, 0x36,
+	0xac, 0xf4, 0x12, 0x5b, 0x78, 0xfa, 0x9f, 0xb4, 0xd7, 0x82, 0x43, 0xd4, 0xe8, 0x43, 0x48, 0xeb,
+	0x83, 0x0e, 0x33, 0xdf, 0x37, 0xc6, 0xe0, 0x5f, 0x12, 0x0f, 0x77, 0x0f, 0xa6, 0x44, 0x6b, 0x14,
+	0xff, 0x47, 0x69, 0x48, 0x8b, 0x87, 0xbb, 0xe8, 0x63, 0x5f, 0x89, 0xe5, 0xce, 0x98, 0x5c, 0xbc,
+	0x15, 0x96, 0x7f, 0x48, 0x45, 0x95, 0x58, 0x8a, 0xb0, 0xbc, 0x2b, 0x56, 0xcb, 0xed, 0xaa, 0xb4,
+	0x57, 0xad, 0x57, 0xdb, 0x55, 0x89, 0x56, 0x89, 0x0a, 0x1c, 0x5a, 0x87, 0xe2, 0xe1, 0x51, 0xa5,
+	0x5e, 0x6b, 0x1d, 0x48, 0x47, 0x0d, 0xfb, 0x2f, 0xd6, 0x9b, 0x42, 0x05, 0x98, 0xab, 0xd7, 0x5a,
+	0x6d, 0xd6, 0xd0, 0x2a, 0xa4, 0xad, 0x96, 0xfd, 0x6a, 0x5b, 0xda, 0x2d, 0x1f, 0x96, 0x77, 0x6b,
+	0xed, 0xa7, 0x85, 0x0c, 0xe2, 0x61, 0xd5, 0xcf, 0xbb, 0xd5, 0x28, 0x1f, 0xb6, 0x0e, 0x9a, 0xed,
+	0x42, 0x16, 0x21, 0x58, 0x20, 0xe3, 0xed, 0xa6, 0x56, 0x21, 0x67, 0x71, 0xd8, 0xad, 0x37, 0x1b,
+	0x8e, 0x0c, 0xd3, 0x68, 0x19, 0x0a, 0xf6, 0xcc, 0x62, 0xb5, 0xbc, 0x47, 0x00, 0xbd, 0x19, 0xb4,
+	0x08, 0xf3, 0xd5, 0xef, 0x1d, 0x96, 0x1b, 0x7b, 0x36, 0xe1, 0x2c, 0xda, 0x84, 0x75, 0xaf, 0x38,
+	0x12, 0x1b, 0x55, 0xdd, 0x23, 0xa0, 0x5c, 0xab, 0x00, 0xe8, 0x1a, 0x14, 0x58, 0x01, 0x6c, 0xb7,
+	0xd9, 0xd8, 0xab, 0xb5, 0x6b, 0xcd, 0x46, 0x21, 0x4f, 0x11, 0xbc, 0x25, 0x00, 0x4b, 0x72, 0xc6,
+	0x6c, 0x6e, 0x34, 0xac, 0x37, 0x4f, 0x61, 0x3d, 0x1b, 0xb1, 0xfe, 0x79, 0x0a, 0x56, 0x28, 0x64,
+	0x6d, 0x03, 0xe4, 0xb6, 0xaf, 0xda, 0x86, 0x02, 0xc5, 0xbb, 0xa4, 0xe0, 0x2d, 0xb0, 0x40, 0xdb,
+	0x9f, 0xd8, 0x79, 0x87, 0x5d, 0x5e, 0x4a, 0x79, 0xca, 0x4b, 0xb5, 0x60, 0x16, 0x76, 0xdb, 0x5f,
+	0x88, 0x09, 0xcc, 0x96, 0x94, 0xd8, 0x3f, 0x8e, 0x48, 0x13, 0xee, 0x26, 0x73, 0x4b, 0x0a, 0xa1,
+	0x2e, 0x92, 0xc5, 0x5f, 0xd0, 0xcb, 0x3d, 0x84, 0xd5, 0xa0, 0xbc, 0xcc, 0xa0, 0xef, 0x84, 0xca,
+	0x25, 0x8e, 0xdb, 0x75, 0x68, 0x1d, 0x0a, 0xe1, 0x87, 0x29, 0x98, 0xb1, 0x9b, 0xad, 0xf0, 0xc6,
+	0xf2, 0x4b, 0x3e, 0xa4, 0x74, 0xd6, 0x6a, 0x71, 0x80, 0x57, 0x6f, 0xa1, 0x23, 0x15, 0x2c, 0x74,
+	0x44, 0x9e, 0x73, 0x3a, 0xf2, 0x9c, 0xbf, 0x0d, 0xf3, 0x1d, 0x4b, 0x7c, 0x45, 0x53, 0x25, 0x53,
+	0xe9, 0xdb, 0x40, 0x68, 0xb8, 0x30, 0xd9, 0xb6, 0x1f, 0x1c, 0x88, 0x73, 0xf6, 0x00, 0xab, 0x09,
+	0x6d, 0xc2, 0x1c, 0x29, 0x54, 0x4a, 0xa6, 0x26, 0x0d, 0x0d, 0x5c, 0xcc, 0x12, 0x58, 0x08, 0x48,
+	0x5b, 0x5b, 0x3b, 0x32, 0x30, 0xba, 0x07, 0x8b, 0x04, 0xc4, 0x97, 0xbc, 0x32, 0xe7, 0x2c, 0x69,
+	0x58, 0xd4, 0x44, 0x7a, 0x5b, 0x8e, 0xf4, 0xc2, 0x5f, 0x73, 0xb0, 0x42, 0xe1, 0xb1, 0xa0, 0xfe,
+	0x8e, 0xaa, 0xf0, 0x78, 0x55, 0x34, 0x70, 0x7d, 0x46, 0x32, 0x7c, 0x55, 0xe8, 0x40, 0x11, 0x56,
+	0x83, 0xf3, 0x31, 0x48, 0xe0, 0xa7, 0x29, 0x58, 0xb6, 0x62, 0x39, 0xbb, 0xe3, 0xb2, 0xc3, 0xed,
+	0x09, 0x8e, 0x3e, 0xb0, 0x99, 0x99, 0xd0, 0x66, 0x1e, 0x04, 0x13, 0xee, 0x37, 0xbd, 0xd1, 0x68,
+	0x70, 0x05, 0xaf, 0x6a, 0x2f, 0x7f, 0xcc, 0xc1, 0x4a, 0x60, 0x3e, 0x66, 0x60, 0x1f, 0x05, 0x33,
+	0x88, 0x9b, 0x31, 0xf2, 0xbd, 0x54, 0x0e, 0xf1, 0x9e, 0x1d, 0xbb, 0x4f, 0x66, 0xc7, 0xff, 0x98,
+	0x82, 0xeb, 0xee, 0x2d, 0x48, 0xde, 0x16, 0x74, 0x27, 0x80, 0xc0, 0x2e, 0x56, 0xc2, 0xff, 0x6e,
+	0xd0, 0x43, 0xdf, 0x0f, 0x5f, 0xcc, 0x11, 0x22, 0x25, 0x79, 0xea, 0x48, 0xe4, 0x38, 0x33, 0x29,
+	0x72, 0x7c, 0x21, 0x0d, 0xf8, 0x35, 0x2f, 0x28, 0xee, 0x17, 0x9f, 0x69, 0xc2, 0x98, 0xd5, 0xa5,
+	0xf7, 0xe1, 0x2a, 0x49, 0x17, 0x9c, 0xd7, 0x33, 0x76, 0xc1, 0x9e, 0xfa, 0xd0, 0x19, 0x71, 0xc5,
+	0xea, 0x76, 0xde, 0x83, 0xb0, 0x8a, 0x4a, 0x57, 0xf8, 0x2a, 0x03, 0xab, 0x56, 0x3a, 0xd1, 0x32,
+	0xe5, 0xd3, 0x49, 0x6a, 0x0d, 0xbf, 0x14, 0x86, 0x6e, 0x53, 0xfe, 0x63, 0x89, 0xe6, 0x3a, 0x0e,
+	0x62, 0x8b, 0x4a, 0xb0, 0x64, 0x98, 0xf2, 0x29, 0x71, 0x07, 0xb2, 0x7e, 0x8a, 0x4d, 0x69, 0x20,
+	0x9b, 0xcf, 0x99, 0xad, 0x2f, 0xb2, 0xae, 0x36, 0xe9, 0x39, 0x94, 0xcd, 0xe7, 0x97, 0x74, 0x90,
+	0xe8, 0x3b, 0x41, 0xa7, 0xf0, 0xd6, 0x88, 0xb5, 0x24, 0xe8, 0xd6, 0xf7, 0x62, 0xe0, 0xfd, 0x77,
+	0x46, 0xb0, 0x1c, 0x0d, 0xeb, 0x5f, 0x1c, 0xce, 0xfe, 0x9a, 0x2b, 0x03, 0xd7, 0xe0, 0x6a, 0x68,
+	0xf1, 0xec, 0x0a, 0x39, 0x85, 0xa2, 0xd5, 0x75, 0xa4, 0x1a, 0x13, 0xaa, 0x63, 0x8c, 0xc6, 0xa4,
+	0x62, 0x34, 0x46, 0x58, 0x83, 0x6b, 0x11, 0x13, 0x31, 0x29, 0xfe, 0x22, 0x4b, 0xc5, 0x98, 0xbc,
+	0x48, 0xf5, 0x69, 0x9c, 0x55, 0xbc, 0xeb, 0x3d, 0xf6, 0xc8, 0x7a, 0xce, 0xab, 0xb0, 0x8b, 0x1b,
+	0x90, 0xf7, 0xd2, 0xb1, 0x6b, 0xd0, 0x1c, 0x61, 0x38, 0xd9, 0x0b, 0xd5, 0xce, 0x72, 0x81, 0xda,
+	0x59, 0xdd, 0x35, 0xaa, 0x69, 0x7f, 0x2c, 0x1c, 0xbb, 0x15, 0x09, 0x66, 0xf5, 0x2c, 0x64, 0x56,
+	0x33, 0xfe, 0x82, 0x5c, 0x2c, 0xd3, 0x5f, 0x00, 0xc3, 0x62, 0x4a, 0x1d, 0x59, 0x29, 0x13, 0x9e,
+	0x01, 0x4f, 0x35, 0x7e, 0xf2, 0xda, 0x55, 0x40, 0x8d, 0x52, 0x41, 0x35, 0x12, 0xae, 0xc3, 0x5a,
+	0x24, 0x6f, 0x36, 0xf5, 0xef, 0x70, 0x54, 0x30, 0x07, 0x14, 0x6b, 0x99, 0xb2, 0x69, 0x8c, 0x3b,
+	0x35, 0xeb, 0xf4, 0x4e, 0x4d, 0x9b, 0x88, 0x06, 0x4f, 0x68, 0x12, 0xc2, 0xef, 0x71, 0x74, 0x1f,
+	0x82, 0xb2, 0xb0, 0xdb, 0xf6, 0x4d, 0xc8, 0x0e, 0x09, 0xee, 0x4f, 0xa3, 0xae, 0x25, 0xbf, 0x11,
+	0x1c, 0x59, 0x5d, 0x22, 0xa5, 0xb8, 0x34, 0x24, 0x55, 0xf8, 0x29, 0x07, 0x79, 0x0f, 0x7f, 0xb4,
+	0x0e, 0xb3, 0x0e, 0x54, 0x64, 0x27, 0x48, 0x4e, 0x83, 0x75, 0xfc, 0xa6, 0x66, 0xca, 0x3d, 0xf6,
+	0x26, 0x85, 0x7e, 0x58, 0x39, 0xed, 0xd0, 0xc0, 0x34, 0x1c, 0x4e, 0x8b, 0xe4, 0x6f, 0x74, 0x07,
+	0x32, 0x43, 0x55, 0x31, 0x89, 0xd9, 0x2f, 0x04, 0xed, 0x99, 0x4c, 0x55, 0x3a, 0x52, 0x15, 0x53,
+	0x24, 0x54, 0xc2, 0x6d, 0xc8, 0x58, 0x5f, 0x7e, 0xc8, 0x62, 0x16, 0xb2, 0x95, 0xa7, 0xed, 0x6a,
+	0xab, 0xc0, 0x21, 0x80, 0x5c, 0x8d, 0x26, 0xf8, 0x29, 0xa1, 0x6e, 0xbf, 0x4b, 0x75, 0x16, 0x61,
+	0xb9, 0x00, 0xf9, 0x58, 0xd5, 0xf4, 0xbe, 0xdc, 0x23, 0x32, 0xcf, 0x88, 0xce, 0x77, 0x7c, 0x39,
+	0x85, 0x82, 0x8f, 0xeb, 0xce, 0x89, 0x44, 0x01, 0x4c, 0x9f, 0x51, 0xdd, 0x8a, 0x83, 0x96, 0xca,
+	0x91, 0xd0, 0xd2, 0x75, 0xdf, 0x2d, 0x3b, 0x02, 0x54, 0xfa, 0xdb, 0x14, 0xac, 0x44, 0xd2, 0xa1,
+	0xf7, 0xbc, 0x70, 0xd2, 0x56, 0x22, 0x4f, 0x2f, 0x90, 0xf4, 0x15, 0x47, 0x81, 0xa4, 0x1d, 0x1f,
+	0x90, 0xf4, 0xfa, 0xc8, 0xf1, 0x5e, 0x08, 0xe9, 0xc7, 0x5c, 0x0c, 0x84, 0xd4, 0x6a, 0x97, 0xf7,
+	0xab, 0xd2, 0x51, 0x83, 0xfe, 0xeb, 0x40, 0x48, 0xcb, 0x50, 0x70, 0x81, 0x15, 0xa9, 0xd5, 0x2e,
+	0x93, 0x47, 0xc6, 0x21, 0xf8, 0x26, 0x1d, 0x09, 0xce, 0x64, 0x46, 0xe3, 0x30, 0x59, 0x4a, 0xb2,
+	0x0a, 0x88, 0x8d, 0x7e, 0xdc, 0x3c, 0x6a, 0xb4, 0x25, 0xf2, 0x84, 0xb9, 0x90, 0x73, 0xf0, 0x99,
+	0x65, 0x40, 0xec, 0xb4, 0xbc, 0x2f, 0xf1, 0xff, 0x84, 0x83, 0x25, 0x5f, 0x33, 0x3b, 0x3c, 0x4f,
+	0x51, 0x9c, 0xf3, 0x15, 0xc5, 0xef, 0xc1, 0xb2, 0x95, 0x31, 0x52, 0x4b, 0x31, 0xa4, 0x01, 0xd6,
+	0x09, 0x18, 0xce, 0x74, 0x7e, 0xb1, 0x2f, 0xbf, 0x60, 0x05, 0x83, 0x43, 0xac, 0x5b, 0x8c, 0x2f,
+	0x01, 0x12, 0x16, 0xbe, 0x4c, 0xd3, 0xb8, 0x64, 0xe2, 0xbc, 0x66, 0xa4, 0x8f, 0x0a, 0x27, 0x3e,
+	0xe9, 0x09, 0x12, 0x9f, 0x18, 0x0f, 0x97, 0x99, 0x28, 0x18, 0x9e, 0xfc, 0x4e, 0x6f, 0xb8, 0xf7,
+	0x36, 0x8d, 0x5c, 0xef, 0x78, 0xf5, 0x77, 0x64, 0xa6, 0x95, 0xfb, 0xb2, 0xc2, 0xfd, 0xe8, 0xb2,
+	0xf2, 0xe4, 0x32, 0x8d, 0xc7, 0x2e, 0x90, 0x1f, 0x09, 0x77, 0xe0, 0x16, 0x79, 0x56, 0x39, 0x0a,
+	0xd0, 0xa6, 0x2e, 0xe9, 0x57, 0xe1, 0xf5, 0x51, 0xd4, 0x6c, 0xfa, 0x7a, 0xa4, 0xff, 0x71, 0x6a,
+	0x5b, 0x01, 0x2e, 0x23, 0x5c, 0x11, 0x9d, 0xfc, 0xb7, 0x53, 0xb0, 0x39, 0x6a, 0x1c, 0xfa, 0xd8,
+	0xeb, 0x9a, 0xee, 0x8c, 0x3b, 0x9d, 0xd7, 0x4b, 0xfd, 0x01, 0xf3, 0x52, 0x55, 0x9f, 0x97, 0x7a,
+	0x67, 0x12, 0x56, 0x5e, 0x87, 0x55, 0x8d, 0xf2, 0x57, 0x6f, 0xc3, 0x1b, 0x7e, 0x58, 0xda, 0xe3,
+	0xa3, 0xe8, 0xaf, 0x1f, 0x1c, 0x9c, 0x9a, 0x23, 0x0e, 0x66, 0xc7, 0x87, 0xf6, 0xfe, 0x7e, 0x1a,
+	0x36, 0xbd, 0x0f, 0x94, 0xf7, 0xbd, 0x68, 0x5a, 0xd2, 0xaf, 0x05, 0x6e, 0xc3, 0x62, 0x10, 0x29,
+	0xb2, 0x1f, 0xe4, 0x5e, 0xf1, 0x43, 0x45, 0x46, 0xd2, 0x03, 0x9c, 0x11, 0x53, 0x27, 0xe7, 0x7f,
+	0x61, 0x14, 0xf8, 0x9b, 0x63, 0x33, 0xfe, 0xff, 0x09, 0x08, 0x53, 0xf5, 0xec, 0xc1, 0x56, 0x82,
+	0xfc, 0xcc, 0x2c, 0x2a, 0xb0, 0xe0, 0x07, 0x46, 0x99, 0xa6, 0x06, 0x5e, 0xa1, 0xfa, 0x07, 0xcf,
+	0xfb, 0xd0, 0x52, 0x3a, 0xdb, 0x3f, 0x73, 0xf6, 0x83, 0x7d, 0x1f, 0xad, 0x75, 0xc2, 0x61, 0xe4,
+	0x95, 0x2e, 0x22, 0x08, 0xba, 0xa2, 0x12, 0xcc, 0xda, 0x54, 0x46, 0xf0, 0x09, 0xa8, 0x33, 0xb9,
+	0x4b, 0x12, 0x06, 0x8e, 0xd3, 0x17, 0x04, 0x8e, 0x33, 0x41, 0xe0, 0x98, 0xae, 0xed, 0x87, 0x29,
+	0xd8, 0xf4, 0xbe, 0x95, 0x8c, 0x54, 0xef, 0x49, 0x16, 0xba, 0x05, 0x73, 0x1e, 0x2a, 0x5b, 0xe3,
+	0xf3, 0x2e, 0xee, 0x99, 0xa4, 0xed, 0xa3, 0x24, 0x79, 0x45, 0x20, 0x28, 0xdd, 0x8a, 0x6d, 0xd8,
+	0x4a, 0x98, 0x9f, 0x2a, 0x15, 0xa5, 0xfc, 0x41, 0x8a, 0xfc, 0xb6, 0xed, 0xff, 0x6e, 0xc7, 0xe2,
+	0x81, 0xc7, 0x44, 0x31, 0x5e, 0xe9, 0x76, 0x29, 0xb0, 0x11, 0x37, 0xf9, 0x25, 0x1b, 0xe0, 0xfd,
+	0xff, 0xe6, 0x60, 0xa6, 0xd6, 0xc5, 0xaa, 0x49, 0x83, 0x82, 0x79, 0xdf, 0xaf, 0x1c, 0xd1, 0x7a,
+	0xcc, 0x8f, 0x1f, 0xc9, 0x16, 0xf0, 0xd7, 0x13, 0x7f, 0x1a, 0x29, 0x4c, 0xa1, 0x13, 0xcf, 0x2f,
+	0x34, 0x7d, 0xcf, 0x05, 0x5e, 0x0b, 0x8d, 0x8c, 0xb8, 0xab, 0xf9, 0x5b, 0x23, 0xa8, 0x9c, 0x79,
+	0xde, 0x87, 0x2c, 0xf9, 0xb1, 0x1a, 0x5a, 0x76, 0x7e, 0x30, 0xe7, 0xf9, 0x2d, 0x1b, 0xbf, 0x12,
+	0x68, 0xb5, 0xc7, 0xdd, 0xff, 0xfb, 0x59, 0x00, 0xf7, 0x0e, 0x44, 0x8f, 0x60, 0xce, 0xeb, 0xfa,
+	0xd0, 0x5a, 0xc2, 0xaf, 0xb5, 0xf8, 0xf5, 0xe8, 0x4e, 0x47, 0xa6, 0x47, 0x30, 0xe7, 0x55, 0x79,
+	0x97, 0x59, 0xc4, 0x63, 0x6d, 0x97, 0x59, 0xe4, 0xdb, 0xea, 0x29, 0xd4, 0x83, 0xab, 0x31, 0x4f,
+	0x65, 0xd1, 0xeb, 0xe3, 0x3d, 0x28, 0xe6, 0xdf, 0x18, 0xf3, 0xcd, 0xad, 0x30, 0x85, 0x74, 0xb8,
+	0x16, 0xfb, 0x42, 0x14, 0x6d, 0x8f, 0xfb, 0x7e, 0x95, 0x7f, 0x73, 0x0c, 0x4a, 0x67, 0xce, 0x21,
+	0xf0, 0xf1, 0xcf, 0xd2, 0xd0, 0x9b, 0x63, 0xbf, 0x97, 0xe4, 0x6f, 0x8f, 0xff, 0xca, 0x4d, 0x98,
+	0x42, 0x07, 0x90, 0xf7, 0xbc, 0x4f, 0x42, 0x7c, 0xe4, 0xa3, 0x25, 0xca, 0x78, 0x2d, 0xe1, 0x41,
+	0x13, 0xe5, 0xe4, 0x79, 0x32, 0xe2, 0x72, 0x0a, 0x3f, 0x7e, 0x71, 0x39, 0x45, 0xbc, 0x31, 0x09,
+	0x6e, 0x7f, 0x20, 0x30, 0x8d, 0xda, 0xfe, 0xe8, 0x48, 0x37, 0x6a, 0xfb, 0x63, 0xa2, 0x5c, 0x61,
+	0x0a, 0x7d, 0x17, 0x16, 0xfc, 0xb5, 0x60, 0x74, 0x3d, 0xb1, 0xa6, 0xcd, 0x6f, 0xc4, 0x75, 0x7b,
+	0x59, 0xfa, 0x2b, 0x89, 0x2e, 0xcb, 0xc8, 0x8a, 0xa6, 0xcb, 0x32, 0xa6, 0x00, 0x39, 0x65, 0xf9,
+	0x27, 0x5f, 0x7d, 0xcc, 0xf5, 0x4f, 0x51, 0x65, 0x3d, 0xd7, 0x3f, 0x45, 0x16, 0xd5, 0x84, 0x29,
+	0xa4, 0xc0, 0x6a, 0x74, 0x79, 0x06, 0xdd, 0x1a, 0xab, 0xfa, 0xc4, 0xbf, 0x3e, 0x8a, 0xcc, 0x99,
+	0xaa, 0x03, 0x4b, 0x11, 0xcf, 0xc7, 0x90, 0x90, 0xf8, 0xb6, 0x8c, 0x4e, 0x72, 0x73, 0x8c, 0xf7,
+	0x67, 0x02, 0x71, 0xe6, 0xff, 0x95, 0x86, 0x2b, 0x81, 0xc0, 0x1e, 0xfd, 0x06, 0x07, 0x1b, 0xc9,
+	0xc9, 0x0e, 0xba, 0x1b, 0x93, 0x14, 0xc4, 0x28, 0x56, 0x69, 0x5c, 0x72, 0x8f, 0x71, 0x5f, 0x8b,
+	0x8d, 0x29, 0xd1, 0xf6, 0xb8, 0x61, 0xb3, 0x47, 0xa3, 0x47, 0x05, 0xa8, 0x64, 0x3b, 0xac, 0x69,
+	0x63, 0xa3, 0x0e, 0xb4, 0x3d, 0x6e, 0x60, 0xe4, 0x4e, 0x3b, 0x32, 0x84, 0xa1, 0xd3, 0xf6, 0x60,
+	0x35, 0xfa, 0xf6, 0x46, 0xb7, 0xc6, 0x0a, 0x2d, 0x5c, 0xad, 0x4a, 0x0e, 0x02, 0xc8, 0x6c, 0x24,
+	0xad, 0xba, 0xff, 0x2f, 0x59, 0xc8, 0x10, 0xa0, 0xa4, 0x0d, 0x57, 0x02, 0xc5, 0x17, 0xb4, 0x91,
+	0x5c, 0x92, 0xe2, 0x6f, 0xc4, 0xf6, 0x3b, 0xe7, 0xf7, 0x0c, 0x16, 0x43, 0xe5, 0x14, 0xb4, 0xe9,
+	0x1d, 0x17, 0x55, 0xd2, 0xe1, 0xb7, 0x12, 0x28, 0x82, 0xbc, 0xfd, 0x97, 0xda, 0xe6, 0x28, 0xbc,
+	0xdf, 0xcf, 0x3b, 0xee, 0x22, 0xfb, 0x8c, 0xe2, 0x52, 0xc1, 0x2b, 0x4c, 0xf0, 0xcb, 0x15, 0x79,
+	0x79, 0xdd, 0x4c, 0xa4, 0x71, 0x66, 0xf8, 0xd4, 0x01, 0xc4, 0x3c, 0x70, 0x33, 0xf2, 0x09, 0x17,
+	0x09, 0x8b, 0xf3, 0x42, 0x12, 0x89, 0xc3, 0xfe, 0x13, 0x28, 0x04, 0x91, 0x11, 0x74, 0x63, 0x04,
+	0x50, 0xc3, 0x6f, 0xc6, 0x13, 0x04, 0x77, 0x26, 0xe8, 0x09, 0x82, 0x52, 0x45, 0x99, 0xff, 0xcd,
+	0x44, 0x1a, 0xef, 0x7d, 0xe8, 0xc1, 0x04, 0xdd, 0xfb, 0x30, 0x8c, 0x1f, 0xba, 0xf7, 0x61, 0x04,
+	0x88, 0x28, 0x4c, 0xed, 0x3c, 0x00, 0x90, 0x7b, 0x83, 0xe7, 0xb2, 0x84, 0xd5, 0x61, 0x1f, 0xad,
+	0x87, 0xd2, 0xb4, 0xaa, 0x3a, 0xec, 0x37, 0x07, 0x56, 0x76, 0x66, 0x14, 0xff, 0x6c, 0x86, 0xe4,
+	0x62, 0xb3, 0x64, 0x80, 0xd5, 0xb1, 0x53, 0x87, 0x82, 0x3b, 0x5a, 0x22, 0x81, 0x36, 0xda, 0x8a,
+	0xe4, 0x41, 0x5e, 0x4b, 0x06, 0x18, 0x2d, 0x38, 0x8c, 0x48, 0xef, 0xce, 0x47, 0x00, 0x1d, 0x43,
+	0x91, 0x68, 0xa4, 0x8f, 0xae, 0x87, 0xf8, 0x3c, 0x54, 0x70, 0xaf, 0x6b, 0xf3, 0xf8, 0x53, 0x26,
+	0x4c, 0xc7, 0x50, 0x68, 0x3e, 0xb0, 0xf3, 0x6d, 0xc8, 0x53, 0x61, 0x4e, 0x2c, 0xba, 0x51, 0xe3,
+	0x99, 0x0c, 0x74, 0xf5, 0xa4, 0x67, 0xa7, 0x0a, 0xf3, 0x94, 0x01, 0x83, 0xd8, 0xd1, 0x8d, 0x10,
+	0x8b, 0xc7, 0xb4, 0x27, 0xc0, 0x64, 0x8e, 0x0c, 0x63, 0x7d, 0x3b, 0x15, 0x98, 0xb3, 0xd9, 0x98,
+	0xcf, 0xb5, 0x2e, 0xda, 0x88, 0xe0, 0x62, 0x75, 0x04, 0x98, 0xe4, 0x19, 0x13, 0xab, 0xcb, 0x15,
+	0xc5, 0xfe, 0x3f, 0x3e, 0xc2, 0xa2, 0x30, 0x54, 0x29, 0x52, 0x14, 0xd6, 0x57, 0xc9, 0x3e, 0x4b,
+	0x77, 0x0c, 0xe5, 0x38, 0x47, 0x06, 0x7d, 0xe3, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0x0c, 0x79,
+	0xd8, 0xd8, 0x90, 0x46, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -4951,6 +6211,7 @@ type ControllerClient interface {
 	DeleteSnapshot(ctx context.Context, in *DeleteSnapshotRequest, opts ...grpc.CallOption) (*DeleteSnapshotResponse, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest, opts ...grpc.CallOption) (*ListSnapshotsResponse, error)
 	ControllerExpandVolume(ctx context.Context, in *ControllerExpandVolumeRequest, opts ...grpc.CallOption) (*ControllerExpandVolumeResponse, error)
+	ControllerGetVolume(ctx context.Context, in *ControllerGetVolumeRequest, opts ...grpc.CallOption) (*ControllerGetVolumeResponse, error)
 }
 
 type controllerClient struct {
@@ -5069,6 +6330,15 @@ func (c *controllerClient) ControllerExpandVolume(ctx context.Context, in *Contr
 	return out, nil
 }
 
+func (c *controllerClient) ControllerGetVolume(ctx context.Context, in *ControllerGetVolumeRequest, opts ...grpc.CallOption) (*ControllerGetVolumeResponse, error) {
+	out := new(ControllerGetVolumeResponse)
+	err := c.cc.Invoke(ctx, "/csi.v1.Controller/ControllerGetVolume", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControllerServer is the server API for Controller service.
 type ControllerServer interface {
 	CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error)
@@ -5083,6 +6353,7 @@ type ControllerServer interface {
 	DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, error)
 	ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	ControllerExpandVolume(context.Context, *ControllerExpandVolumeRequest) (*ControllerExpandVolumeResponse, error)
+	ControllerGetVolume(context.Context, *ControllerGetVolumeRequest) (*ControllerGetVolumeResponse, error)
 }
 
 // UnimplementedControllerServer can be embedded to have forward compatible implementations.
@@ -5124,6 +6395,9 @@ func (*UnimplementedControllerServer) ListSnapshots(ctx context.Context, req *Li
 }
 func (*UnimplementedControllerServer) ControllerExpandVolume(ctx context.Context, req *ControllerExpandVolumeRequest) (*ControllerExpandVolumeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ControllerExpandVolume not implemented")
+}
+func (*UnimplementedControllerServer) ControllerGetVolume(ctx context.Context, req *ControllerGetVolumeRequest) (*ControllerGetVolumeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ControllerGetVolume not implemented")
 }
 
 func RegisterControllerServer(s *grpc.Server, srv ControllerServer) {
@@ -5346,6 +6620,24 @@ func _Controller_ControllerExpandVolume_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Controller_ControllerGetVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ControllerGetVolumeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControllerServer).ControllerGetVolume(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csi.v1.Controller/ControllerGetVolume",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControllerServer).ControllerGetVolume(ctx, req.(*ControllerGetVolumeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Controller_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "csi.v1.Controller",
 	HandlerType: (*ControllerServer)(nil),
@@ -5397,6 +6689,190 @@ var _Controller_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ControllerExpandVolume",
 			Handler:    _Controller_ControllerExpandVolume_Handler,
+		},
+		{
+			MethodName: "ControllerGetVolume",
+			Handler:    _Controller_ControllerGetVolume_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "github.com/container-storage-interface/spec/csi.proto",
+}
+
+// GroupControllerClient is the client API for GroupController service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type GroupControllerClient interface {
+	GroupControllerGetCapabilities(ctx context.Context, in *GroupControllerGetCapabilitiesRequest, opts ...grpc.CallOption) (*GroupControllerGetCapabilitiesResponse, error)
+	CreateVolumeGroupSnapshot(ctx context.Context, in *CreateVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*CreateVolumeGroupSnapshotResponse, error)
+	DeleteVolumeGroupSnapshot(ctx context.Context, in *DeleteVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*DeleteVolumeGroupSnapshotResponse, error)
+	GetVolumeGroupSnapshot(ctx context.Context, in *GetVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*GetVolumeGroupSnapshotResponse, error)
+}
+
+type groupControllerClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewGroupControllerClient(cc *grpc.ClientConn) GroupControllerClient {
+	return &groupControllerClient{cc}
+}
+
+func (c *groupControllerClient) GroupControllerGetCapabilities(ctx context.Context, in *GroupControllerGetCapabilitiesRequest, opts ...grpc.CallOption) (*GroupControllerGetCapabilitiesResponse, error) {
+	out := new(GroupControllerGetCapabilitiesResponse)
+	err := c.cc.Invoke(ctx, "/csi.v1.GroupController/GroupControllerGetCapabilities", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *groupControllerClient) CreateVolumeGroupSnapshot(ctx context.Context, in *CreateVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*CreateVolumeGroupSnapshotResponse, error) {
+	out := new(CreateVolumeGroupSnapshotResponse)
+	err := c.cc.Invoke(ctx, "/csi.v1.GroupController/CreateVolumeGroupSnapshot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *groupControllerClient) DeleteVolumeGroupSnapshot(ctx context.Context, in *DeleteVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*DeleteVolumeGroupSnapshotResponse, error) {
+	out := new(DeleteVolumeGroupSnapshotResponse)
+	err := c.cc.Invoke(ctx, "/csi.v1.GroupController/DeleteVolumeGroupSnapshot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *groupControllerClient) GetVolumeGroupSnapshot(ctx context.Context, in *GetVolumeGroupSnapshotRequest, opts ...grpc.CallOption) (*GetVolumeGroupSnapshotResponse, error) {
+	out := new(GetVolumeGroupSnapshotResponse)
+	err := c.cc.Invoke(ctx, "/csi.v1.GroupController/GetVolumeGroupSnapshot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GroupControllerServer is the server API for GroupController service.
+type GroupControllerServer interface {
+	GroupControllerGetCapabilities(context.Context, *GroupControllerGetCapabilitiesRequest) (*GroupControllerGetCapabilitiesResponse, error)
+	CreateVolumeGroupSnapshot(context.Context, *CreateVolumeGroupSnapshotRequest) (*CreateVolumeGroupSnapshotResponse, error)
+	DeleteVolumeGroupSnapshot(context.Context, *DeleteVolumeGroupSnapshotRequest) (*DeleteVolumeGroupSnapshotResponse, error)
+	GetVolumeGroupSnapshot(context.Context, *GetVolumeGroupSnapshotRequest) (*GetVolumeGroupSnapshotResponse, error)
+}
+
+// UnimplementedGroupControllerServer can be embedded to have forward compatible implementations.
+type UnimplementedGroupControllerServer struct {
+}
+
+func (*UnimplementedGroupControllerServer) GroupControllerGetCapabilities(ctx context.Context, req *GroupControllerGetCapabilitiesRequest) (*GroupControllerGetCapabilitiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GroupControllerGetCapabilities not implemented")
+}
+func (*UnimplementedGroupControllerServer) CreateVolumeGroupSnapshot(ctx context.Context, req *CreateVolumeGroupSnapshotRequest) (*CreateVolumeGroupSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateVolumeGroupSnapshot not implemented")
+}
+func (*UnimplementedGroupControllerServer) DeleteVolumeGroupSnapshot(ctx context.Context, req *DeleteVolumeGroupSnapshotRequest) (*DeleteVolumeGroupSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteVolumeGroupSnapshot not implemented")
+}
+func (*UnimplementedGroupControllerServer) GetVolumeGroupSnapshot(ctx context.Context, req *GetVolumeGroupSnapshotRequest) (*GetVolumeGroupSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVolumeGroupSnapshot not implemented")
+}
+
+func RegisterGroupControllerServer(s *grpc.Server, srv GroupControllerServer) {
+	s.RegisterService(&_GroupController_serviceDesc, srv)
+}
+
+func _GroupController_GroupControllerGetCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupControllerGetCapabilitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GroupControllerServer).GroupControllerGetCapabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csi.v1.GroupController/GroupControllerGetCapabilities",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GroupControllerServer).GroupControllerGetCapabilities(ctx, req.(*GroupControllerGetCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GroupController_CreateVolumeGroupSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateVolumeGroupSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GroupControllerServer).CreateVolumeGroupSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csi.v1.GroupController/CreateVolumeGroupSnapshot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GroupControllerServer).CreateVolumeGroupSnapshot(ctx, req.(*CreateVolumeGroupSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GroupController_DeleteVolumeGroupSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteVolumeGroupSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GroupControllerServer).DeleteVolumeGroupSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csi.v1.GroupController/DeleteVolumeGroupSnapshot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GroupControllerServer).DeleteVolumeGroupSnapshot(ctx, req.(*DeleteVolumeGroupSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GroupController_GetVolumeGroupSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVolumeGroupSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GroupControllerServer).GetVolumeGroupSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/csi.v1.GroupController/GetVolumeGroupSnapshot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GroupControllerServer).GetVolumeGroupSnapshot(ctx, req.(*GetVolumeGroupSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _GroupController_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "csi.v1.GroupController",
+	HandlerType: (*GroupControllerServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GroupControllerGetCapabilities",
+			Handler:    _GroupController_GroupControllerGetCapabilities_Handler,
+		},
+		{
+			MethodName: "CreateVolumeGroupSnapshot",
+			Handler:    _GroupController_CreateVolumeGroupSnapshot_Handler,
+		},
+		{
+			MethodName: "DeleteVolumeGroupSnapshot",
+			Handler:    _GroupController_DeleteVolumeGroupSnapshot_Handler,
+		},
+		{
+			MethodName: "GetVolumeGroupSnapshot",
+			Handler:    _GroupController_GetVolumeGroupSnapshot_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

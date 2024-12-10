@@ -15,7 +15,7 @@ require (
 	github.com/kata-containers/kata-containers/src/runtime v0.0.0-20220902020102-6de4bfd8607a
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2
+	github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209124329-5c591dc417e0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/ricochet2200/go-disk-usage v0.0.0-20150921141558-f0d1b743428f
 	github.com/spf13/cobra v1.7.0

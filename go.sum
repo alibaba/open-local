@@ -1915,8 +1915,8 @@ github.com/pelletier/go-toml v1.7.0/go.mod h1:vwGMzjaWMwyfHwgIBhI2YUM4fB6nL6lVAv
 github.com/pelletier/go-toml v1.8.1/go.mod h1:T2/BmBdy8dvIRq1a/8aqjN41wvWlN4lrapLU/GW4pbc=
 github.com/pelletier/go-toml v1.9.3/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
 github.com/pelletier/go-toml v1.9.4/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
-github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2 h1:PzbooYxamvlhFWjJXahBdWQJbQa5k3fqmF5irchwUbg=
-github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209091758-458c22961dd2/go.mod h1:ph/4v2i4YPQ4/i0aBjwqKshKJ8f+n+0/av4vzoTM06w=
+github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209124329-5c591dc417e0 h1:R03BHagajNz8RGFXla5tgWEIXEg5BW9cRHdnc6Rypyo=
+github.com/peter-wangxu/simple-golang-tools v0.0.0-20210209124329-5c591dc417e0/go.mod h1:ph/4v2i4YPQ4/i0aBjwqKshKJ8f+n+0/av4vzoTM06w=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/phayes/checkstyle v0.0.0-20170904204023-bfd46e6a821d/go.mod h1:3OzsM7FXDQlpCiw2j81fOmAwQLnZnLGXVKUzeKQXIAw=
 github.com/pierrec/lz4 v2.0.5+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=

@@ -244,13 +244,21 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
+	ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(volumeID)
+
 	if err := ns.osTool.CleanupMountPoint(targetPath, ns.k8smounter, true /*extensiveMountPointCheck*/); err != nil {
-		return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s", volumeID, targetPath, err.Error())
+		if strings.HasSuffix(strings.TrimSpace(err.Error()), "directory not empty") {
+			log.Infof("NodeUnpublishVolume: failed to umount target path %s cause not empty, try to force remove it", targetPath)
+			if e2 := os.RemoveAll(targetPath); e2 != nil {
+				return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s, and failed to force remove it: %s", volumeID, targetPath, err.Error(), e2.Error())
+			}
+		} else {
+			return nil, status.Errorf(codes.Internal, "NodeUnpublishVolume: fail to umount volume %s for path %s: %s", volumeID, targetPath, err.Error())
+		}
 	}
 
 	// Step 3: delete ephemeral device
 	var err error
-	ephemeralDevice, exist := ns.ephemeralVolumeStore.GetDevice(volumeID)
 	if exist && ephemeralDevice != "" {
 		// /dev/mapper/yoda--pool0-yoda--5c523416--7288--4138--95e0--f9392995959f
 		if ns.spdkSupported {
